@@ -8,8 +8,11 @@ from pathlib import Path
 import streamlit as st
 
 from core import vault, markdown
-from core.config import SYSTEM_PATH, DATA_DIR
+from core.config import SYSTEM_PATH, DATA_DIR, get_logger
 from modules.projects import workspace, templates
+from modules.agents.skills import ask_about_project
+
+logger = get_logger(__name__)
 
 PROJECT_INDEX_PATH = SYSTEM_PATH / "Project_Index.md"
 LAST_ACTIVE_FILE = DATA_DIR / "last_active.json"
@@ -267,3 +270,34 @@ with st.expander("README", expanded=False):
         st.markdown(content)
     else:
         st.caption("No README.md in this project.")
+
+# --- 8. Ask Claude about this project ----------------------------------------
+with st.container(border=True):
+    st.subheader("🤖 Ask Claude about this project")
+    st.caption(
+        "Loads this project's key files and answers via `claude -p` "
+        "(Claude Max subscription — zero API cost)."
+    )
+    question = st.text_area("Question", key=f"ask_{pid}")
+    if st.button("Ask", key=f"ask_btn_{pid}", type="primary"):
+        if not question.strip():
+            st.warning("Type a question first.")
+        else:
+            with st.spinner("Asking Claude about this project…"):
+                try:
+                    st.session_state[f"ask_resp_{pid}"] = ask_about_project.ask(pid, question)
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("Ask-about-project failed")
+                    st.error(f"Ask failed: {exc}")
+
+    _response = st.session_state.get(f"ask_resp_{pid}")
+    if _response:
+        st.markdown(_response)
+        if st.button("Append to Project_Log.md", key=f"ask_save_{pid}"):
+            try:
+                workspace.append_project_log(
+                    pid, f"**Ask Claude — Q:** {question.strip()}\n\n{_response}"
+                )
+                st.success("Appended to Project_Log.md")
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Save failed: {exc}")

@@ -1,9 +1,15 @@
 """Central configuration: paths, env loading."""
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Return a module logger (centralized so handlers can be tuned here later)."""
+    return logging.getLogger(name)
 
 VAULT_PATH = Path(r"C:\Users\david\OneDrive\David_Work_OS")
 SYSTEM_PATH = VAULT_PATH / "99_System"

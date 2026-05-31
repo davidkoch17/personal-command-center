@@ -40,3 +40,23 @@ key_files = [
 st.table(
     [{"File": name, "Last modified": mtime_or_missing(p)} for name, p in key_files]
 )
+
+# Market Researcher schedule -------------------------------------------------
+st.subheader("Market Researcher schedule")
+st.caption("The weekly agent auto-runs every Sunday at 19:00 Frankfurt time.")
+st.markdown(
+    """
+To enable the Sunday 19:00 auto-run:
+
+1. Open Task Scheduler (Win+R, type `taskschd.msc`).
+2. Create Task → name **Market Researcher**.
+3. Trigger: weekly, Sunday, 19:00.
+4. Action: Start a program → point it at `run_market_researcher.bat` in the
+   project directory (or `python` with arguments `-m modules.agents.market_researcher`,
+   "Start in" set to the project dir).
+5. Tick *Run whether user is logged on or not* for headless runs.
+
+Until then, run manually from the **Agents** page (**Run now**) or by
+double-clicking `run_market_researcher.bat`.
+"""
+)

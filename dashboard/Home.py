@@ -415,6 +415,19 @@ st.write("")
 # ----------------------------------------------------------------------------
 with st.container(border=True):
     st.subheader("Recent activity")
+
+    # Highlight the latest Market Brief if produced within the last 7 days.
+    try:
+        from modules.agents import market_researcher as _mr
+
+        _last_brief = _mr.last_run_date()
+        if _last_brief and (date.today() - _last_brief) <= timedelta(days=7):
+            st.success(
+                f"📈 **Market Brief — {_last_brief.isoformat()}** · view on the Agents page"
+            )
+    except Exception:  # noqa: BLE001
+        pass
+
     try:
         recent = activity.recent_files(limit=6, days=14)
     except Exception:  # noqa: BLE001
