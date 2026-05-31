@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core import vault, markdown
 from core.config import (
     SYSTEM_PATH,
@@ -27,9 +28,22 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+inject_theme()
+inject_shortcuts()
 
 TASKS_PATH = SYSTEM_PATH / "Task_Command_Center.md"
 PROJECT_INDEX_PATH = SYSTEM_PATH / "Project_Index.md"
+
+
+# --- Cached wrappers for slow data sources (15 min TTL) ----------------------
+@st.cache_data(ttl=900)
+def _cached_recent_files(limit: int = 6, days: int = 14) -> list[dict]:
+    return activity.recent_files(limit=limit, days=days)
+
+
+@st.cache_data(ttl=900)
+def _cached_recent_commits(limit: int = 3) -> list[dict]:
+    return github.recent_commits(limit=limit)
 
 
 def status_span(label: str, color: str) -> str:
@@ -475,7 +489,7 @@ with st.container(border=True):
         pass
 
     try:
-        recent = activity.recent_files(limit=6, days=14)
+        recent = _cached_recent_files(limit=6, days=14)
     except Exception:  # noqa: BLE001
         recent = []
     if recent:
@@ -494,7 +508,7 @@ with st.container(border=True):
 
     # Recent code commits (GitHub) — only when configured.
     if github.is_configured():
-        _commits = github.recent_commits(limit=3)
+        _commits = _cached_recent_commits(limit=3)
         if _commits:
             st.markdown("**Recent code commits**")
             for _c in _commits:

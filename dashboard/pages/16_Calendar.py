@@ -6,9 +6,12 @@ from datetime import date, datetime, timedelta
 
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from modules.integrations import calendar_ical
 
 st.set_page_config(page_title="Calendar", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Calendar")
 
 

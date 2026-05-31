@@ -4,10 +4,13 @@ from pathlib import Path
 
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core import vault
 from core.config import VAULT_PATH
 
 st.set_page_config(page_title="Career", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Career")
 
 CAREER_PATH = VAULT_PATH / "3_Career"

@@ -10,6 +10,51 @@ streamlit run dashboard/Home.py
 
 The dashboard opens at http://localhost:8501.
 
+## One-click launch (Windows desktop shortcut)
+
+1. Right-click on your Desktop → New → Shortcut.
+2. Location: `C:\Users\david\Desktop\claude code\personal_command_center\start_dashboard.bat`
+3. Name: `Command Center`.
+4. Optional: right-click the shortcut → Properties → Change Icon → pick anything (e.g. a chart icon).
+
+Double-click the icon to launch dashboard. Browser opens automatically.
+
+## Access from iPad / phone
+
+1. Make sure your laptop is on the same Wi-Fi as the iPad.
+2. On the laptop, find your local IP: open PowerShell, run `ipconfig` — look for "IPv4 Address" under your active adapter (usually `192.168.x.x`).
+3. On the iPad, open Safari → `http://<your-laptop-ip>:8501`.
+4. Bookmark to home screen for one-tap access.
+
+Note: only works while laptop is on + Streamlit is running.
+
+**Security:** the dashboard is wide-open on your local network — anyone on your Wi-Fi can reach it. Fine at home. If on public Wi-Fi (coffee shop, hotel), either don't run it OR set address back to `localhost`.
+
+## Backup to private GitHub
+
+The code repo lives on Desktop; OneDrive does NOT cover it. Push to a private GitHub repo for offsite backup.
+
+1. Create a private repo at https://github.com/new — name: `personal-command-center`, visibility: Private.
+2. Locally, in PowerShell at the project root:
+
+```
+git remote add origin https://github.com/<your-username>/personal-command-center.git
+git branch -M main
+git push -u origin main
+```
+
+3. Subsequent pushes: just `git push`. Recommend pushing after each commit.
+
+`.env` is gitignored — credentials never reach GitHub.
+
+## Keyboard shortcuts
+
+- **Ctrl+1** — Home
+- **Ctrl+2** — Tasks
+- **Ctrl+3** — Projects
+- **Ctrl+I** — Inbox
+- **Ctrl+/** — Search
+
 ## Structure
 - `dashboard/` — Streamlit UI (home page + sidebar pages)
 - `core/` — config, vault reader
@@ -24,6 +69,7 @@ The dashboard opens at http://localhost:8501.
 - Phase 4: live financial data
 - Phase 5: agents + skills
 - Phase 6: external integrations
+- Phase 7: operational polish (theme, search, diagnostics, caching, shortcuts, mobile access)
 
 ## Agents & Skills (Phase 5)
 

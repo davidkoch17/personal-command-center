@@ -6,12 +6,15 @@ from pathlib import Path
 import frontmatter
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core import vault
 from core.config import PROJECTS_PATH
 from modules.integrations import youtube
 from modules.projects.ideas import _extract_h1
 
 st.set_page_config(page_title="Brand", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Brand")
 
 BRAND_PATH = PROJECTS_PATH / "05_Personal_Brand"

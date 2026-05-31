@@ -3,11 +3,14 @@ from datetime import date
 
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core import vault
 from modules.habits import health_journal
 from modules.integrations import whoop
 
 st.set_page_config(page_title="Health", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Health Journal")
 
 # ----------------------------------------------------------------------------

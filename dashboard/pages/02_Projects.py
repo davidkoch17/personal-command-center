@@ -7,6 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core import vault, markdown
 from core.config import SYSTEM_PATH, DATA_DIR, get_logger
 from modules.projects import workspace, templates
@@ -18,6 +19,8 @@ PROJECT_INDEX_PATH = SYSTEM_PATH / "Project_Index.md"
 LAST_ACTIVE_FILE = DATA_DIR / "last_active.json"
 
 st.set_page_config(page_title="Projects", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Projects")
 
 

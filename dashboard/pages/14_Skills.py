@@ -6,12 +6,15 @@ from pathlib import Path
 
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core.config import VAULT_PATH, get_logger
 from modules.agents.skills import earnings_reviewer, model_builder, valuation_reviewer
 
 logger = get_logger(__name__)
 
 st.set_page_config(page_title="Skills", page_icon="🛠️", layout="wide")
+inject_theme()
+inject_shortcuts()
 
 st.title("🛠️ Skills")
 st.caption("On-demand research skills. Each runs once via `claude -p` — zero API cost.")

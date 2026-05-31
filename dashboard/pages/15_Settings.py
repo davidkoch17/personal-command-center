@@ -5,17 +5,63 @@ from pathlib import Path
 import streamlit as st
 
 from core import config
+from dashboard._theme import inject_theme, inject_shortcuts
 from modules.integrations import github, travel
+from modules.integrations.diagnostics import run_all
 
 st.set_page_config(page_title="Settings", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Settings")
 st.caption("Configured paths and last-modified timestamps for key vault files.")
+
+
+@st.cache_data(ttl=900)
+def _cached_commits(limit: int = 10) -> list[dict]:
+    return github.recent_commits(limit=limit)
 
 
 def mtime_or_missing(p: Path) -> str:
     if not p.exists():
         return "missing"
     return datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+
+
+# Integration diagnostics -----------------------------------------------------
+with st.container(border=True):
+    st.subheader("Integration diagnostics")
+    if st.button("Run health check"):
+        results = run_all()
+        for r in results:
+            status_color = {"ok": "#10B981", "not_configured": "#9CA3AF", "error": "#EF4444"}.get(r["status"], "#9CA3AF")
+            status_label = {"ok": "OK", "not_configured": "Not configured", "error": "ERROR"}.get(r["status"], r["status"])
+            st.markdown(
+                f"<div style='display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #2a2e36'>"
+                f"<span><strong>{r['name']}</strong></span>"
+                f"<span style='color:{status_color}'>{status_label}{' — ' + r.get('detail','') if r.get('detail') else ''}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+# Cache control ---------------------------------------------------------------
+with st.container(border=True):
+    st.subheader("Cache")
+    st.caption("Cached data (prices, news, commits, vault activity) refreshes every 15 minutes.")
+    if st.button("Clear cache"):
+        st.cache_data.clear()
+        st.toast("Cache cleared")
+
+# Keyboard shortcuts ----------------------------------------------------------
+with st.expander("Keyboard shortcuts"):
+    st.markdown(
+        """
+    - **Ctrl+1** — Home
+    - **Ctrl+2** — Tasks
+    - **Ctrl+3** — Projects
+    - **Ctrl+I** — Inbox
+    - **Ctrl+/** — Search
+    """
+    )
 
 
 # Paths -----------------------------------------------------------------------
@@ -67,7 +113,7 @@ st.subheader("GitHub")
 if not github.is_configured():
     st.info("GitHub not configured. Add `GITHUB_PAT` and `GITHUB_USERNAME` to `.env`.")
 else:
-    commits = github.recent_commits(limit=10)
+    commits = _cached_commits(limit=10)
     if not commits:
         st.caption("No commits found (or the request failed).")
     else:

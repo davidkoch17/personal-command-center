@@ -6,10 +6,14 @@ import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
 
+from dashboard._theme import inject_theme, inject_shortcuts
+from dashboard._charts import styled_pie
 from modules.finance import loader, money, portfolio
 from modules.integrations import kraken, tradingview
 
 st.set_page_config(page_title="Portfolio", layout="wide")
+inject_theme()
+inject_shortcuts()
 
 # Dark theme + emerald-led palette to match the dashboard.
 PLOTLY_TEMPLATE = "plotly_dark"
@@ -81,10 +85,8 @@ with tab_portfolio:
         # 3. Allocation by Type (pie) --------------------------------------
         st.subheader("Allocation by type")
         by_type = holdings.groupby("Type", dropna=True)["Value (€)"].sum().reset_index()
-        fig = px.pie(
-            by_type, names="Type", values="Value (€)", hole=0.45,
-            template=PLOTLY_TEMPLATE, color_discrete_sequence=EMERALD_SEQUENCE,
-        )
+        fig = styled_pie(by_type, names="Type", values="Value (€)")
+        fig.update_traces(hole=0.45)
         fig.update_layout(margin=dict(t=10, b=0, l=0, r=0), height=320)
         st.plotly_chart(fig, use_container_width=True)
 

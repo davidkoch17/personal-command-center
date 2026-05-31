@@ -5,12 +5,15 @@ import os
 
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core.config import get_logger
 from modules.agents import market_researcher as mr
 
 logger = get_logger(__name__)
 
 st.set_page_config(page_title="Agents", page_icon="🤖", layout="wide")
+inject_theme()
+inject_shortcuts()
 
 st.title("🤖 Agents")
 

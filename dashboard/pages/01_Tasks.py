@@ -1,12 +1,15 @@
 """Tasks — full task list from Task_Command_Center.md with toggleable checkboxes."""
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core import vault, markdown
 from core.config import SYSTEM_PATH
 
 TASKS_PATH = SYSTEM_PATH / "Task_Command_Center.md"
 
 st.set_page_config(page_title="Tasks", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Tasks")
 st.caption(f"Source: {TASKS_PATH.name} — toggles write back to the vault (a .bak is kept).")
 

@@ -5,11 +5,14 @@ from datetime import date, datetime
 
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core import vault
 from core.config import SYSTEM_PATH
 from modules.projects import journal, weekly_review
 
 st.set_page_config(page_title="Journal", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Journal")
 
 WEEKLY_REVIEW_TEMPLATE = SYSTEM_PATH / "Weekly_Review.md"

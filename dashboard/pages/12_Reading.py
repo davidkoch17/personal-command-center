@@ -1,10 +1,13 @@
 """Reading — show reading list (To read / Reading now / Done) from Reading_List.md."""
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from core import vault, markdown
 from core.config import READING_LIST_PATH
 
 st.set_page_config(page_title="Reading", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Reading")
 
 md = vault.read_md(READING_LIST_PATH)

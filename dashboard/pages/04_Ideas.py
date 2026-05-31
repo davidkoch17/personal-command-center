@@ -1,10 +1,13 @@
 """Ideas — surface the business-idea pipeline from 1_Projects/98_Ideen/."""
 import streamlit as st
 
+from dashboard._theme import inject_theme, inject_shortcuts
 from modules.projects import ideas
 from modules.projects.ideas import IDEEN_PATH
 
 st.set_page_config(page_title="Ideas", layout="wide")
+inject_theme()
+inject_shortcuts()
 st.title("Ideas")
 st.caption(
     "Pipeline of business ideas. Each gets validated through the "
