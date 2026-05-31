@@ -1,12 +1,24 @@
 """Mission Control — Personal Command Center home page (phase 2, live vault data)."""
-from datetime import date
+import json
+import os
+import re
+from datetime import date, datetime, timedelta
 
 import streamlit as st
 
 from core import vault, markdown
-from core.config import SYSTEM_PATH, INBOX_PATH, READING_LIST_PATH
+from core.config import (
+    SYSTEM_PATH,
+    INBOX_PATH,
+    READING_LIST_PATH,
+    PROJECTS_PATH,
+    DATA_DIR,
+)
 from modules.habits import health_journal
 from modules.finance import money, portfolio, watchlist
+from modules.projects import activity
+
+LAST_ACTIVE_FILE = DATA_DIR / "last_active.json"
 
 st.set_page_config(
     page_title="Command Center",
@@ -50,6 +62,64 @@ def today_entry_preview(raw: str) -> tuple[str, list[str]]:
     return mood, notes
 
 
+def _ago(dt: datetime) -> str:
+    """Human relative time, e.g. 'just now', '12m ago', '3h ago', '2d ago'."""
+    secs = (datetime.now() - dt).total_seconds()
+    if secs < 60:
+        return "just now"
+    if secs < 3600:
+        return f"{int(secs // 60)}m ago"
+    if secs < 86400:
+        return f"{int(secs // 3600)}h ago"
+    return f"{int(secs // 86400)}d ago"
+
+
+def _due_task_count(tasks_md: str, days: int = 7) -> int:
+    """Count unchecked task bullets carrying an ISO date due within ``days``."""
+    if not tasks_md:
+        return 0
+    today_d = date.today()
+    horizon = today_d + timedelta(days=days)
+    count = 0
+    for line in tasks_md.split("\n"):
+        s = line.strip()
+        if not s.startswith("- ["):
+            continue
+        if "[x]" in s.lower():
+            continue
+        for m in re.finditer(r"(\d{4})-(\d{2})-(\d{2})", s):
+            try:
+                d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            except ValueError:
+                continue
+            if today_d <= d <= horizon:
+                count += 1
+                break
+    return count
+
+
+def _quiet_project_count(days: int = 14) -> int:
+    """Projects whose Project_Log.md has not been touched in ``days``+ days."""
+    if not PROJECTS_PATH.exists():
+        return 0
+    cutoff = datetime.now().timestamp() - days * 86400
+    count = 0
+    for d in PROJECTS_PATH.iterdir():
+        if not d.is_dir() or len(d.name) < 2 or not d.name[:2].isdigit():
+            continue
+        if d.name.startswith("98"):  # Ideen pipeline, not a tracked project
+            continue
+        log = d / "Project_Log.md"
+        if log.exists() and log.stat().st_mtime < cutoff:
+            count += 1
+    return count
+
+
+def _old_inbox_count(days: int = 7) -> int:
+    cutoff = datetime.now().timestamp() - days * 86400
+    return sum(1 for f in vault.list_files(INBOX_PATH) if f.stat().st_mtime < cutoff)
+
+
 # ----------------------------------------------------------------------------
 # 1. Header
 # ----------------------------------------------------------------------------
@@ -77,13 +147,46 @@ hard_dates = (
 )
 st.markdown(hard_dates, unsafe_allow_html=True)
 
+# Read tasks once up front — used by the alert banner and the Today block.
+tasks_md = vault.read_md(TASKS_PATH)
+
+# --- Alert banner (simplified notifications) --------------------------------
+_signals: list[str] = []
+_due = _due_task_count(tasks_md)
+if _due:
+    _signals.append(f"{_due} task(s) due this week.")
+_quiet = _quiet_project_count()
+if _quiet:
+    _signals.append(f"{_quiet} project(s) went quiet (no log in 14+ days).")
+_old_inbox = _old_inbox_count()
+if _old_inbox:
+    _signals.append(f"{_old_inbox} inbox item(s) waiting >7 days.")
+if _signals:
+    st.warning("  \n".join(f"- {s}" for s in _signals))
+
+# --- Continue where you left off --------------------------------------------
+if LAST_ACTIVE_FILE.exists():
+    try:
+        _rec = json.loads(LAST_ACTIVE_FILE.read_text(encoding="utf-8"))
+        _ts = datetime.fromisoformat(_rec["timestamp"])
+        with st.container(border=True):
+            c_last, c_resume = st.columns([4, 1])
+            c_last.markdown(
+                f"**Continue where you left off:** {_rec.get('name', '—')}  ·  {_ago(_ts)}"
+            )
+            with c_resume:
+                try:
+                    st.page_link("pages/02_Projects.py", label="Resume")
+                except Exception:  # noqa: BLE001
+                    pass
+    except Exception:  # noqa: BLE001
+        pass
+
 st.write("")
 
 # ----------------------------------------------------------------------------
 # 2. Row 1: Today + Quick capture
 # ----------------------------------------------------------------------------
-tasks_md = vault.read_md(TASKS_PATH)
-
 col_today, col_capture = st.columns([2, 1])
 
 with col_today:
@@ -304,3 +407,28 @@ with st.container(border=True):
             st.markdown("[Open health journal](#)")
         if st.button("Quick add", key="health_quick"):
             st.toast("Open the Health page to add an entry")
+
+st.write("")
+
+# ----------------------------------------------------------------------------
+# 7. Row 6: Recent activity (vault files touched lately)
+# ----------------------------------------------------------------------------
+with st.container(border=True):
+    st.subheader("Recent activity")
+    try:
+        recent = activity.recent_files(limit=6, days=14)
+    except Exception:  # noqa: BLE001
+        recent = []
+    if recent:
+        for i, r in enumerate(recent):
+            c_name, c_open = st.columns([5, 1])
+            with c_name:
+                st.markdown(r["name"])
+                st.caption(f"{r['mtime'].strftime('%Y-%m-%d %H:%M')}  ·  {_ago(r['mtime'])}")
+            if c_open.button("Open", key=f"recent_{i}"):
+                try:
+                    os.startfile(str(r["path"]))  # noqa: S606 — Windows only, intentional
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Could not open {r['name']}: {exc}")
+    else:
+        st.caption("No recent file activity.")
