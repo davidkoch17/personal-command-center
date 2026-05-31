@@ -17,6 +17,7 @@ from core.config import (
 from modules.habits import health_journal
 from modules.finance import money, portfolio, watchlist
 from modules.projects import activity
+from modules.integrations import calendar_ical, github, travel, whoop
 
 LAST_ACTIVE_FILE = DATA_DIR / "last_active.json"
 
@@ -185,6 +186,31 @@ if LAST_ACTIVE_FILE.exists():
 st.write("")
 
 # ----------------------------------------------------------------------------
+# 1b. Calendar — next 5 events
+# ----------------------------------------------------------------------------
+with st.container(border=True):
+    st.subheader("Calendar — next 5 events")
+    if not calendar_ical.is_configured():
+        st.caption("Calendar not configured. Add `OUTLOOK_ICAL_URL` to `.env`.")
+    else:
+        _events = calendar_ical.next_events(5)
+        if not _events:
+            st.caption("No upcoming events.")
+        else:
+            for _ev in _events:
+                _start = _ev["start"]
+                if isinstance(_start, datetime):
+                    _when = _start.strftime("%a %d %b %H:%M")
+                elif isinstance(_start, date):
+                    _when = _start.strftime("%a %d %b (all day)")
+                else:
+                    _when = str(_start)
+                _loc = f"  ·  📍 {_ev['location']}" if _ev.get("location") else ""
+                st.markdown(f"**{_ev['title'] or '(untitled)'}** — {_when}{_loc}")
+
+st.write("")
+
+# ----------------------------------------------------------------------------
 # 2. Row 1: Today + Quick capture
 # ----------------------------------------------------------------------------
 col_today, col_capture = st.columns([2, 1])
@@ -341,9 +367,9 @@ with col_money:
 st.write("")
 
 # ----------------------------------------------------------------------------
-# 5. Row 4: Signals (Inbox / Waiting for / Habits)
+# 5. Row 4: Signals (Inbox / Waiting for / Habits / Travel)
 # ----------------------------------------------------------------------------
-col_inbox, col_waiting, col_habits = st.columns(3)
+col_inbox, col_waiting, col_habits, col_travel = st.columns(4)
 
 with col_inbox:
     with st.container(border=True):
@@ -372,6 +398,24 @@ with col_habits:
         if reading["reading_now"]:
             st.caption(f"Reading: {strip_bold(reading['reading_now'][0])}")
 
+with col_travel:
+    with st.container(border=True):
+        st.subheader("Travel")
+        _trips = travel.upcoming_trips()
+        if not _trips:
+            st.caption("No upcoming trips.")
+        else:
+            for _t in _trips[:2]:
+                _dleft = travel.days_until(_t["date"])
+                if _dleft is None:
+                    _cd = ""
+                elif _dleft >= 0:
+                    _cd = f" · in {_dleft}d"
+                else:
+                    _cd = " · past"
+                st.markdown(f"**{_t['destination']}**{_cd}")
+                st.caption(_t["date"])
+
 st.write("")
 
 # ----------------------------------------------------------------------------
@@ -382,11 +426,13 @@ with st.container(border=True):
     col_whoop, col_journal, col_links = st.columns(3)
 
     with col_whoop:
-        st.metric("Recovery", "— %")
-        st.metric("Sleep", "— h")
-        st.metric("HRV", "— ms")
-        st.metric("Day Strain", "—")
-        st.caption("_Whoop API integration pending._")
+        _w = whoop.summary()
+        st.metric("Recovery", "—" if _w["recovery"] is None else f"{_w['recovery']:.0f} %")
+        st.metric("Sleep", "—" if _w["sleep_hours"] is None else f"{_w['sleep_hours']:.1f} h")
+        st.metric("HRV", "—" if _w["hrv"] is None else f"{_w['hrv']:.0f} ms")
+        st.metric("Day Strain", "—" if _w["strain"] is None else f"{_w['strain']:.1f}")
+        if not _w["configured"]:
+            st.caption("_Whoop not configured._")
 
     with col_journal:
         st.markdown("**Today's journal**")
@@ -445,3 +491,11 @@ with st.container(border=True):
                     st.error(f"Could not open {r['name']}: {exc}")
     else:
         st.caption("No recent file activity.")
+
+    # Recent code commits (GitHub) — only when configured.
+    if github.is_configured():
+        _commits = github.recent_commits(limit=3)
+        if _commits:
+            st.markdown("**Recent code commits**")
+            for _c in _commits:
+                st.caption(f"`{_c['sha']}` {_c['repo']}: {_c['message']}")

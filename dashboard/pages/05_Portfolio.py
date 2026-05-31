@@ -4,8 +4,10 @@ from __future__ import annotations
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import streamlit.components.v1 as components
 
 from modules.finance import loader, money, portfolio
+from modules.integrations import kraken, tradingview
 
 st.set_page_config(page_title="Portfolio", layout="wide")
 
@@ -68,6 +70,14 @@ with tab_portfolio:
             use_container_width=True, hide_index=True,
         )
 
+        # 2b. Per-holding TradingView charts -------------------------------
+        st.subheader("Charts")
+        st.caption("Live weekly mini-charts from TradingView.")
+        for name in table["Name"].dropna().unique():
+            symbol = tradingview.guess_symbol(str(name))
+            with st.expander(f"{name}  ·  {symbol}"):
+                components.html(tradingview.mini_chart_html(symbol), height=240)
+
         # 3. Allocation by Type (pie) --------------------------------------
         st.subheader("Allocation by type")
         by_type = holdings.groupby("Type", dropna=True)["Value (€)"].sum().reset_index()
@@ -111,8 +121,68 @@ with tab_portfolio:
 # ---------------------------------------------------------------------------
 # TAB 2 — MONEY
 # ---------------------------------------------------------------------------
+def _kraken_eur_pair(asset: str) -> str | None:
+    """Map a Kraken asset code to its EUR ticker pair, or None for EUR/dust.
+
+    Handles legacy 4-char codes (XXBT/XETH/ZEUR), staking suffixes (``SOL.S``),
+    and the ``XBT`` alias for Bitcoin.
+    """
+    base = asset.split(".")[0]  # drop staking suffix, e.g. SOL.S -> SOL
+    if len(base) == 4 and base[0] in ("X", "Z"):
+        base = base[1:]
+    if base in ("EUR", "ZEUR"):
+        return None  # already EUR
+    if base == "XBT":
+        base = "XBT"  # Kraken uses XBT for Bitcoin
+    return f"{base}EUR"
+
+
 with tab_money:
     st.title("Money")
+
+    # 0. Live crypto (Kraken) — above the Excel snapshot -------------------
+    with st.container(border=True):
+        st.subheader("Live crypto (Kraken)")
+        if not kraken.is_configured():
+            st.info("Kraken not configured. Add `KRAKEN_API_KEY` and `KRAKEN_API_SECRET` to `.env`.")
+        else:
+            bal = kraken.balance()
+            if not bal:
+                st.warning("Could not read Kraken balance (check API key permissions).")
+            else:
+                rows = []
+                total_eur = 0.0
+                for asset, amount in sorted(bal.items()):
+                    if amount <= 1e-8:
+                        continue
+                    pair = _kraken_eur_pair(asset)
+                    if pair is None:  # EUR cash
+                        price, value = 1.0, amount
+                    else:
+                        price = kraken.ticker_price(pair)
+                        value = (amount * price) if price is not None else None
+                    if value is not None:
+                        total_eur += value
+                    rows.append({
+                        "Asset": asset,
+                        "Amount": amount,
+                        "Price (€)": price,
+                        "Value (€)": value,
+                    })
+                if rows:
+                    df_k = pd.DataFrame(rows)
+                    st.dataframe(
+                        df_k.style.format({
+                            "Amount": "{:,.6f}",
+                            "Price (€)": lambda v: "—" if v is None or pd.isna(v) else f"€{v:,.2f}",
+                            "Value (€)": lambda v: "—" if v is None or pd.isna(v) else f"€{v:,.2f}",
+                        }),
+                        use_container_width=True, hide_index=True,
+                    )
+                    st.metric("Total live crypto value", euro(total_eur))
+                else:
+                    st.caption("No non-zero balances.")
+        st.caption("Live from Kraken. Excel snapshot below is a monthly point-in-time.")
 
     cash = money.current_cash_balance()
     nw = money.latest_net_worth()

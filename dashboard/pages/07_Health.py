@@ -5,6 +5,7 @@ import streamlit as st
 
 from core import vault
 from modules.habits import health_journal
+from modules.integrations import whoop
 
 st.set_page_config(page_title="Health", layout="wide")
 st.title("Health Journal")
@@ -55,9 +56,14 @@ else:
 # ----------------------------------------------------------------------------
 st.divider()
 st.subheader("Whoop")
+_w = whoop.summary()
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Recovery", "— %")
-col2.metric("Sleep", "— h")
-col3.metric("HRV", "— ms")
-col4.metric("Day Strain", "—")
-st.caption("_Whoop API integration pending._")
+col1.metric("Recovery", "—" if _w["recovery"] is None else f"{_w['recovery']:.0f} %")
+col2.metric("Sleep", "—" if _w["sleep_hours"] is None else f"{_w['sleep_hours']:.1f} h")
+col3.metric("HRV", "—" if _w["hrv"] is None else f"{_w['hrv']:.0f} ms")
+col4.metric("Day Strain", "—" if _w["strain"] is None else f"{_w['strain']:.1f}")
+if not _w["configured"]:
+    st.caption("_Whoop not configured — add `WHOOP_*` to `.env`, then run "
+               "`python -m modules.integrations.whoop_auth` (see README)._")
+else:
+    st.caption("_Live from Whoop._")

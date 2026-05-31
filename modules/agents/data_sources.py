@@ -88,6 +88,45 @@ def ticker_news(ticker: str, limit: int = 10) -> list[dict]:
         return []
 
 
+def news_api_headlines(ticker: str, limit: int = 10) -> list[dict]:
+    """Alpha Vantage news for a ticker, normalized to the ticker_news shape.
+
+    Returns ``[{title, publisher, link, publish_time}, ...]``. Empty when the
+    Alpha Vantage key is missing (graceful degradation).
+    """
+    from modules.integrations import news_api
+
+    out: list[dict] = []
+    for item in news_api.ticker_news_with_sentiment(ticker, limit=limit):
+        sentiment = item.get("overall_sentiment", "")
+        publisher = item.get("source", "")
+        if sentiment:
+            publisher = f"{publisher} · {sentiment}".strip(" ·")
+        out.append(
+            {
+                "title": item.get("title", ""),
+                "publisher": publisher,
+                "link": item.get("url", ""),
+                "publish_time": item.get("time_published", ""),
+            }
+        )
+    return out
+
+
+def combined_news(ticker: str, limit: int = 8) -> list[dict]:
+    """Merge Yahoo (yfinance) and Alpha Vantage headlines, deduped by URL."""
+    merged: list[dict] = []
+    seen: set[str] = set()
+    for item in ticker_news(ticker, limit=limit) + news_api_headlines(ticker, limit=limit):
+        link = (item.get("link") or "").strip()
+        key = link or item.get("title", "")
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+    return merged
+
+
 def sec_filings(ticker: str, days_back: int = 30) -> list[dict]:
     """Recent SEC filings via EDGAR.
 

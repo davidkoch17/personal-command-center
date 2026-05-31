@@ -5,6 +5,7 @@ from pathlib import Path
 import streamlit as st
 
 from core import config
+from modules.integrations import github, travel
 
 st.set_page_config(page_title="Settings", layout="wide")
 st.title("Settings")
@@ -60,3 +61,33 @@ Until then, run manually from the **Agents** page (**Run now**) or by
 double-clicking `run_market_researcher.bat`.
 """
 )
+
+# GitHub recent commits ------------------------------------------------------
+st.subheader("GitHub")
+if not github.is_configured():
+    st.info("GitHub not configured. Add `GITHUB_PAT` and `GITHUB_USERNAME` to `.env`.")
+else:
+    commits = github.recent_commits(limit=10)
+    if not commits:
+        st.caption("No commits found (or the request failed).")
+    else:
+        for c in commits:
+            st.markdown(f"**{c['repo']}** `{c['sha']}` — [{c['message']}]({c['url']})")
+            st.caption(c["date"])
+
+# Travel ---------------------------------------------------------------------
+st.subheader("Travel — upcoming trips")
+_trips = travel.upcoming_trips()
+if not _trips:
+    st.info(
+        "No trips found. Add them to `2_Personal/06_Travel/Trips.md` under "
+        "`## Upcoming` as `### YYYY-MM-DD — Destination`."
+    )
+else:
+    for t in _trips:
+        dleft = travel.days_until(t["date"])
+        countdown = "" if dleft is None else (f" · in {dleft} days" if dleft >= 0 else " · past")
+        with st.container(border=True):
+            st.markdown(f"**{t['destination']}** — {t['date']}{countdown}")
+            for d in t["details"]:
+                st.caption(d)

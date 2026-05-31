@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from modules.finance import watchlist
+from modules.integrations import tradingview
 
 st.set_page_config(page_title="Watchlist", layout="wide")
 st.title("Watchlist")
@@ -41,9 +43,9 @@ with st.form("add_watchlist", clear_on_submit=True):
         except ValueError as exc:
             st.error(str(exc))
 
-# 3. Per-ticker future placeholders ----------------------------------------
+# 3. Per-ticker research views ----------------------------------------------
 st.subheader("Research views")
-st.caption("News, earnings and model views per ticker — coming in phase 4.")
+st.caption("Live chart per name. News, earnings and model views — coming later.")
 for it in items:
     tk = str(it.get("ticker", "")).strip().upper()
     if not tk:
@@ -51,4 +53,5 @@ for it in items:
     with st.expander(f"{tk} — {it.get('name', '')}".strip(" —")):
         st.write(f"**Status:** {it.get('status', '—')}")
         st.write(f"**Notes:** {it.get('notes', '') or '—'}")
-        st.caption("News · Earnings · Model views — _Coming in phase 4._")
+        symbol = tradingview.guess_symbol(tk)
+        components.html(tradingview.mini_chart_html(symbol), height=240)

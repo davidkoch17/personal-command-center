@@ -44,7 +44,8 @@ def gather_data(universe: dict) -> dict:
                 all_tickers.append(entry["ticker"])
     for tk in all_tickers:
         out["snapshots"][tk] = data_sources.price_snapshot(tk)
-        out["news"][tk] = data_sources.ticker_news(tk, limit=8)
+        # Yahoo (yfinance) + Alpha Vantage merged, deduped by URL.
+        out["news"][tk] = data_sources.combined_news(tk, limit=8)
     return out
 
 

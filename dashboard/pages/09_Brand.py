@@ -1,12 +1,14 @@
 """Brand — render the Personal Brand workspace from 1_Projects/05_Personal_Brand/."""
 import re
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
+import frontmatter
 import streamlit as st
 
 from core import vault
 from core.config import PROJECTS_PATH
+from modules.integrations import youtube
 from modules.projects.ideas import _extract_h1
 
 st.set_page_config(page_title="Brand", layout="wide")
@@ -62,18 +64,70 @@ with st.expander("Strategy", expanded=False):
 # 3. Inspirations -------------------------------------------------------------
 with st.expander("Inspirations", expanded=False):
     inspo_dir = BRAND_PATH / "02_Inspirations"
-    if inspo_dir.exists():
-        entries = sorted(inspo_dir.iterdir())
-        if entries:
-            for p in entries:
-                st.markdown(f"- **{p.name}** — {mtime_str(p)}")
+
+    # Save a YouTube inspiration --------------------------------------------
+    st.markdown("**Save a YouTube inspiration**")
+    if not youtube.is_configured():
+        st.caption("YouTube not configured — add `YOUTUBE_API_KEY` to `.env` to fetch titles.")
+    with st.form("save_youtube", clear_on_submit=True):
+        yt_url = st.text_input("YouTube URL", placeholder="https://www.youtube.com/watch?v=…")
+        submitted_yt = st.form_submit_button("Save inspiration")
+    if submitted_yt:
+        if not yt_url.strip():
+            st.warning("Paste a YouTube URL first.")
         else:
+            meta = youtube.video_metadata(yt_url)
+            if not meta:
+                st.error("Could not fetch video metadata (check the URL and `YOUTUBE_API_KEY`).")
+            else:
+                try:
+                    inspo_dir.mkdir(parents=True, exist_ok=True)
+                    post = frontmatter.Post(
+                        meta["title"],
+                        title=meta["title"],
+                        channel=meta["channel"],
+                        url=meta["url"],
+                        thumbnail=meta["thumbnail"],
+                        video_id=meta["id"],
+                        saved_date=date.today().isoformat(),
+                    )
+                    out_path = inspo_dir / f"youtube_{meta['id']}.md"
+                    out_path.write_text(frontmatter.dumps(post), encoding="utf-8")
+                    st.success(f"Saved {out_path.name}")
+                    st.rerun()
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Could not save: {exc}")
+
+    # Gallery of saved videos + other inspiration files ---------------------
+    if inspo_dir.exists():
+        yt_files = sorted(inspo_dir.glob("youtube_*.md"), reverse=True)
+        if yt_files:
+            st.markdown("**Saved videos**")
+            cols = st.columns(3)
+            for i, p in enumerate(yt_files):
+                try:
+                    post = frontmatter.load(p)
+                    meta = post.metadata
+                except Exception:  # noqa: BLE001
+                    continue
+                with cols[i % 3]:
+                    if meta.get("thumbnail"):
+                        st.image(meta["thumbnail"], use_container_width=True)
+                    st.markdown(f"**{meta.get('title', p.stem)}**")
+                    st.caption(meta.get("channel", ""))
+                    if meta.get("url"):
+                        with st.expander("Watch"):
+                            st.video(meta["url"])
+
+        other = [p for p in sorted(inspo_dir.iterdir()) if not p.name.startswith("youtube_")]
+        if other:
+            st.markdown("**Other inspiration files**")
+            for p in other:
+                st.markdown(f"- **{p.name}** — {mtime_str(p)}")
+        if not yt_files and not other:
             st.caption("Nothing here yet.")
     else:
-        st.info(
-            f"File not found: {inspo_dir}. "
-            "Create it in the vault to populate this view."
-        )
+        st.caption("No inspirations saved yet. Use the form above to add one.")
 
 # 4. Video idea queue ---------------------------------------------------------
 with st.container(border=True):
