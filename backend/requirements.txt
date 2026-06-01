@@ -5,3 +5,10 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 pydantic>=2.5
 websockets>=12
+
+# Phase 13 — Jarvis voice layer (local STT + wake word).
+# Whisper also needs FFmpeg on PATH (winget install ffmpeg) and, on first use,
+# downloads its ~150 MB "base" model. Piper (TTS) is a standalone binary placed
+# in backend/voice/piper/ — see README.
+openai-whisper>=20231117
+pvporcupine>=3.0.0  # wake word, free for personal use with an access key

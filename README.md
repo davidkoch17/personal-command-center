@@ -71,6 +71,41 @@ Note: only works while laptop is on + Streamlit is running.
 
 **Security:** the dashboard is wide-open on your local network — anyone on your Wi-Fi can reach it. Fine at home. If on public Wi-Fi (coffee shop, hotel), either don't run it OR set address back to `localhost`.
 
+## Voice / Jarvis (Phase 13)
+
+A hold-to-talk voice layer lives in the bottom-center bar of the React
+frontend. Everything runs locally and free: Whisper transcribes, Claude (the
+local `claude -p` CLI) routes the command to an action (navigate, run a skill,
+capture to inbox, or answer), and Piper speaks a short acknowledgement.
+
+**One-time setup:**
+
+1. **FFmpeg** (Whisper needs it): `winget install ffmpeg` (or use chocolatey).
+   Open a new terminal afterwards so it's on PATH.
+2. **Piper** (text-to-speech):
+   - Download the latest Windows release from
+     https://github.com/rhasspy/piper/releases and extract so that
+     `backend/voice/piper/piper.exe` exists.
+   - Download the `en_US-lessac-medium` voice (both `.onnx` and `.onnx.json`)
+     from https://huggingface.co/rhasspy/piper-voices and place them in
+     `backend/voice/piper/`.
+   - See `backend/voice/piper/README.md` for exact paths. These files are
+     gitignored (large, per-machine).
+3. **Backend Python deps** (installs Whisper + Porcupine):
+   `pip install -r backend/requirements.txt`
+4. **First run** downloads the Whisper `base` model (~150 MB) — the first
+   transcription will be slow while it downloads, then it's cached.
+5. **(Optional, future) wake word** ("Hey Claude"): get a free Picovoice access
+   key at https://console.picovoice.ai/ and add it to `.env` as `PICOVOICE_KEY`.
+   Phase 13 ships push-to-talk only; the Settings toggle is a placeholder.
+6. Grant the browser microphone permission when first prompted.
+
+Settings → "voice (jarvis)" shows whether Whisper and Piper are installed
+(`GET /api/voice/status`).
+
+**Usage:** hold the bar, speak ("show me my portfolio", "run market research",
+"note: idea about a coffee subscription", "what's my net worth?"), release.
+
 ## Backup to private GitHub
 
 The code repo lives on Desktop; OneDrive does NOT cover it. Push to a private GitHub repo for offsite backup.

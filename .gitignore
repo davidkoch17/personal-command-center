@@ -9,3 +9,8 @@ venv/
 .DS_Store
 Thumbs.db
 *.bak
+
+# Phase 13 voice — Piper binary + voice models live in backend/voice/piper/
+# but are large and downloaded per-machine (see backend/voice/piper/README.md).
+backend/voice/piper/*
+!backend/voice/piper/README.md

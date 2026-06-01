@@ -1,4 +1,6 @@
 import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { api } from "@/lib/api"
 import { Panel } from "@/components/ui/panel"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -56,6 +58,9 @@ export function Settings() {
 
       {/* 3. Info-barrier mode */}
       <InfoBarrierSection />
+
+      {/* 3b. Voice (Jarvis) */}
+      <VoiceSection />
 
       {/* 4. Theme */}
       <Panel title="theme" statusDotColor="accent">
@@ -155,6 +160,61 @@ function InfoBarrierSection() {
             setMode(v)
             toast.show("settings-write endpoint pending", {
               detail: `set INFO_BARRIER=${v} in .env for now`,
+            })
+          }}
+        />
+      </div>
+    </Panel>
+  )
+}
+
+interface VoiceStatus {
+  whisper_installed: boolean
+  whisper_loaded: boolean
+  piper_installed: boolean
+}
+
+function VoiceSection() {
+  const [wakeWord, setWakeWord] = useState<"off" | "on">("off")
+  const status = useQuery({
+    queryKey: ["voice-status"],
+    queryFn: () => api.get<VoiceStatus>("/api/voice/status"),
+    retry: false,
+  })
+
+  const dot = (ok: boolean | undefined) =>
+    ok ? "bg-success" : "bg-text-label"
+
+  return (
+    <Panel title="voice (jarvis)" statusDotColor="accent">
+      <p className="mb-3 text-sm text-text-secondary">
+        hold the bottom-center bar to talk. local whisper transcribes, claude
+        routes the command, piper speaks back.
+      </p>
+      <div className="mb-3 flex flex-wrap gap-4 text-xs">
+        <span className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${dot(status.data?.whisper_installed)}`} />
+          whisper {status.data?.whisper_installed ? "installed" : "not installed"}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${dot(status.data?.piper_installed)}`} />
+          piper {status.data?.piper_installed ? "installed" : "not installed"}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-text-secondary">
+          wake word (“hey claude”) — future; push-to-talk for now.
+        </p>
+        <Toggle<"off" | "on">
+          value={wakeWord}
+          options={[
+            { value: "off", label: "off" },
+            { value: "on", label: "on" },
+          ]}
+          onChange={(v) => {
+            setWakeWord(v)
+            toast.show("wake word not wired yet", {
+              detail: "phase 13 ships push-to-talk; porcupine toggle is future",
             })
           }}
         />
