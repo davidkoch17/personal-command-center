@@ -33,3 +33,92 @@ WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 TRADINGVIEW_API_KEY = os.getenv("TRADINGVIEW_API_KEY", "")
+
+# --- Investing / vault research paths ---------------------------------------
+INVESTING_PATH = VAULT_PATH / "4_Areas" / "Investing"
+HYPOTHESIS_TRACKER_FILE = INVESTING_PATH / "Hypothesis_Tracker.md"
+WATCHLIST_UNIVERSE_FILE = INVESTING_PATH / "Watchlist.md"
+INVESTMENT_PHILOSOPHY_FILE = INVESTING_PATH / "Investment_Philosophy.md"
+MARKET_BRIEFS_DIR = INVESTING_PATH / "Market_Briefs"
+POSITION_NOTES_DIR = INVESTING_PATH / "Position_Notes"
+DECISION_LOG_FILE = SYSTEM_PATH / "Decision_Log.md"
+
+# Career / brand workspace anchors.
+CAREER_PATH = VAULT_PATH / "3_Career"
+ONBOARDING_FILE = CAREER_PATH / "05_Current_Job" / "Onboarding.md"
+CAREER_STRATEGY_PATH = CAREER_PATH / "06_Career_Strategy"
+PERSONAL_MEMORY_FILE = SYSTEM_PATH / "Personal_Memory.md"
+BRAND_PATH = PROJECTS_PATH / "05_Personal_Brand"
+BRAND_VIDEOS_PATH = BRAND_PATH / "03_Video_Ideas"
+
+# Default save target for generic tax scenarios (real-estate ones go to Immos, etc.).
+STEUERN_SCENARIOS_PATH = VAULT_PATH / "2_Personal" / "03_Steuern" / "Scenarios"
+
+
+# --- Info-barrier mode (Evercore) -------------------------------------------
+# Once David starts at Evercore, personal investing in advised names/sectors is
+# restricted. The dashboard dims those features. Auto-engages on the start date;
+# can be forced on/off via the INFO_BARRIER env var (set from the Settings page).
+EVERCORE_START_DATE = "2026-07-01"
+
+
+def info_barrier_active() -> bool:
+    """True if today is on/after Evercore start, or forced on via ``INFO_BARRIER``.
+
+    ``INFO_BARRIER`` env values: ``on`` (force), ``off`` (force), ``auto`` (date-based).
+    """
+    from datetime import date
+
+    mode = os.getenv("INFO_BARRIER", "auto").strip().lower()
+    if mode == "on":
+        return True
+    if mode == "off":
+        return False
+    return date.today().isoformat() >= EVERCORE_START_DATE
+
+
+def restricted_tickers() -> set[str]:
+    """Names/tickers under an active advisory restriction (env ``RESTRICTED_TICKERS``).
+
+    Comma-separated, upper-cased. Empty by default.
+    """
+    raw = os.getenv("RESTRICTED_TICKERS", "")
+    return {t.strip().upper() for t in raw.split(",") if t.strip()}
+
+
+def is_restricted(name: str | None) -> bool:
+    """Whether a holding/ticker is restricted for personal research right now.
+
+    Returns False unless the info-barrier is active. When active with an explicit
+    ``RESTRICTED_TICKERS`` list, only listed names match. When active with NO list,
+    everything is treated as restricted (compliance-safe default until David
+    whitelists specific names).
+    """
+    if not info_barrier_active():
+        return False
+    listed = restricted_tickers()
+    if not listed:
+        return True
+    nu = (name or "").upper()
+    return any(tok in nu or nu in tok for tok in listed if nu)
+
+
+def set_env_var(key: str, value: str) -> None:
+    """Persist ``KEY=value`` to the repo ``.env`` and apply to the live process.
+
+    Used by the Settings page (e.g. the info-barrier toggle). Rewrites an existing
+    line or appends a new one; other lines are preserved.
+    """
+    env_path = REPO_ROOT / ".env"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    prefix = f"{key}="
+    replaced = False
+    for i, line in enumerate(lines):
+        if line.strip().startswith(prefix):
+            lines[i] = f"{key}={value}"
+            replaced = True
+            break
+    if not replaced:
+        lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.environ[key] = value

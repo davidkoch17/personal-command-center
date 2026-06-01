@@ -51,6 +51,42 @@ with st.container(border=True):
         st.cache_data.clear()
         st.toast("Cache cleared")
 
+# Info-barrier mode -----------------------------------------------------------
+with st.container(border=True):
+    st.subheader("Info-barrier (Evercore)")
+    st.caption(
+        "Once at Evercore, personal research on advised names/sectors is restricted. "
+        f"Auto-engages on {config.EVERCORE_START_DATE}. Set the mode below."
+    )
+    import os as _os
+
+    current_mode = _os.getenv("INFO_BARRIER", "auto").strip().lower()
+    active = config.info_barrier_active()
+    st.markdown(
+        f"**Currently active:** {'🔒 YES' if active else 'no'}  ·  mode: `{current_mode}`"
+    )
+    mode = st.radio(
+        "Mode",
+        ["auto", "on", "off"],
+        index=["auto", "on", "off"].index(current_mode) if current_mode in ("auto", "on", "off") else 0,
+        horizontal=True,
+        help="auto = date-based (engages at Evercore start); on/off = force.",
+        key="info_barrier_mode",
+    )
+    restricted_raw = st.text_input(
+        "Restricted tickers (comma-separated; blank = restrict ALL when active)",
+        value=_os.getenv("RESTRICTED_TICKERS", ""),
+        key="restricted_tickers",
+    )
+    if st.button("Save info-barrier settings"):
+        try:
+            config.set_env_var("INFO_BARRIER", mode)
+            config.set_env_var("RESTRICTED_TICKERS", restricted_raw.strip())
+            st.success("Saved. Reload Portfolio / Watchlist to see banners apply.")
+            st.rerun()
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"Could not save: {exc}")
+
 # Keyboard shortcuts ----------------------------------------------------------
 with st.expander("Keyboard shortcuts"):
     st.markdown(
