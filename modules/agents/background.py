@@ -6,7 +6,7 @@ import os
 import psutil
 from pathlib import Path
 from datetime import datetime
-from core.config import VAULT_PATH
+from core.config import VAULT_PATH, REPO_ROOT
 
 
 BG_LOG_DIR = VAULT_PATH / "99_System" / "Background_Runs"
@@ -33,6 +33,11 @@ import importlib
 import sys
 from datetime import datetime
 from pathlib import Path
+
+# The bootstrap file lives in the vault, so its directory (sys.path[0]) is NOT
+# the repo root. Put the repo root first so ``import modules`` / ``core`` works
+# regardless of the launching process's working directory.
+sys.path.insert(0, r"{REPO_ROOT}")
 
 status_path = Path(r"{status_file}")
 

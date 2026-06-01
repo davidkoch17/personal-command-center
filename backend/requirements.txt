@@ -1,0 +1,7 @@
+# Backend-specific dependencies (Phase 11 FastAPI layer).
+# Most data/finance deps (pandas, yfinance, openpyxl, frontmatter, psutil, ...)
+# already live in the project-root requirements.txt — install that too.
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.5
+websockets>=12

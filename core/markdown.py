@@ -183,6 +183,29 @@ def parse_reading_list(md: str) -> dict[str, list[str]]:
     return buckets
 
 
+def add_task_to_section(md: str, section: str, text: str) -> str:
+    """Insert ``- [ ] {text}`` directly under the first matching section heading.
+
+    The section is matched by case-insensitive prefix against ``## `` headings,
+    so ``section="This week"`` finds ``## This week`` and ``section="This weekend"``
+    finds ``## This weekend (30-31 May)``. The new bullet is inserted immediately
+    after the heading line. Returns the markdown unchanged if ``md``/``section``/
+    ``text`` is empty or the section is absent.
+
+    Mirrors the insertion behaviour of the Inbox "convert to task" flow so the
+    REST API and the Streamlit dashboard write identically.
+    """
+    if not md or not section or not text:
+        return md
+    lines = md.split("\n")
+    target = section.strip().lower()
+    for i, line in enumerate(lines):
+        if line.startswith("## ") and line[3:].strip().lower().startswith(target):
+            lines.insert(i + 1, f"- [ ] {text.strip()}")
+            return "\n".join(lines)
+    return md
+
+
 def toggle_task(md: str, line_index: int) -> tuple[str, bool]:
     """Toggle the ``[ ]``/``[x]`` checkbox on a specific line.
 

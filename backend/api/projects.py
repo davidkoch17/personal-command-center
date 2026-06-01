@@ -1,0 +1,153 @@
+"""Projects API — wraps Project_Index.md + modules.projects.workspace."""
+from __future__ import annotations
+
+from datetime import date, datetime
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
+
+from backend.models.schemas import (
+    ProjectCard, ProjectLogEntry, ProjectNextStepToggleRequest, ProjectCreateRequest,
+)
+from core import vault, markdown
+from core.config import PROJECT_INDEX_FILE
+from modules.projects import workspace
+
+router = APIRouter()
+
+_STATUS_MAP = {
+    "ON TRACK": "on_track",
+    "NEEDS ATTENTION": "needs_attention",
+    "AT RISK": "at_risk",
+    "DONE": "done",
+}
+
+
+def _status_key(proj: dict) -> str:
+    label, _ = markdown.status_display(proj)
+    return _STATUS_MAP.get(label, "unknown")
+
+
+def _parse_date(s: str | None) -> date | None:
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s.strip())
+    except (ValueError, AttributeError):
+        return None
+
+
+def _big_milestone(milestones: list[dict]) -> dict | None:
+    """Soonest upcoming dated milestone, else the most recent past, else first."""
+    if not milestones:
+        return None
+    dated = [(m, _parse_date(m.get("date"))) for m in milestones]
+    dated = [(m, d) for m, d in dated if d is not None]
+    if dated:
+        today = date.today()
+        upcoming = sorted([(m, d) for m, d in dated if d >= today], key=lambda x: x[1])
+        if upcoming:
+            return upcoming[0][0]
+        return sorted(dated, key=lambda x: x[1])[-1][0]
+    return milestones[0]
+
+
+def _file_info(p: Path) -> dict:
+    exists = p.exists()
+    return {
+        "path": str(p),
+        "name": p.name,
+        "mtime": datetime.fromtimestamp(p.stat().st_mtime).isoformat() if exists else None,
+        "exists": exists,
+    }
+
+
+def _projects() -> list[dict]:
+    return markdown.parse_projects(vault.read_md(PROJECT_INDEX_FILE))
+
+
+@router.get("")
+def list_projects() -> list[ProjectCard]:
+    """Project cards with status, big milestone, and the first open next step."""
+    cards: list[ProjectCard] = []
+    for proj in _projects():
+        try:
+            root = workspace.project_root(proj["id"])
+            readme = vault.read_md(root / "README.md")
+        except FileNotFoundError:
+            readme = ""
+        milestones = workspace.parse_milestones(readme)
+        steps = workspace.parse_next_steps(readme)
+        open_steps = [s for s in steps if not s["checked"]]
+        big = _big_milestone(milestones)
+        cards.append(ProjectCard(
+            id=proj["id"],
+            name=proj["name"].replace("_", " "),
+            status=_status_key(proj),
+            status_emoji=proj.get("status_emoji") or "",
+            status_text=proj.get("status_text") or "",
+            big_milestone=big["text"] if big else None,
+            big_milestone_date=_parse_date(big.get("date")) if big else None,
+            next_step=(open_steps[0]["text"] if open_steps else proj.get("next_step") or None),
+            folder=proj.get("folder", ""),
+        ))
+    return cards
+
+
+@router.get("/{project_id}")
+def project_workspace(project_id: str) -> dict:
+    """Full workspace state: milestones, next steps, key files, subfolders, drafts, README."""
+    by_id = {p["id"]: p for p in _projects()}
+    if project_id not in by_id:
+        raise HTTPException(status_code=404, detail=f"Unknown project id: {project_id}")
+    proj = by_id[project_id]
+    try:
+        root = workspace.project_root(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    readme = vault.read_md(root / "README.md")
+    return {
+        "id": project_id,
+        "name": proj["name"].replace("_", " "),
+        "status": _status_key(proj),
+        "status_text": proj.get("status_text") or "",
+        "folder": proj.get("folder", ""),
+        "milestones": workspace.parse_milestones(readme),
+        "next_steps": workspace.parse_next_steps(readme),
+        "key_files": [_file_info(p) for p in workspace.parse_key_files(readme, root)],
+        "subfolders": [d.name for d in workspace.list_subfolders(project_id)],
+        "drafts": [
+            {**d, "modified": d["modified"].isoformat() if hasattr(d.get("modified"), "isoformat") else d.get("modified")}
+            for d in workspace.list_drafts(project_id)
+        ],
+        "readme_md": readme,
+    }
+
+
+@router.post("/{project_id}/log")
+def append_log(project_id: str, entry: ProjectLogEntry) -> dict:
+    """Append a session note to the project's Project_Log.md."""
+    try:
+        path = workspace.append_project_log(project_id, entry.note)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"ok": True, "path": str(path)}
+
+
+@router.post("/{project_id}/next-step/toggle")
+def toggle_next_step(project_id: str, req: ProjectNextStepToggleRequest) -> dict:
+    """Toggle a next-step checkbox in the project README by line index."""
+    try:
+        new_state = workspace.toggle_next_step(project_id, req.line_index)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    if new_state is None:
+        raise HTTPException(status_code=400, detail="Line is not a toggleable next step.")
+    return {"ok": True, "new_state": new_state}
+
+
+@router.post("")
+def create_project(req: ProjectCreateRequest) -> dict:
+    """Create a new project folder (Flow A or B) with a seeded README."""
+    path = workspace.create_project(req.name, req.flow, req.seed)
+    return {"ok": True, "path": str(path), "folder": path.name}
