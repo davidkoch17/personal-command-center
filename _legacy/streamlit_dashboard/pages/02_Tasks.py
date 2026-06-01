@@ -30,7 +30,15 @@ for header in section_headers:
     with st.expander(header, expanded=expanded):
         for item in bullets:
             key = f"task_{item['line_index']}"
-            new_val = st.checkbox(item["text"], value=item["checked"], key=key)
+            # Split toggle (checkbox) from label (markdown) so that bold/italic
+            # markdown in the task text renders instead of showing literally.
+            col1, col2 = st.columns([1, 20])
+            with col1:
+                new_val = st.checkbox(
+                    "", value=item["checked"], key=key, label_visibility="collapsed"
+                )
+            with col2:
+                st.markdown(item["text"])
             if new_val != item["checked"]:
                 new_md, _ = markdown.toggle_task(md, item["line_index"])
                 vault.write_md(TASKS_PATH, new_md)

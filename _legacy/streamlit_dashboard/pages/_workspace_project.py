@@ -141,7 +141,15 @@ with st.container(border=True):
         st.caption("Define a `## Next Steps` section in the README.")
     for s in steps:
         key = f"ns_{pid}_{s['line_index']}"
-        new_val = st.checkbox(s["text"], value=s["checked"], key=key)
+        # Split toggle (checkbox) from label (markdown) so that bold/italic
+        # markdown in the step text renders instead of showing literally.
+        col1, col2 = st.columns([1, 20])
+        with col1:
+            new_val = st.checkbox(
+                "", value=s["checked"], key=key, label_visibility="collapsed"
+            )
+        with col2:
+            st.markdown(s["text"])
         if new_val != s["checked"]:
             try:
                 workspace.toggle_next_step(pid, s["line_index"])
@@ -273,7 +281,15 @@ with st.container(border=True):
         st.caption(f"No tasks mention this project (keywords: {', '.join(keywords) or '—'}).")
     for t in matches:
         key = f"task_{pid}_{t['line_index']}"
-        new_val = st.checkbox(t["text"], value=t["checked"], key=key)
+        # Split toggle (checkbox) from label (markdown) so that bold/italic
+        # markdown in the task text renders instead of showing literally.
+        col1, col2 = st.columns([1, 20])
+        with col1:
+            new_val = st.checkbox(
+                "", value=t["checked"], key=key, label_visibility="collapsed"
+            )
+        with col2:
+            st.markdown(t["text"])
         if new_val != t["checked"]:
             new_md, _ = markdown.toggle_task(tasks_md, t["line_index"])
             vault.write_md(TASKS_PATH, new_md)
