@@ -1,55 +1,39 @@
 # Personal Command Center
 
-A local Streamlit dashboard surfacing David's tasks, projects, finances, and habits — all reading from his Obsidian vault in OneDrive.
-
-## Install
-pip install -r requirements.txt
+Dashboard for David's tasks, projects, finances, agents, ideas. React frontend + FastAPI backend + Python modules wrapping Claude Code skills.
 
 ## Run
-streamlit run dashboard/Home.py
 
-The dashboard opens at http://localhost:8501.
+Double-click `start_dashboard.bat`. It builds the React frontend, then starts
+the FastAPI backend, which serves both the API and the app at
+http://localhost:8000.
 
-## Development: three servers
+## Architecture
 
-The project runs three independent servers during development. They coexist
-peacefully on separate ports — start whichever you need.
+- `backend/` — FastAPI exposing all logic as REST + WebSocket (and serving the built React app)
+- `frontend/` — React (Vite + TS + Tailwind), Cockpit design system
+- `modules/` — Python skills, agents, integrations (unchanged from Streamlit days)
+- `core/` — shared utilities, vault helpers
+- `_legacy/` — archived Streamlit dashboard
 
-| Server | Port | Launcher | Purpose |
-|---|---|---|---|
-| Streamlit dashboard | 8501 | `start_dashboard.bat` | original UI (still fully functional) |
-| FastAPI backend | 8000 | `start_backend.bat` | REST + WebSocket API wrapping the Python modules |
-| React frontend | 5173 | `start_frontend.bat` | new Cockpit-themed UI (Phase 12+) |
+## Stack
 
-### React frontend (Vite + TypeScript + Tailwind)
+Python 3.12 + FastAPI · React 18 + TypeScript + Vite · Tailwind CSS · TanStack Query · Claude Code (via subprocess) · Whisper local STT · Piper local TTS · yfinance · Alpha Vantage · Microsoft Graph (via iCal feed) · Whoop · Kraken · GitHub · YouTube
 
-Lives in `frontend/`. Requires **Node.js 18+** (install from https://nodejs.org).
+## Development
 
-First-time / one-click launch:
+Three servers can run independently:
+- `start_backend.bat` — backend only (8000)
+- `start_frontend.bat` — Vite dev server (5173, hot reload, talks to backend on 8000)
+- `start_dashboard.bat` — production build + serve (8000 only)
 
-```
-start_frontend.bat
-```
+Requires **Node.js 18+** (https://nodejs.org) for the frontend and **Python
+3.12+** for the backend. During frontend development the Vite server proxies to
+the backend at `http://localhost:8000` (override with `VITE_API_BASE`).
 
-This runs `npm install` (slow on first run) then `npm run dev`, serving the
-Cockpit shell at http://localhost:5173.
-
-Manual:
-
-```
-cd frontend
-npm install      # one-time
-npm run dev
-```
-
-The frontend talks to the FastAPI backend at `http://localhost:8000` by default.
-Override with a `VITE_API_BASE` env var (e.g. in `frontend/.env.local`) if the
-backend runs elsewhere. For full functionality, start the backend
-(`start_backend.bat`) alongside the frontend.
-
-Like the Streamlit dashboard, the Vite dev server binds to the LAN
-(`host: true`), so an iPad/phone on the same Wi-Fi can reach it at
-`http://<your-laptop-ip>:5173`.
+## Setup
+See `99_System/Credentials_Setup_Guide.md` for one-time API credentials.
+See `99_System/Design_System.md` for the Cockpit visual language.
 
 ## One-click launch (Windows desktop shortcut)
 
@@ -64,10 +48,10 @@ Double-click the icon to launch dashboard. Browser opens automatically.
 
 1. Make sure your laptop is on the same Wi-Fi as the iPad.
 2. On the laptop, find your local IP: open PowerShell, run `ipconfig` — look for "IPv4 Address" under your active adapter (usually `192.168.x.x`).
-3. On the iPad, open Safari → `http://<your-laptop-ip>:8501`.
+3. On the iPad, open Safari → `http://<your-laptop-ip>:8000`.
 4. Bookmark to home screen for one-tap access.
 
-Note: only works while laptop is on + Streamlit is running.
+Note: only works while laptop is on + the backend is running.
 
 **Security:** the dashboard is wide-open on your local network — anyone on your Wi-Fi can reach it. Fine at home. If on public Wi-Fi (coffee shop, hotel), either don't run it OR set address back to `localhost`.
 
@@ -132,20 +116,24 @@ git push -u origin main
 - **Ctrl+/** — Search
 
 ## Structure
-- `dashboard/` — Streamlit UI (home page + sidebar pages)
+- `backend/` — FastAPI REST + WebSocket layer (serves the built React app)
+- `frontend/` — React (Vite + TS + Tailwind) Cockpit UI
 - `core/` — config, vault reader
-- `modules/` — domain logic (tasks, projects, investing, habits)
-- `skills/` — runnable scripts (later phases)
+- `modules/` — domain logic (tasks, projects, investing, habits, agents, integrations)
+- `skills/` — runnable scripts
 - `data/` — local cache (gitignored)
+- `_legacy/` — archived Streamlit dashboard (Phases 1-10)
 
 ## Build phases
-- Phase 1: empty shell with placeholder data (current)
+- Phase 1: empty shell with placeholder data
 - Phase 2: live vault reading + writes
 - Phase 3: portfolio + watchlist static
 - Phase 4: live financial data
 - Phase 5: agents + skills
 - Phase 6: external integrations
 - Phase 7: operational polish (theme, search, diagnostics, caching, shortcuts, mobile access)
+- Phases 11-13: React + FastAPI rebuild (Cockpit UI, background runs, Jarvis voice)
+- Phase 14: switch over — React Cockpit becomes primary, Streamlit archived to `_legacy/`
 
 ## Agents & Skills (Phase 5)
 
@@ -181,7 +169,7 @@ double-clicking `run_market_researcher.bat`.
 Eight external integrations. **Every one degrades gracefully** — if its
 credentials are missing it shows "Not configured — add KEY to .env" instead of
 crashing. Copy `.env.example` to `.env` and fill in the keys you want, then
-restart Streamlit. Keys can be added progressively.
+restart the backend. Keys can be added progressively.
 
 | Integration | Keys in `.env` | Where it shows |
 |---|---|---|

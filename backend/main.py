@@ -7,13 +7,22 @@ Run (LAN, for iPad access during dev):
     python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
     (see ``start_backend.bat``)
 
+As of Phase 14 this is the *single* server: it exposes the API under ``/api``
+**and** serves the production React build (``frontend/dist``) for every other
+path, so ``http://localhost:8000`` is the whole app. The Streamlit dashboard is
+archived in ``_legacy/`` and no longer runs alongside it.
+
 All business logic lives in ``core`` / ``modules``; this layer only adapts it
-to HTTP. Streamlit (port 8501) continues to work unchanged alongside this.
+to HTTP.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.api import (
     tasks, projects, ideas, inbox, portfolio, money,
@@ -28,13 +37,13 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS — localhost dev servers + Streamlit during the transition.
+# CORS — only needed for the Vite dev server (5173); in production the app is
+# served same-origin from this backend, so no cross-origin request is made.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",   # Vite dev
-        "http://localhost:3000",   # Next.js dev
-        "http://localhost:8501",   # Streamlit during transition
+        "http://localhost:3000",   # alt dev port
     ],
     # Allow any LAN IP (iPad access) on common dev ports. Starlette applies
     # allow_origin_regex in addition to allow_origins, so both rules are honoured.
@@ -63,11 +72,26 @@ app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(voice.router, prefix="/api/voice", tags=["voice"])
 
 
-@app.get("/")
-def root() -> dict:
-    return {"status": "ok", "name": "Personal Command Center API"}
-
-
 @app.get("/health")
 def health() -> dict:
     return {"status": "healthy"}
+
+
+# --- Serve the production React build ---------------------------------------
+# Registered last so the API routers and ``/health`` always win; everything
+# else falls through to the SPA. The ``/{full_path:path}`` catch-all also
+# serves real built files (favicon, etc.) and otherwise returns index.html so
+# client-side routing works on a hard refresh / deep link.
+DIST_PATH = Path(__file__).parent.parent / "frontend" / "dist"
+if DIST_PATH.exists():
+    app.mount("/assets", StaticFiles(directory=str(DIST_PATH / "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_react(full_path: str):
+        """Catch-all: serve a built file if it exists, else index.html (SPA routing)."""
+        if full_path:
+            candidate = (DIST_PATH / full_path).resolve()
+            # Guard against path traversal escaping the dist directory.
+            if DIST_PATH.resolve() in candidate.parents and candidate.is_file():
+                return FileResponse(candidate)
+        return FileResponse(DIST_PATH / "index.html")
