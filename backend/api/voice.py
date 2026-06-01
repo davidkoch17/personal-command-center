@@ -171,3 +171,113 @@ def speak(req: SpeakRequest) -> StreamingResponse:
     finally:
         out_path.unlink(missing_ok=True)
     return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/wav")
+
+
+def _assemble_briefing_context() -> str:
+    """Gather a compact snapshot of David's world for the opening briefing.
+
+    Every source is best-effort: a missing file or unconfigured integration is
+    skipped rather than failing the whole briefing.
+    """
+    from datetime import date
+
+    from core import markdown, vault
+    from core.config import PROJECT_INDEX_FILE, TASKS_FILE
+
+    parts: list[str] = []
+
+    today = date.today()
+    parts.append(f"Today is {today.strftime('%A, %B %d, %Y')}.")
+
+    # Open tasks for the near term.
+    try:
+        tasks_md = vault.read_md(TASKS_FILE)
+        bullets = (
+            markdown.parse_section_bullets(tasks_md, "This weekend")
+            or markdown.parse_section_bullets(tasks_md, "Today")
+            or []
+        )
+        unchecked = [b["text"] for b in bullets if not b["checked"]]
+        if unchecked:
+            parts.append("Open tasks for today: " + "; ".join(unchecked[:6]))
+    except Exception:  # noqa: BLE001 - briefing context is best-effort
+        logger.debug("briefing: tasks unavailable", exc_info=True)
+
+    # Portfolio snapshot.
+    try:
+        from modules.finance.portfolio import summary_metrics
+
+        m = summary_metrics()
+        parts.append(
+            f"Portfolio value: EUR {m['total_value']:.0f}, {m['position_count']} "
+            f"positions, latest snapshot {m.get('latest_snapshot')}."
+        )
+    except Exception:  # noqa: BLE001
+        logger.debug("briefing: portfolio unavailable", exc_info=True)
+
+    # Active project statuses + next steps.
+    try:
+        proj_md = vault.read_md(PROJECT_INDEX_FILE)
+        projects = markdown.parse_projects(proj_md)
+        active = [p for p in projects if "done" not in (p.get("status_text") or "").lower()]
+        if active:
+            steps = "; ".join(p["next_step"] for p in active[:3] if p.get("next_step"))
+            parts.append(f"Active projects: {len(active)}. Next steps: {steps}")
+    except Exception:  # noqa: BLE001
+        logger.debug("briefing: projects unavailable", exc_info=True)
+
+    # Most recent market brief.
+    try:
+        from modules.agents.market_researcher import BRIEFS_DIR
+
+        latest = sorted(BRIEFS_DIR.glob("*.md"), reverse=True)
+        if latest:
+            parts.append(f"Latest market brief: {latest[0].stem}.")
+    except Exception:  # noqa: BLE001
+        logger.debug("briefing: market briefs unavailable", exc_info=True)
+
+    return "\n".join(parts)
+
+
+@router.post("/briefing")
+def briefing() -> dict:
+    """Generate David's opening briefing: text, 3 suggestions, and a spoken version.
+
+    Sync (not ``async``) on purpose: ``run_claude`` is a blocking ~60s subprocess,
+    so FastAPI runs this in a worker thread instead of stalling the event loop.
+    """
+    context_text = _assemble_briefing_context()
+
+    prompt = f"""You are David's command center assistant. Generate a brief, warm morning briefing for him based on the context below.
+
+Context:
+{context_text}
+
+Generate output as JSON only, no other text:
+{{
+  "text": "The full briefing text - 4-6 sentences. Warm but efficient. Mentions key facts about today, portfolio, projects.",
+  "suggestions": ["Action 1", "Action 2", "Action 3"],
+  "spoken": "Shorter spoken version of the briefing - same info but optimized for speaking aloud, ~30-45 seconds when read at normal pace. End with: 'What would you like to start with?'"
+}}
+
+The "suggestions" array must hold exactly 3 specific things David could tackle today, derived from the context.
+Tone: like a competent chief of staff giving a morning update. Direct, no fluff, no emojis.
+"""
+    fallback = {
+        "text": "Good morning, David.",
+        "suggestions": [],
+        "spoken": "Good morning, David. What would you like to work on?",
+    }
+    try:
+        result = run_claude(prompt, timeout=60)
+    except Exception:  # noqa: BLE001 - never let the briefing hard-fail the UI
+        logger.warning("briefing: run_claude failed", exc_info=True)
+        return fallback
+
+    match = re.search(r"\{.*\}", result, re.DOTALL)
+    if not match:
+        return fallback
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return fallback

@@ -1,4 +1,6 @@
 import { useState } from "react"
+import { JarvisBall } from "@/components/jarvis/jarvis-ball"
+import { BriefingOverlay } from "@/components/jarvis/briefing-overlay"
 import { Panel } from "@/components/ui/panel"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -36,10 +38,21 @@ function greeting(): string {
 }
 
 export function Home() {
+  const [briefingOpen, setBriefingOpen] = useState(false)
+
   return (
     <div className="space-y-6">
       <HomeHeader />
       <SearchBar />
+
+      {/* Central Jarvis ball — the welcome experience. Click to open the briefing. */}
+      <div className="my-8 flex flex-col items-center justify-center">
+        <JarvisBall size="large" onClick={() => setBriefingOpen(true)} />
+        <p className="-mt-4 font-mono text-xs uppercase tracking-wider text-text-secondary">
+          click for your briefing
+        </p>
+      </div>
+
       <QuickRun />
       <div className="grid gap-4 lg:grid-cols-2">
         <TodayPanel />
@@ -48,6 +61,8 @@ export function Home() {
       <ProjectsRow />
       <FinancesRow />
       <SignalsRow />
+
+      {briefingOpen && <BriefingOverlay onClose={() => setBriefingOpen(false)} />}
     </div>
   )
 }

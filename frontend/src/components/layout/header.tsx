@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip"
 import { useSystemStatus } from "@/hooks/useSystem"
 import { isoDate } from "@/lib/utils"
+import { JarvisBall } from "@/components/jarvis/jarvis-ball"
 
 interface IntegrationCheck {
   name?: string
@@ -32,7 +33,13 @@ function aggregateHealth(checks: IntegrationCheck[] | undefined): {
  * Top header: hamburger (mobile) + app name on the left; aggregate system-status
  * dot (click → settings diagnostics) and the current date on the right.
  */
-export function Header({ onMenuClick }: { onMenuClick: () => void }) {
+export function Header({
+  onMenuClick,
+  onOpenBriefing,
+}: {
+  onMenuClick: () => void
+  onOpenBriefing?: () => void
+}) {
   const navigate = useNavigate()
   const { data } = useSystemStatus()
   const today = isoDate()
@@ -71,6 +78,8 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
           <TooltipContent>{health.label} · diagnostics →</TooltipContent>
         </Tooltip>
         <span className="font-mono text-xs text-text-secondary tabular-nums">{today}</span>
+        {/* Small Jarvis ball — opens the briefing overlay from any page. */}
+        <JarvisBall size="small" onClick={onOpenBriefing} className="h-9 w-9" />
       </div>
     </header>
   )
