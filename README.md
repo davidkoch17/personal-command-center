@@ -10,6 +10,47 @@ streamlit run dashboard/Home.py
 
 The dashboard opens at http://localhost:8501.
 
+## Development: three servers
+
+The project runs three independent servers during development. They coexist
+peacefully on separate ports — start whichever you need.
+
+| Server | Port | Launcher | Purpose |
+|---|---|---|---|
+| Streamlit dashboard | 8501 | `start_dashboard.bat` | original UI (still fully functional) |
+| FastAPI backend | 8000 | `start_backend.bat` | REST + WebSocket API wrapping the Python modules |
+| React frontend | 5173 | `start_frontend.bat` | new Cockpit-themed UI (Phase 12+) |
+
+### React frontend (Vite + TypeScript + Tailwind)
+
+Lives in `frontend/`. Requires **Node.js 18+** (install from https://nodejs.org).
+
+First-time / one-click launch:
+
+```
+start_frontend.bat
+```
+
+This runs `npm install` (slow on first run) then `npm run dev`, serving the
+Cockpit shell at http://localhost:5173.
+
+Manual:
+
+```
+cd frontend
+npm install      # one-time
+npm run dev
+```
+
+The frontend talks to the FastAPI backend at `http://localhost:8000` by default.
+Override with a `VITE_API_BASE` env var (e.g. in `frontend/.env.local`) if the
+backend runs elsewhere. For full functionality, start the backend
+(`start_backend.bat`) alongside the frontend.
+
+Like the Streamlit dashboard, the Vite dev server binds to the LAN
+(`host: true`), so an iPad/phone on the same Wi-Fi can reach it at
+`http://<your-laptop-ip>:5173`.
+
 ## One-click launch (Windows desktop shortcut)
 
 1. Right-click on your Desktop → New → Shortcut.
