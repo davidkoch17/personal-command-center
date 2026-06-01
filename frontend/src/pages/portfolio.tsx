@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { MetricPanel } from "@/components/finance/metric-panel"
 import { HoldingsTable } from "@/components/finance/holdings-table"
+import { InfoBarrierBanner } from "@/components/ui/info-barrier-banner"
 import { usePortfolioSnapshot, usePortfolioPerformance } from "@/hooks/useFinance"
 
 export function Portfolio() {
@@ -20,6 +21,8 @@ export function Portfolio() {
           </a>
         </Button>
       </div>
+
+      <InfoBarrierBanner message="restricted-sector names may be involved" />
 
       {/* Top metrics */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

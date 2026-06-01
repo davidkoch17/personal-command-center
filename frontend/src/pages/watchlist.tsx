@@ -27,6 +27,7 @@ import {
   useAddWatchlist,
   type WatchlistEntry,
 } from "@/hooks/useFinance"
+import { InfoBarrierBanner } from "@/components/ui/info-barrier-banner"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/toast-store"
 
@@ -67,6 +68,8 @@ export function Watchlist() {
         <h1 className="text-2xl font-semibold tracking-tight">watchlist</h1>
         <Button onClick={() => setAddOpen(true)}>+ add to watchlist</Button>
       </div>
+
+      <InfoBarrierBanner message="a restricted-sector name may be involved" />
 
       {/* Filter strip */}
       <div className="flex gap-1.5">
