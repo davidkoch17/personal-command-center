@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster } from "@/components/ui/toaster"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
 import { VoiceBar } from "./voice-bar"
@@ -21,6 +22,7 @@ export function AppShell() {
           </main>
         </div>
         <VoiceBar />
+        <Toaster />
       </div>
     </TooltipProvider>
   )
