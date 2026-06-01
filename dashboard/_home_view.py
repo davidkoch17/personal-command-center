@@ -6,6 +6,7 @@ Registered as the default page by :mod:`dashboard.Home` (the navigation router).
 import json
 import os
 import re
+import subprocess
 from datetime import date, datetime, timedelta
 
 import streamlit as st
@@ -23,7 +24,14 @@ from modules.habits import health_journal
 from modules.finance import money, portfolio, watchlist
 from modules.projects import activity
 from modules.integrations import calendar_ical, github, travel, whoop
+from modules.agents import background
 from modules.agents.skills import idea_validator as iv
+from modules.search.index import search as vault_search
+
+_BG_TOAST = (
+    "Started in background — see Background Runs page or check vault output "
+    "folder when complete."
+)
 
 LAST_ACTIVE_FILE = DATA_DIR / "last_active.json"
 
@@ -142,6 +150,34 @@ st.title("Command Center")
 today = date.today()
 st.markdown(f"Good morning, David  ·  {today.strftime('%A, %B %d, %Y')}")
 
+# --- Search (vault-wide) ----------------------------------------------------
+# Sits directly under the header, above the Hard dates banner. Streamlit reruns
+# on each change, so results refresh as David types (no true keystroke debounce
+# is available in vanilla Streamlit).
+_q = st.text_input(
+    "Search the vault",
+    key="home_search",
+    placeholder="Search across all notes…",
+    label_visibility="collapsed",
+)
+if _q.strip():
+    _results = vault_search(_q.strip(), limit=20)
+    st.caption(f"{len(_results)} matches")
+    for _r in _results:
+        c_hit, c_open = st.columns([6, 1])
+        with c_hit:
+            st.markdown(f"**{_r['relative']}**  ·  {_r['match_count']} matches")
+            st.markdown(
+                f"<span style='color:#8A93A2'>{_r['snippet']}…</span>",
+                unsafe_allow_html=True,
+            )
+        if c_open.button("Open", key=f"home_search_open_{_r['relative']}"):
+            try:
+                os.startfile(str(_r["path"]))  # noqa: S606 — Windows only, intentional
+            except Exception as _exc:  # noqa: BLE001
+                st.error(f"Could not open: {_exc}")
+    st.write("")
+
 hard_dates = (
     '<div style="background-color:#1E1E1E; border:1px solid #2A2A2A; '
     'border-radius:8px; padding:10px 16px; margin-top:8px;">'
@@ -199,6 +235,95 @@ if LAST_ACTIVE_FILE.exists():
 st.write("")
 
 # ----------------------------------------------------------------------------
+# 1a. Quick Run — most-common skills (all launch in the background)
+# ----------------------------------------------------------------------------
+with st.container(border=True):
+    st.subheader("Quick run")
+    st.caption("Common skills. Every run launches in the background.")
+    qc1, qc2, qc3, qc4 = st.columns(4)
+
+    with qc1:
+        if st.button("Run market research", key="qr_market", use_container_width=True):
+            try:
+                background.launch(
+                    "modules.agents.market_researcher", "run", [], "Market Researcher"
+                )
+                st.toast(_BG_TOAST)
+            except Exception as _e:  # noqa: BLE001
+                st.error(f"Could not launch: {_e}")
+
+    with qc2:
+        with st.expander("Earnings reviewer"):
+            _et = st.text_input("Ticker", key="qr_earn_ticker", placeholder="GOOGL")
+            if st.button("Run earnings review", key="qr_earn_btn"):
+                if _et.strip():
+                    try:
+                        background.launch(
+                            "modules.agents.skills.earnings_reviewer", "review",
+                            [_et.strip().upper(), None],
+                            f"Earnings {_et.strip().upper()}",
+                        )
+                        st.toast(_BG_TOAST)
+                    except Exception as _e:  # noqa: BLE001
+                        st.error(f"Could not launch: {_e}")
+                else:
+                    st.warning("Enter a ticker first.")
+
+    with qc3:
+        with st.expander("Tax scenario"):
+            st.caption("Full tax-scenario workshop lives on the Money workspace (Phase 9b).")
+            _tx = st.text_area(
+                "Scenario", key="qr_tax", height=80,
+                placeholder="e.g. Buy a rental flat in FFM for 400k, 80% financed…",
+            )
+            if st.button("Run tax scenario", key="qr_tax_btn"):
+                if _tx.strip():
+                    try:
+                        background.launch(
+                            "modules.finance.money_skills", "tax_scenario",
+                            [_tx.strip()], "Tax scenario",
+                        )
+                        st.toast(_BG_TOAST)
+                    except Exception as _e:  # noqa: BLE001
+                        st.error(f"Could not launch: {_e}")
+                else:
+                    st.warning("Describe the scenario first.")
+
+    with qc4:
+        with st.expander("Ask Claude about everything"):
+            _aq = st.text_area(
+                "Question", key="qr_ask", height=80,
+                placeholder="Ask anything — answered with your vault as context…",
+            )
+            if st.button("Ask", key="qr_ask_btn"):
+                if _aq.strip():
+                    from modules.agents.skills import ask_about_project as _ask
+                    with st.spinner("Asking Claude (up to 60s)…"):
+                        try:
+                            st.session_state["qr_ask_answer"] = _ask.ask_anything(
+                                _aq.strip(), timeout=60
+                            )
+                        except subprocess.TimeoutExpired:
+                            try:
+                                background.launch(
+                                    "modules.agents.skills.ask_about_project",
+                                    "ask_anything", [_aq.strip(), 600], "Ask Claude",
+                                )
+                            except Exception as _e:  # noqa: BLE001
+                                st.error(f"Could not fall back to background: {_e}")
+                            st.session_state["qr_ask_answer"] = None
+                            st.toast("Took longer than 60s — " + _BG_TOAST)
+                        except Exception as _e:  # noqa: BLE001
+                            st.session_state["qr_ask_answer"] = None
+                            st.error(f"Ask failed: {_e}")
+                else:
+                    st.warning("Type a question first.")
+            if st.session_state.get("qr_ask_answer"):
+                st.markdown(st.session_state["qr_ask_answer"])
+
+st.write("")
+
+# ----------------------------------------------------------------------------
 # 1b. Calendar — next 5 events
 # ----------------------------------------------------------------------------
 with st.container(border=True):
@@ -218,7 +343,7 @@ with st.container(border=True):
                     _when = _start.strftime("%a %d %b (all day)")
                 else:
                     _when = str(_start)
-                _loc = f"  ·  📍 {_ev['location']}" if _ev.get("location") else ""
+                _loc = f"  ·  {_ev['location']}" if _ev.get("location") else ""
                 st.markdown(f"**{_ev['title'] or '(untitled)'}** — {_when}{_loc}")
 
 st.write("")
@@ -482,7 +607,7 @@ with st.container(border=True):
         _last_brief = _mr.last_run_date()
         if _last_brief and (date.today() - _last_brief) <= timedelta(days=7):
             st.success(
-                f"📈 **Market Brief — {_last_brief.isoformat()}** · view on the Agents page"
+                f"**Market Brief — {_last_brief.isoformat()}** · latest weekly brief available"
             )
     except Exception:  # noqa: BLE001
         pass
@@ -524,7 +649,7 @@ with st.container(border=True):
         for _idea in _ideas:
             _done = _idea["stages_complete"]
             st.caption(
-                f"💡 {_idea['name'].replace('_', ' ')} — {_done}/{_n_stages} stages"
+                f"{_idea['name'].replace('_', ' ')} — {_done}/{_n_stages} stages"
             )
         try:
             st.page_link("pages/04_Ideas.py", label="Open Ideas")

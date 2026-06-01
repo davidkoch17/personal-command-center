@@ -27,7 +27,7 @@ PROJECT_INDEX_PATH = SYSTEM_PATH / "Project_Index.md"
 TASKS_PATH = SYSTEM_PATH / "Task_Command_Center.md"
 DECISION_LOG_PATH = SYSTEM_PATH / "Decision_Log.md"
 
-st.set_page_config(page_title="Project Workspace", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
@@ -183,7 +183,7 @@ with st.container(border=True):
                 mtime = datetime.fromtimestamp(f.stat().st_mtime)
                 st.caption(f"modified {mtime:%Y-%m-%d %H:%M}")
             else:
-                st.caption("⚠ file not found at the path in README")
+                st.caption("file not found at the path in README")
         if c2.button("Open in OS", key=f"kf_{i}", disabled=not f.exists()):
             _open(f)
 
@@ -216,7 +216,7 @@ with st.container(border=True):
 
 # --- Section 6: Ask Claude about this project -------------------------------
 with st.container(border=True):
-    st.subheader("🤖 Ask Claude about this project")
+    st.subheader("Ask Claude about this project")
     st.caption("Loads this project's key files and answers via `claude -p` (zero API cost).")
     question = st.text_area("Question", key=f"ask_{pid}")
     ask_bg = st.checkbox("Run in background", key=f"ask_bg_{pid}")
@@ -231,7 +231,7 @@ with st.container(border=True):
                     args=[pid, question],
                     label=f"Ask {pid}",
                 )
-                st.toast(f"Started in background: {info['run_id']}", icon="🚀")
+                st.toast(f"Started in background: {info['run_id']}")
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Background launch failed")
                 st.error(f"Could not launch in background: {exc}")

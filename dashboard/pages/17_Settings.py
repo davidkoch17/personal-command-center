@@ -9,7 +9,7 @@ from dashboard._theme import inject_theme, inject_shortcuts
 from modules.integrations import github, travel
 from modules.integrations.diagnostics import run_all
 
-st.set_page_config(page_title="Settings", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Settings")
@@ -63,7 +63,7 @@ with st.container(border=True):
     current_mode = _os.getenv("INFO_BARRIER", "auto").strip().lower()
     active = config.info_barrier_active()
     st.markdown(
-        f"**Currently active:** {'🔒 YES' if active else 'no'}  ·  mode: `{current_mode}`"
+        f"**Currently active:** {'YES' if active else 'no'}  ·  mode: `{current_mode}`"
     )
     mode = st.radio(
         "Mode",

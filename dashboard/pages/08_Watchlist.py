@@ -16,16 +16,40 @@ from dashboard._theme import inject_theme, inject_shortcuts
 from dashboard._workspace_link import workspace_link
 from dashboard._skillrun import run_skill
 from dashboard import _infobarrier
+from core.config import MARKET_BRIEFS_DIR
 from modules.finance import watchlist
 from modules.agents import data_sources
 from modules.investing import research
 from modules.integrations import tradingview
 
-st.set_page_config(page_title="Watchlist", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Watchlist")
 _infobarrier.global_banner()
+
+
+@st.cache_data(ttl=900)
+def _latest_brief() -> tuple[str, str]:
+    """Return (stem, text) of the newest Market Brief, or ("", "")."""
+    if not MARKET_BRIEFS_DIR.exists():
+        return "", ""
+    briefs = sorted(MARKET_BRIEFS_DIR.glob("*.md"), reverse=True)
+    if not briefs:
+        return "", ""
+    return briefs[0].stem, briefs[0].read_text(encoding="utf-8")
+
+
+# --- Latest Market Brief (Market Researcher surfaced here per Phase 10a) -----
+with st.container(border=True):
+    st.subheader("Latest Market Brief")
+    _stem, _brief = _latest_brief()
+    if not _brief:
+        st.caption("No Market Brief yet. Run market research from the Home Quick Run panel.")
+    else:
+        st.markdown(f"**Week of {_stem}**")
+        with st.expander("Read latest brief"):
+            st.markdown(_brief)
 
 # Tier-1 macro instruments (TradingView symbols) for the Macro Pulse tab.
 MACRO = [
@@ -43,7 +67,7 @@ def _snap(ticker: str) -> dict:
 items = watchlist.load()
 
 # --- + Add to watchlist -----------------------------------------------------
-with st.expander("➕ Add to watchlist", expanded=False):
+with st.expander("Add to watchlist", expanded=False):
     with st.form("add_watchlist", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
         ticker = c1.text_input("Ticker", placeholder="e.g. NKE")

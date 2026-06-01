@@ -6,7 +6,7 @@ import streamlit as st
 from dashboard._theme import inject_theme, inject_shortcuts
 from modules.search.index import search
 
-st.set_page_config(page_title="Search", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Search")

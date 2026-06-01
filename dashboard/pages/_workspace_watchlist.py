@@ -22,7 +22,7 @@ from modules.integrations import tradingview
 
 WL_SKILLS = "modules.agents.skills.watchlist_skills"
 
-st.set_page_config(page_title="Watchlist Workspace", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
@@ -76,7 +76,7 @@ with st.container(border=True):
         st.button("Add hypothesis (locked)", disabled=True, key="wl_hyp_locked")
     else:
         run_skill("Add hypothesis", "modules.finance.portfolio_skills", "add_hypothesis",
-                  [ticker, hyp_text], key="wl_hyp", allow_background=False)
+                  [ticker, hyp_text], key="wl_hyp", synchronous=True)
 
 # --- Section 3: Chart -------------------------------------------------------
 with st.container(border=True):
@@ -129,7 +129,7 @@ with st.container(border=True):
     edited = st.text_area("Notes", value=note, height=180, key="wl_note", label_visibility="collapsed")
     if st.button("Save notes", key="wl_note_save"):
         research.write_position_note(ticker, edited)
-        st.toast("Saved notes", icon="✅")
+        st.toast("Saved notes")
 
 # --- Section 9: My model ----------------------------------------------------
 with st.container(border=True):

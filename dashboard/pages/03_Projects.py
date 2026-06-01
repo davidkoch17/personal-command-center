@@ -21,7 +21,7 @@ from modules.projects import workspace
 logger = get_logger(__name__)
 PROJECT_INDEX_PATH = SYSTEM_PATH / "Project_Index.md"
 
-st.set_page_config(page_title="Projects", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Projects")
@@ -100,16 +100,16 @@ def _render_card(proj: dict) -> None:
             if big:
                 cd = _countdown(big.get("date"))
                 cd_txt = f"  ·  _{cd}_" if cd else ""
-                st.markdown(f"🎯 {big['text']}{cd_txt}")
+                st.markdown(f"{big['text']}{cd_txt}")
             else:
-                st.caption("🎯 Define a milestone in README.")
+                st.caption("Define a milestone in README.")
             open_steps = [s for s in steps if not s["checked"]]
             if open_steps:
-                st.caption(f"▶ {open_steps[0]['text']}")
+                st.caption(f"{open_steps[0]['text']}")
             elif steps:
-                st.caption("▶ All next steps done.")
+                st.caption("All next steps done.")
             else:
-                st.caption("▶ Define Next Steps in README.")
+                st.caption("Define Next Steps in README.")
             st.caption(f"Last touched {_last_touched(root)}")
         else:
             st.caption("No README — define Milestones / Next Steps / Key Files.")
@@ -118,7 +118,7 @@ def _render_card(proj: dict) -> None:
 
 
 # --- + New project ----------------------------------------------------------
-with st.expander("➕ New project", expanded=False):
+with st.expander("New project", expanded=False):
     with st.form("new_project_form", clear_on_submit=True):
         np_name = st.text_input("Project name", placeholder="e.g. Padel Accessories Brand")
         np_flow = st.radio(

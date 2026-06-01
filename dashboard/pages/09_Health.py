@@ -8,7 +8,7 @@ from core import vault
 from modules.habits import health_journal
 from modules.integrations import whoop
 
-st.set_page_config(page_title="Health", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Health Journal")

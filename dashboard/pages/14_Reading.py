@@ -5,7 +5,7 @@ from dashboard._theme import inject_theme, inject_shortcuts
 from core import vault, markdown
 from core.config import READING_LIST_PATH
 
-st.set_page_config(page_title="Reading", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Reading")

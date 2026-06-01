@@ -17,7 +17,7 @@ from dashboard._workspace_link import workspace_link
 from core.config import CAREER_PATH, EVERCORE_START_DATE
 from modules.career import tracker
 
-st.set_page_config(page_title="Career", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Career")

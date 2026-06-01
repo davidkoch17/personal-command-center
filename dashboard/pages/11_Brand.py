@@ -20,7 +20,7 @@ from core.config import BRAND_PATH
 from modules.brand import videos
 from modules.integrations import youtube
 
-st.set_page_config(page_title="Brand", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Brand — Content Studio")
@@ -36,7 +36,7 @@ def _ago(dt: datetime) -> str:
 
 
 # --- + New video ------------------------------------------------------------
-with st.expander("➕ New video", expanded=False):
+with st.expander("New video", expanded=False):
     with st.form("new_video_form", clear_on_submit=True):
         v_title = st.text_input("Title", placeholder="e.g. How I run my week from one dashboard")
         v_platform = st.selectbox("Target platform", ["YouTube", "Instagram", "TikTok", "Multi"])
@@ -48,7 +48,7 @@ with st.expander("➕ New video", expanded=False):
         else:
             try:
                 folder = videos.create_video(v_title.strip(), v_platform, v_concept.strip())
-                st.toast(f"Created {folder.name}", icon="✅")
+                st.toast(f"Created {folder.name}")
                 st.rerun()
             except FileExistsError:
                 st.error("A video with that title already exists.")
@@ -66,7 +66,7 @@ tabs = st.tabs([
 # --- Tab 1: Pipeline kanban -------------------------------------------------
 with tabs[0]:
     if not all_videos:
-        st.info("No videos yet. Use **➕ New video** to start one.")
+        st.info("No videos yet. Use **New video** to start one.")
     else:
         cols = st.columns(len(videos.STAGES))
         for col, stage in zip(cols, videos.STAGES):

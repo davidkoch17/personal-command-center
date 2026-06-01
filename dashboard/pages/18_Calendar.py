@@ -9,7 +9,7 @@ import streamlit as st
 from dashboard._theme import inject_theme, inject_shortcuts
 from modules.integrations import calendar_ical
 
-st.set_page_config(page_title="Calendar", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Calendar")
@@ -47,7 +47,7 @@ st.subheader("Next 5 events")
 for ev in events[:5]:
     line = f"**{ev['title'] or '(untitled)'}** — {_fmt_when(ev['start'])}"
     if ev.get("location"):
-        line += f"  ·  📍 {ev['location']}"
+        line += f"  ·  {ev['location']}"
     st.markdown(line)
 
 st.divider()
@@ -85,6 +85,6 @@ for day in sorted(month_by_day):
     with st.expander(f"{day.strftime('%A %Y-%m-%d')} — {len(month_by_day[day])} event(s)"):
         for ev in month_by_day[day]:
             st.markdown(f"- **{ev['title']}** — {_fmt_when(ev['start'])}"
-                        + (f" · 📍 {ev['location']}" if ev.get("location") else ""))
+                        + (f" · {ev['location']}" if ev.get("location") else ""))
             if ev.get("description"):
                 st.caption(ev["description"])

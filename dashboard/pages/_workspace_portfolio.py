@@ -22,7 +22,7 @@ from modules.agents import data_sources
 from modules.investing import research
 from modules.integrations import tradingview
 
-st.set_page_config(page_title="Portfolio Workspace", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
@@ -87,7 +87,7 @@ with tabs[0]:
                 edited = st.text_area("Notes", value=note, height=160, key="pf_note", label_visibility="collapsed")
                 if st.button("Save notes", key="pf_note_save"):
                     research.write_position_note(ticker, edited)
-                    st.toast("Saved notes", icon="✅")
+                    st.toast("Saved notes")
 
             # News
             with st.container(border=True):
@@ -135,7 +135,7 @@ with tabs[0]:
                     else:
                         run_skill("Add hypothesis", "modules.finance.portfolio_skills",
                                   "add_hypothesis", [ticker, hyp_text], key="pf_hyp",
-                                  allow_background=False)
+                                  synchronous=True)
 
 # --- Tab 2: Allocations -----------------------------------------------------
 with tabs[1]:

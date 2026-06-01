@@ -39,21 +39,34 @@ visible_pages = {
         st.Page("pages/08_Watchlist.py", title="Watchlist"),
     ],
     "Life": [
-        st.Page("pages/09_Health.py", title="Health"),
         st.Page("pages/10_Career.py", title="Career"),
         st.Page("pages/11_Brand.py", title="Brand"),
     ],
     "System": [
-        st.Page("pages/12_Search.py", title="Search"),
-        st.Page("pages/13_Journal.py", title="Journal"),
         st.Page("pages/14_Reading.py", title="Reading"),
-        st.Page("pages/15_Agents.py", title="Agents"),
-        st.Page("pages/16_Skills.py", title="Skills"),
         st.Page("pages/17_Settings.py", title="Settings"),
         st.Page("pages/18_Calendar.py", title="Calendar"),
         st.Page("pages/19_Background_Runs.py", title="Background Runs"),
     ],
 }
+
+# Deprecated sidebar pages (Phase 10a). Files + modules are kept and remain
+# URL-routable, but they are hidden from the sidebar. Their functionality is
+# surfaced contextually instead: Search → Home search bar; Skills / Agents →
+# Home "Quick Run" panel + the per-ticker / per-holding workspaces; Health /
+# Journal are edited directly in the vault.
+deprecated_pages = [
+    st.Page("pages/09_Health.py", title="Health",
+            url_path="health", visibility="hidden"),
+    st.Page("pages/12_Search.py", title="Search",
+            url_path="search", visibility="hidden"),
+    st.Page("pages/13_Journal.py", title="Journal",
+            url_path="journal", visibility="hidden"),
+    st.Page("pages/15_Agents.py", title="Agents",
+            url_path="agents", visibility="hidden"),
+    st.Page("pages/16_Skills.py", title="Skills",
+            url_path="skills", visibility="hidden"),
+]
 
 # Hidden workspace pages — URL-accessible only (opened in a new tab from the
 # matching overview). ``visibility="hidden"`` keeps them out of the sidebar.
@@ -77,10 +90,11 @@ hidden_pages = [
             url_path="workspace_watchlist", visibility="hidden"),
 ]
 
-# Register hidden pages alongside the visible ones so they route; because they
-# are hidden they add no sidebar entry (no empty section header appears).
+# Register hidden + deprecated pages alongside the visible ones so they route;
+# because they are hidden they add no sidebar entry (no empty section header
+# appears).
 nav_config = dict(visible_pages)
-nav_config["System"] = nav_config["System"] + hidden_pages
+nav_config["System"] = nav_config["System"] + deprecated_pages + hidden_pages
 
 nav = st.navigation(nav_config, position="sidebar")
 nav.run()

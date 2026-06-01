@@ -12,17 +12,17 @@ from modules.agents import background
 
 logger = get_logger(__name__)
 
-st.set_page_config(page_title="Agents", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
-st.title("🤖 Agents")
+st.title("Agents")
 
 # ---------------------------------------------------------------------------
 # Market Researcher card
 # ---------------------------------------------------------------------------
 with st.container(border=True):
-    st.subheader("📈 Market Researcher")
+    st.subheader("Market Researcher")
     st.caption(
         "Weekly equity research brief across David's watchlist universe. "
         "Runs inference on the Claude Max subscription via `claude -p` — zero API cost."
@@ -34,37 +34,22 @@ with st.container(border=True):
     col1.metric("Last run", last.isoformat() if last else "Never")
     col2.metric("Next scheduled run", nxt.strftime("%a %Y-%m-%d %H:%M"))
 
-    run_bg = st.checkbox(
-        "Run in background", key="mr_run_bg",
-        help="Launch detached so the dashboard stays interactive. Track it on the "
-             "Background Runs page.",
-    )
-    if st.button("▶ Run now", type="primary", key="run_market_researcher"):
-        if run_bg:
-            try:
-                info = background.launch(
-                    module_path="modules.agents.market_researcher",
-                    callable_name="run",
-                    args=[],
-                    label="Market Researcher",
-                )
-                st.toast(f"Started in background: {info['run_id']}", icon="🚀")
-            except Exception as e:  # noqa: BLE001
-                logger.exception("Background launch failed")
-                st.error(f"Could not launch in background: {e}")
-        else:
-            with st.spinner(
-                "Running Market Researcher — fetching data and calling claude -p. "
-                "This can take a few minutes…"
-            ):
-                try:
-                    path = mr.run()
-                    st.toast(f"Brief written: {path.name}", icon="✅")
-                    st.success(f"Brief written to {path}")
-                    st.rerun()
-                except Exception as e:  # noqa: BLE001
-                    logger.exception("Market Researcher run failed")
-                    st.error(f"Run failed: {e}")
+    # Phase 10a: all runs go background. No synchronous mode.
+    if st.button("Run now", type="primary", key="run_market_researcher"):
+        try:
+            background.launch(
+                module_path="modules.agents.market_researcher",
+                callable_name="run",
+                args=[],
+                label="Market Researcher",
+            )
+            st.toast(
+                "Started in background — see Background Runs page or check vault "
+                "output folder when complete."
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Background launch failed")
+            st.error(f"Could not launch in background: {e}")
 
     st.markdown("**Recent briefs**")
     briefs = mr.list_briefs(limit=8)

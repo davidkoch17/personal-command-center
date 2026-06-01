@@ -7,7 +7,7 @@ from core.config import SYSTEM_PATH
 
 TASKS_PATH = SYSTEM_PATH / "Task_Command_Center.md"
 
-st.set_page_config(page_title="Tasks", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Tasks")

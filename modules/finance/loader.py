@@ -31,6 +31,19 @@ def investments_crypto() -> pd.DataFrame:
     return _read("Investments_Crypto", header_row=4)
 
 
+def avg_cost_column(df: pd.DataFrame) -> str | None:
+    """Return the name of an "Avg Cost (€)"-style column if the sheet has one.
+
+    David may add an average-cost column to ``Investments_TR`` / ``Investments_Crypto``
+    later. Until then this returns None and downstream code shows "—". Matched
+    loosely (case-insensitive substring) so a slightly different label still works.
+    """
+    for col in df.columns:
+        if "avg cost" in str(col).strip().lower():
+            return str(col)
+    return None
+
+
 def net_worth() -> pd.DataFrame:
     return _read("Net_Worth", header_row=4)
 

@@ -18,7 +18,7 @@ from modules.brand import videos
 
 BRAND = "modules.agents.skills.brand"
 
-st.set_page_config(page_title="Video Workspace", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
@@ -52,11 +52,11 @@ def _editable(filename: str, title: str, height: int = 200) -> None:
                           label_visibility="collapsed")
     if st.button(f"Save {title}", key=f"save_{filename}"):
         _save_section(filename, edited)
-        st.toast(f"Saved {title}", icon="✅")
+        st.toast(f"Saved {title}")
 
 
 # --- Header -----------------------------------------------------------------
-st.title(f"🎬 {status.get('title', vid)}")
+st.title(f"{status.get('title', vid)}")
 h1, h2, h3, h4 = st.columns(4)
 h1.metric("Stage", status.get("stage", "IDEAS"))
 h2.metric("Platform", status.get("platform", "—") or "—")
@@ -131,7 +131,7 @@ with st.container(border=True):
 
 # --- Ask Claude about this video --------------------------------------------
 with st.container(border=True):
-    st.subheader("🤖 Ask Claude about this video")
+    st.subheader("Ask Claude about this video")
     q = st.text_input("Question", key="bv_ask_q")
     run_skill("Ask", BRAND, "ask_claude_about_video", [vid, q], key="bv_ask",
-              allow_background=False)
+              synchronous=True)

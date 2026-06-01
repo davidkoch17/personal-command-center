@@ -24,7 +24,7 @@ from modules.agents.claude_cli import run_claude
 
 CAREER = "modules.agents.skills.career"
 
-st.set_page_config(page_title="Career Workspace", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
@@ -44,7 +44,7 @@ def _editable(path, title: str, height: int = 160) -> None:
                           label_visibility="collapsed")
     if st.button(f"Save {title}", key=f"save_{path.name}"):
         vault.write_md(path, edited)
-        st.toast(f"Saved {title}", icon="✅")
+        st.toast(f"Saved {title}")
 
 
 # --- Section 1: Countdown + critical dates ----------------------------------
@@ -53,7 +53,7 @@ with st.container(border=True):
     days = (EVERCORE_START - date.today()).days
     st.markdown(f"**{days} days** until Evercore start ({EVERCORE_START_DATE}).")
     if config.info_barrier_active():
-        st.warning("🔒 Info-barrier active — deal specifics are limited to sector/title below.")
+        st.warning("Info-barrier active — deal specifics are limited to sector/title below.")
 
 # --- Section 2: Onboarding admin (write-back) -------------------------------
 with st.container(border=True):
@@ -112,7 +112,7 @@ with st.container(border=True):
 with st.container(border=True):
     st.subheader("6 · Deal pipeline")
     if config.info_barrier_active():
-        st.error("🔒 Info-barrier active — record sector/title only. No deal specifics.")
+        st.error("Info-barrier active — record sector/title only. No deal specifics.")
     else:
         st.caption("Pre-Evercore: use this to practice deal notes. Post-start, sector/title only.")
     _editable(PIPELINE_FILE, "Deal pipeline notes", height=140)

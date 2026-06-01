@@ -20,7 +20,7 @@ from modules.agents.skills import idea_validator as iv
 
 logger = get_logger(__name__)
 
-st.set_page_config(page_title="Ideas", page_icon="💡", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
@@ -86,7 +86,7 @@ def status_span(label: str, color: str) -> str:
 
 
 # --- Header -----------------------------------------------------------------
-st.title("💡 Ideas")
+st.title("Ideas")
 st.caption(
     "Idea Validation System — capture an idea, run a 12-stage validation pack, "
     "then make a real go / park / kill call. Open a workspace in a new tab to run it."
@@ -109,7 +109,7 @@ with st.container(border=True):
             else:
                 try:
                     folder = iv.create_idea(q_name.strip(), q_brief.strip())
-                    st.toast(f"Created idea: {folder.name}", icon="✅")
+                    st.toast(f"Created idea: {folder.name}")
                     st.rerun()
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("create_idea (quick) failed")
@@ -135,7 +135,7 @@ with st.container(border=True):
             else:
                 try:
                     folder = iv.create_idea(f_name.strip(), f_brief.strip())
-                    st.toast(f"Created idea folder: {folder.name}", icon="✅")
+                    st.toast(f"Created idea folder: {folder.name}")
                     st.rerun()
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("create_idea (full) failed")
@@ -161,7 +161,7 @@ else:
                 st.progress(n_done / N_STAGES, text=f"{n_done} / {N_STAGES} stages")
                 rec = _recommendation(folder)
                 if rec:
-                    st.caption(f"📌 {rec[:80]}")
+                    st.caption(f"{rec[:80]}")
                 sc = _score(folder)
                 if sc:
                     st.caption(f"Score: {sc}")

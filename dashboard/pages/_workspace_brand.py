@@ -8,10 +8,10 @@ import streamlit as st
 
 from dashboard._theme import inject_theme, inject_shortcuts
 
-st.set_page_config(page_title="Brand Workspace", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
 st.title("Brand Workspace")
-st.info("🚧 Workspace under construction — coming in Phase 9b.")
+st.info("Workspace under construction — coming in Phase 9b.")
 st.caption("Planned: video pipeline (Ideas → Scripting → Filming → Editing → Published) + horizontal slices.")

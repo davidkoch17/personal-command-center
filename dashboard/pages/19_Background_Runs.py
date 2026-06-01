@@ -1,11 +1,13 @@
 """Background Runs — status of detached skill / agent runs.
 
 Long skill and agent runs (idea validation, market researcher, finance skills)
-can be launched detached via :mod:`modules.agents.background`. This page lists
-recent runs with status, duration, and log output.
+are launched detached via :mod:`modules.agents.background`. This page lists
+recent runs with status, duration, and log output, and auto-refreshes every 5
+seconds while any run is still in progress.
 """
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -14,21 +16,23 @@ import streamlit as st
 from dashboard._theme import inject_theme, inject_shortcuts
 from modules.agents import background
 
-st.set_page_config(page_title="Background Runs", page_icon="🛰️", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
-st.title("🛰️ Background Runs")
+st.title("Background Runs")
 st.caption(
     "Detached skill / agent runs. They keep running even if you close the page — "
     "come back here to check status and read logs."
 )
 
+# Cockpit status palette (Phase 10a): running = accent navy, completed = success
+# green, failed = danger red.
 _STATUS_BADGE = {
-    "running": ("⟳ running", "#F59E0B"),
-    "completed": ("✓ completed", "#10B981"),
-    "failed": ("✗ failed", "#EF4444"),
-    "unknown": ("? unknown", "#6B7280"),
+    "running": ("running", "#2563EB"),
+    "completed": ("completed", "#10B981"),
+    "failed": ("failed", "#EF4444"),
+    "unknown": ("unknown", "#8A93A2"),
 }
 
 
@@ -60,17 +64,20 @@ top_l, top_r = st.columns([4, 1])
 with top_l:
     st.markdown("**Recent runs**")
 with top_r:
-    if st.button("🔄 Refresh", key="bg_refresh"):
+    if st.button("Refresh", key="bg_refresh"):
         st.rerun()
 
 runs = background.list_recent_runs(20)
 if not runs:
-    st.info("No background runs yet. Launch one from the Ideas, Agents, or Skills pages.")
+    st.info("No background runs yet. Launch one from the Ideas, Watchlist, Portfolio, or Money pages.")
     st.stop()
 
+any_running = False
 for run in runs:
     run_id = run.get("run_id", "?")
     status = run.get("status", "unknown")
+    if status == "running":
+        any_running = True
     label, color = _STATUS_BADGE.get(status, _STATUS_BADGE["unknown"])
 
     with st.container(border=True):
@@ -85,7 +92,7 @@ for run in runs:
                 unsafe_allow_html=True,
             )
         with c_dur:
-            st.caption(f"⏱ {_duration(run)}")
+            st.caption(_duration(run))
 
         if status == "failed" and run.get("error"):
             st.error(f"{run['error']}")
@@ -95,7 +102,7 @@ for run in runs:
         elif status == "completed" and run.get("result"):
             st.caption(f"Result: {run['result']}")
 
-        # Log file viewer
+        # Log file viewer (collapsible per run).
         log_path = Path(background.BG_LOG_DIR) / f"{run_id}.log"
         if log_path.exists():
             with st.expander("Log output"):
@@ -104,3 +111,9 @@ for run in runs:
                     st.code(text[-8000:] if text else "(empty log)")
                 except Exception as exc:  # noqa: BLE001
                     st.error(f"Could not read log: {exc}")
+
+# Auto-refresh every 5 seconds while any run is still in progress.
+if any_running:
+    st.caption("Auto-refreshing every 5s while runs are in progress…")
+    time.sleep(5)
+    st.rerun()

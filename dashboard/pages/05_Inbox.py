@@ -10,7 +10,7 @@ from core import vault, markdown
 from core.config import INBOX_PATH, VAULT_PATH, TASKS_FILE, PROJECT_INDEX_FILE
 from modules.projects import workspace
 
-st.set_page_config(page_title="Inbox", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 st.title("Inbox")

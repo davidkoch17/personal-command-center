@@ -23,7 +23,7 @@ from core.config import SYSTEM_PATH
 from modules.finance import loader, money
 from modules.integrations import travel
 
-st.set_page_config(page_title="Money", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
@@ -150,8 +150,8 @@ with st.container(border=True):
         st.caption("Nothing flagged in Tasks or Travel for the next 30 days.")
     else:
         for r in rows:
-            st.markdown(f"- 💳 {r}")
+            st.markdown(f"- {r}")
         for r in trip_rows:
-            st.markdown(f"- ✈️ {r}")
+            st.markdown(f"- {r}")
 
 st.caption(f"Source: Finance_Tracker.xlsx. Last modified: {loader.source_mtime() or 'n/a'}.")

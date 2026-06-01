@@ -23,7 +23,7 @@ from core.config import (
 from modules.finance import loader, money, money_skills
 
 logger = get_logger(__name__)
-st.set_page_config(page_title="Money Workspace", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
@@ -111,7 +111,7 @@ with tabs[1]:
         c2.metric("vs prior 3-mo avg", euro(avg3),
                   delta=f"{((last-avg3)/avg3*100):.0f}%" if avg3 else None)
         if avg3 and last > 1.3 * avg3:
-            st.warning(f"⚠ {cat} is {((last-avg3)/avg3*100):.0f}% above its 3-month average.")
+            st.warning(f"{cat} is {((last-avg3)/avg3*100):.0f}% above its 3-month average.")
 
 # --- Tab 3: Net Worth -------------------------------------------------------
 with tabs[2]:
@@ -160,7 +160,7 @@ with tabs[4]:
                 )
             if st.form_submit_button("Save budget"):
                 _save_budget(new_budget)
-                st.toast("Budget saved", icon="✅")
+                st.toast("Budget saved")
                 budget = new_budget
         rows = []
         for cat in pivot.columns:
@@ -172,7 +172,7 @@ with tabs[4]:
         st.dataframe(bdf, use_container_width=True, hide_index=True)
         over = bdf[(bdf["Target (€)"] > 0) & (bdf["Actual (€)"] > bdf["Target (€)"])]
         for _, r in over.iterrows():
-            st.warning(f"⚠ {r['Category']}: {euro(r['Actual (€)'])} vs target {euro(r['Target (€)'])}")
+            st.warning(f"{r['Category']}: {euro(r['Actual (€)'])} vs target {euro(r['Target (€)'])}")
 
 # --- Tab 6: Tax -------------------------------------------------------------
 with tabs[5]:
@@ -239,7 +239,7 @@ with tabs[5]:
                         module_path="modules.finance.money_skills", callable_name="tax_scenario",
                         args=[full_desc, save_to], label="Tax scenario",
                     )
-                    st.toast(f"Started in background: {info['run_id']}", icon="🚀")
+                    st.toast(f"Started in background: {info['run_id']}")
                 except Exception as exc:  # noqa: BLE001
                     st.error(f"Could not launch: {exc}")
             else:
@@ -247,7 +247,7 @@ with tabs[5]:
                     try:
                         out_path = money_skills.tax_scenario(full_desc, save_to or None)
                         st.session_state["tax_result_path"] = str(out_path)
-                        st.toast(f"Saved to {out_path}", icon="✅")
+                        st.toast(f"Saved to {out_path}")
                     except Exception as exc:  # noqa: BLE001
                         logger.exception("tax_scenario failed")
                         st.error(f"Tax scenario failed: {exc}")

@@ -24,7 +24,7 @@ from modules.agents.claude_cli import run_claude
 
 logger = get_logger(__name__)
 
-st.set_page_config(page_title="Idea Workspace", page_icon="💡", layout="wide")
+st.set_page_config(page_title="Command Center", layout="wide")
 inject_theme()
 inject_shortcuts()
 
@@ -34,7 +34,7 @@ BINARY_OUTPUTS = {
     "06": "06_Business_Plan.docx",
     "07": "07_Pitch_Deck.pptx",
 }
-_STATUS_ICON = {"done": "✓", "stale": "⚠", "pending": "☐", "running": "⟳"}
+_STATUS_ICON = {"done": "[x]", "stale": "[!]", "pending": "[ ]", "running": "[~]"}
 
 
 # --- helpers ----------------------------------------------------------------
@@ -66,7 +66,8 @@ def _launch_full_validation(idea_name: str) -> None:
         module_path=RUNNER_MODULE, callable_name="run_all",
         args=[idea_name], label=f"Validate {idea_name}",
     )
-    st.toast(f"Full validation started: {info['run_id']}", icon="🚀")
+    st.toast(f"Full validation started: {info['run_id']} — track it on the "
+             "Background Runs page.")
 
 
 def _launch_stage_bg(idea_name: str, stage_key: str) -> None:
@@ -74,7 +75,8 @@ def _launch_stage_bg(idea_name: str, stage_key: str) -> None:
         module_path=RUNNER_MODULE, callable_name="run_stage",
         args=[idea_name, stage_key], label=f"Stage {stage_key} {idea_name}",
     )
-    st.toast(f"Stage {stage_key} started: {info['run_id']}", icon="🚀")
+    st.toast(f"Stage {stage_key} started: {info['run_id']} — track it on the "
+             "Background Runs page.")
 
 
 # --- resolve idea from ?id= -------------------------------------------------
@@ -100,7 +102,7 @@ state = iv._read_state(folder)
 done = sum(1 for k, _, _ in iv.STAGES if _stage_status(state, k) == "done")
 
 # --- Header -----------------------------------------------------------------
-st.title(f"💡 {idea_name.replace('_', ' ')}")
+st.title(idea_name.replace('_', ' '))
 
 master = folder / "MASTER.md"
 if master.exists():
@@ -110,7 +112,7 @@ if master.exists():
 run = _active_bg_run_for(idea_name)
 if run:
     st.info(
-        f"⟳ A validation run is in progress in the background "
+        f"A validation run is in progress in the background "
         f"(started {run.get('started_at', '?')}). Refresh to update progress."
     )
 
@@ -121,13 +123,13 @@ with st.container(border=True):
     st.progress(done / len(iv.STAGES))
     strip = "  ".join(f"{_STATUS_ICON[_stage_status(state, k)]} {k}" for k, _, _ in iv.STAGES)
     st.caption(strip)
-    st.caption("✓ done · ⚠ stale (re-run recommended) · ☐ pending")
+    st.caption("[x] done · [!] stale (re-run recommended) · [ ] pending")
 
 # --- Section 2: Run controls ------------------------------------------------
 with st.container(border=True):
     st.subheader("Run validation")
     st.caption("Full run does Stages 2-12 sequentially in the background (~30-60 min).")
-    if st.button("🚀 Run full validation", key="run_all", type="primary"):
+    if st.button("Run full validation", key="run_all", type="primary"):
         _launch_full_validation(idea_name)
         st.rerun()
 
@@ -157,7 +159,7 @@ with st.container(border=True):
                     bc1, bc2 = st.columns(2)
                     with bc1:
                         st.download_button(
-                            f"⬇ Download {bin_name}", data=bin_path.read_bytes(),
+                            f"Download {bin_name}", data=bin_path.read_bytes(),
                             file_name=bin_name, key=f"dl_{stage_key}",
                         )
                     with bc2:
@@ -166,21 +168,12 @@ with st.container(border=True):
                 else:
                     st.caption(f"({bin_name} not generated yet.)")
 
-            run_in_bg = st.checkbox("Run in background", key=f"bg_{stage_key}", value=False)
+            # Phase 10a: stage runs always go background (each stage is a long
+            # claude -p call). No synchronous mode.
             label = "Re-run" if out_path.exists() else "Run now"
             if st.button(label, key=f"run_{stage_key}", type="primary"):
-                if run_in_bg:
-                    _launch_stage_bg(idea_name, stage_key)
-                    st.rerun()
-                else:
-                    with st.spinner(f"Running Stage {stage_key} via claude -p…"):
-                        try:
-                            iv.run_stage(idea_name, stage_key)
-                            st.toast(f"Stage {stage_key} complete", icon="✅")
-                            st.rerun()
-                        except Exception as exc:  # noqa: BLE001
-                            logger.exception("run_stage failed")
-                            st.error(f"Stage {stage_key} failed: {exc}")
+                _launch_stage_bg(idea_name, stage_key)
+                st.rerun()
 
 # --- Section 4: Idea Brief --------------------------------------------------
 with st.container(border=True):
@@ -199,7 +192,7 @@ with st.container(border=True):
     if st.button("Save overrides", key="save_overrides"):
         try:
             vault.write_md(ovr, edited)
-            st.toast("Overrides saved", icon="✅")
+            st.toast("Overrides saved")
         except Exception as exc:  # noqa: BLE001
             logger.exception("save overrides failed")
             st.error(f"Could not save overrides: {exc}")
@@ -216,7 +209,7 @@ with st.container(border=True):
             else:
                 try:
                     iv.kill_idea(idea_name, reason.strip())
-                    st.toast(f"Killed: {idea_name}", icon="🗑️")
+                    st.toast(f"Killed: {idea_name}")
                     st.success("Idea moved to the killed archive. Close this tab.")
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("kill_idea failed")
@@ -228,7 +221,7 @@ with st.container(border=True):
                 )
                 existing = master.read_text(encoding="utf-8") if master.exists() else ""
                 vault.write_md(master, existing + note)
-                st.toast(f"Marked as {decision}", icon="✅")
+                st.toast(f"Marked as {decision}")
                 st.rerun()
             except Exception as exc:  # noqa: BLE001
                 logger.exception("decision annotate failed")
@@ -236,7 +229,7 @@ with st.container(border=True):
 
 # --- Ask Claude about this idea ---------------------------------------------
 with st.container(border=True):
-    st.subheader("🤖 Ask Claude about this idea")
+    st.subheader("Ask Claude about this idea")
     st.caption("Answers with the idea brief, overrides, and MASTER.md as context (zero API cost).")
     q = st.text_area("Question", key="ask_idea_q")
     if st.button("Ask", key="ask_idea_btn", type="primary"):
