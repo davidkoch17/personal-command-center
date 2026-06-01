@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 
 /**
@@ -10,6 +10,7 @@ export interface SystemStatus {
   vault_path?: string
   vault_exists?: boolean
   info_barrier?: boolean
+  finance_source_mtime?: string | number | null
   counts?: Record<string, number>
   integrations?: Record<string, unknown>
   [k: string]: unknown
@@ -27,4 +28,10 @@ export function useSystemStatus() {
 export function useInfoBarrierActive(): boolean {
   const { data } = useSystemStatus()
   return data?.info_barrier === true
+}
+
+export function useClearCache() {
+  return useMutation({
+    mutationFn: () => api.post<{ ok: boolean; detail?: string }>("/api/system/clear-cache"),
+  })
 }

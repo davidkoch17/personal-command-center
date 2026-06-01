@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
 import { VoiceBar } from "./voice-bar"
+import { SearchPalette } from "./search-palette"
 
 /**
  * Overall layout container: fixed header, sidebar + scrollable main, and the
@@ -23,6 +24,7 @@ export function AppShell() {
         </div>
         <VoiceBar />
         <Toaster />
+        <SearchPalette />
       </div>
     </TooltipProvider>
   )
