@@ -31,7 +31,18 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 _VOICE_DIR = Path(__file__).resolve().parent.parent / "voice" / "piper"
-_PIPER_EXE = _VOICE_DIR / "piper.exe"
+
+
+def _find_piper_exe() -> Path:
+    """Locate piper.exe. The Windows release extracts into a nested ``piper/``
+    folder (exe + DLLs alongside); also support a flattened layout."""
+    for cand in (_VOICE_DIR / "piper" / "piper.exe", _VOICE_DIR / "piper.exe"):
+        if cand.exists():
+            return cand
+    return _VOICE_DIR / "piper.exe"  # default path for the "not installed" message
+
+
+_PIPER_EXE = _find_piper_exe()
 _PIPER_MODEL = _VOICE_DIR / "en_US-lessac-medium.onnx"
 
 # Lazy-load Whisper — the model download (~150 MB) happens on first use.
