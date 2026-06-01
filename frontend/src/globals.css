@@ -10,6 +10,11 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
+  /* Visible 2px accent focus ring on every keyboard-focused interactive element. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-border-focus ring-offset-1 ring-offset-bg;
+  }
+
   h1, h2, h3, h4 {
     @apply tracking-tight;
     text-transform: lowercase;
@@ -48,4 +53,34 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #2F3640;
+}
+
+/* Respect reduced-motion: disable non-essential animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Print: drop chrome, expand main, ink-friendly. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  .panel {
+    border-color: #ccc;
+    break-inside: avoid;
+  }
 }

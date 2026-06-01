@@ -4,6 +4,7 @@ import { Panel } from "@/components/ui/panel"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot, type StatusColor } from "@/components/ui/status-dot"
+import { ErrorState } from "@/components/ui/error-state"
 import { LogStream } from "@/components/runs/log-stream"
 import { useRuns, isRunActive } from "@/hooks/useRuns"
 import type { RunStatus } from "@/lib/types"
@@ -48,9 +49,7 @@ export function BackgroundRuns() {
       </div>
 
       {isError && (
-        <Panel title="error" statusDotColor="danger">
-          <p className="text-text-secondary">could not load runs. backend on :8000?</p>
-        </Panel>
+        <ErrorState message="could not load runs. backend on :8000?" onRetry={() => refetch()} />
       )}
 
       {isLoading ? (

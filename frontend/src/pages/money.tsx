@@ -35,7 +35,7 @@ export function Money() {
           label="cash"
           value={
             snap.isLoading ? <Skeleton className="h-7 w-28" /> : (
-              <NumberDisplay value={snap.data?.cash_balance} format="currency" emphasized />
+              <NumberDisplay value={snap.data?.cash_balance} format="currency" emphasized animate />
             )
           }
         />
@@ -44,7 +44,7 @@ export function Money() {
           dotColor="success"
           value={
             snap.isLoading ? <Skeleton className="h-7 w-28" /> : (
-              <NumberDisplay value={snap.data?.net_worth} format="currency" emphasized />
+              <NumberDisplay value={snap.data?.net_worth} format="currency" emphasized animate />
             )
           }
         />

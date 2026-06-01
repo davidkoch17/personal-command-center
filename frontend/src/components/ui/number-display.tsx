@@ -1,4 +1,5 @@
 import { cn, formatCurrency, formatNumber, formatPercent } from "@/lib/utils"
+import { useTween } from "@/hooks/useTween"
 
 interface NumberDisplayProps {
   value: number | null | undefined
@@ -13,6 +14,8 @@ interface NumberDisplayProps {
    * Useful for P&L / deltas. Takes precedence over `emphasized`.
    */
   signed?: boolean
+  /** Tween from the previous value to the new one (300ms ease-out). */
+  animate?: boolean
   className?: string
 }
 
@@ -27,18 +30,22 @@ export function NumberDisplay({
   decimals,
   emphasized = false,
   signed = false,
+  animate = false,
   className,
 }: NumberDisplayProps) {
+  const tweened = useTween(animate ? value : undefined)
+  const shown = animate && tweened != null ? tweened : value
+
   let text: string
   switch (format) {
     case "currency":
-      text = formatCurrency(value, currency)
+      text = formatCurrency(shown, currency)
       break
     case "percent":
-      text = formatPercent(value, decimals ?? 1)
+      text = formatPercent(shown, decimals ?? 1)
       break
     default:
-      text = formatNumber(value, decimals ?? 0)
+      text = formatNumber(shown, decimals ?? 0)
   }
 
   const hasValue = value != null && !Number.isNaN(value)

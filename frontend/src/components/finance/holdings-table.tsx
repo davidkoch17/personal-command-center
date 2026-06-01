@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { memo, useMemo, useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import {
   Table,
@@ -56,8 +56,11 @@ interface HoldingsTableProps {
   onRowClick?: (row: HoldingRow) => void
 }
 
-/** Sortable holdings table. Numbers monospace; position name in sans. */
-export function HoldingsTable({ holdings, onRowClick }: HoldingsTableProps) {
+/** Sortable holdings table. Numbers monospace; position name in sans. Memoized. */
+export const HoldingsTable = memo(function HoldingsTable({
+  holdings,
+  onRowClick,
+}: HoldingsTableProps) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [dir, setDir] = useState<"asc" | "desc">("desc")
 
@@ -136,4 +139,4 @@ export function HoldingsTable({ holdings, onRowClick }: HoldingsTableProps) {
       </TableBody>
     </Table>
   )
-}
+})

@@ -11,6 +11,7 @@ export function useReading() {
   return useQuery({
     queryKey: ["reading"],
     queryFn: () => api.get<ReadingBuckets>("/api/reading"),
+    staleTime: 5 * 60_000, // reading list changes rarely
   })
 }
 

@@ -32,7 +32,7 @@ export function Portfolio() {
             snap.isLoading ? (
               <Skeleton className="h-7 w-28" />
             ) : (
-              <NumberDisplay value={snap.data?.total_value} format="currency" emphasized />
+              <NumberDisplay value={snap.data?.total_value} format="currency" emphasized animate />
             )
           }
           caption={`${snap.data?.position_count ?? 0} positions`}

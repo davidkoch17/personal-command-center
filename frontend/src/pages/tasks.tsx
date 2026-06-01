@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { TaskCheck } from "@/components/ui/task-check"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState } from "@/components/ui/error-state"
 import {
   TASK_SECTIONS,
   useAddTask,
@@ -15,18 +16,14 @@ import type { Task } from "@/lib/types"
 import { toast } from "@/lib/toast-store"
 
 export function Tasks() {
-  const { data, isLoading, isError } = useTasks()
+  const { data, isLoading, isError, refetch } = useTasks()
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">tasks</h1>
 
       {isError && (
-        <Panel title="error" statusDotColor="danger">
-          <p className="text-text-secondary">
-            could not load tasks. is the backend running on :8000?
-          </p>
-        </Panel>
+        <ErrorState message="could not load tasks. is the backend running on :8000?" onRetry={() => refetch()} />
       )}
 
       {isLoading && (

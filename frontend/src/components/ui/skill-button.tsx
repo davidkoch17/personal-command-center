@@ -43,7 +43,7 @@ export function SkillButton({
       onClick={go}
       {...rest}
     >
-      {children}
+      {pending ? "starting…" : children}
     </Button>
   )
 }

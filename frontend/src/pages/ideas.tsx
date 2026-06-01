@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Collapsible } from "@/components/ui/collapsible"
+import { ErrorState } from "@/components/ui/error-state"
 import { IdeaCard } from "@/components/cards/idea-card"
 import {
   Dialog,
@@ -17,7 +18,7 @@ import { useIdeas, useCreateIdea } from "@/hooks/useIdeas"
 import { toast } from "@/lib/toast-store"
 
 export function Ideas() {
-  const { data, isLoading, isError } = useIdeas()
+  const { data, isLoading, isError, refetch } = useIdeas()
   const [newOpen, setNewOpen] = useState(false)
 
   return (
@@ -28,11 +29,7 @@ export function Ideas() {
       </div>
 
       {isError && (
-        <Panel title="error" statusDotColor="danger">
-          <p className="text-text-secondary">
-            could not load ideas. is the backend running on :8000?
-          </p>
-        </Panel>
+        <ErrorState message="could not load ideas. is the backend running on :8000?" onRetry={() => refetch()} />
       )}
 
       {isLoading ? (

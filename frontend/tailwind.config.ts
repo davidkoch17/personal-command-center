@@ -40,14 +40,21 @@ export default {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        // Running indicator: scale 1 -> 1.1 -> 1 with a slight opacity dip.
         "pulse-dot": {
+          "0%, 100%": { transform: "scale(1)", opacity: "1" },
+          "50%": { transform: "scale(1.1)", opacity: "0.55" },
+        },
+        // Live-feed blink: faint opacity blink.
+        blink: {
           "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0.4" },
+          "50%": { opacity: "0.35" },
         },
       },
       animation: {
         shimmer: "shimmer 1.6s ease-in-out infinite",
-        "pulse-dot": "pulse-dot 1.4s ease-in-out infinite",
+        "pulse-dot": "pulse-dot 1.5s ease-in-out infinite",
+        blink: "blink 2s ease-in-out infinite",
       },
     },
   },
