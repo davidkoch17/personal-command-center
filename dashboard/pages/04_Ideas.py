@@ -1,21 +1,22 @@
-"""Ideas — Idea Validation System workspace.
+"""Ideas — overview grid (Phase 9a retrofit of the Idea Validation System).
 
-New-idea intake, active-idea cards, a 12-stage validation workspace, and the
-killed-idea archive. Long runs (full validation, individual stages) are launched
-detached via :mod:`modules.agents.background` so the dashboard stays interactive.
+Read-on-click overview: a "+ New idea" intake (quick capture / full intake), a
+grid of active-idea cards (status · validation progress · recommendation · score
+· last touched), and the killed-idea archive with naive pattern analysis. The
+12-stage validation workspace moved to the hidden `_workspace_idea.py` page,
+opened in a new tab via each card's "Open Workspace ↗" link.
 """
 from __future__ import annotations
 
-import os
+import re
 from datetime import datetime
-from pathlib import Path
 
 import streamlit as st
 
 from dashboard._theme import inject_theme, inject_shortcuts
+from dashboard._workspace_link import workspace_link
 from core.config import get_logger
 from modules.agents.skills import idea_validator as iv
-from modules.agents import background
 
 logger = get_logger(__name__)
 
@@ -23,351 +24,171 @@ st.set_page_config(page_title="Ideas", page_icon="💡", layout="wide")
 inject_theme()
 inject_shortcuts()
 
-RUNNER_MODULE = "modules.agents.skills.idea_validator.runner"
-BINARY_OUTPUTS = {
-    "05": "05_Financial_Model.xlsx",
-    "06": "06_Business_Plan.docx",
-    "07": "07_Pitch_Deck.pptx",
-}
+N_STAGES = len(iv.STAGES)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-def _open_in_os(path: Path) -> None:
-    try:
-        os.startfile(str(path))  # noqa: S606 — Windows only, intentional
-    except Exception as exc:  # noqa: BLE001
-        st.error(f"Could not open {path.name}: {exc}")
+# --- helpers ----------------------------------------------------------------
+def _master_text(folder) -> str:
+    p = folder / "MASTER.md"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
-def _stage_status(state: dict, stage_key: str) -> str:
-    s = state.get(stage_key)
-    if not s:
-        return "pending"
-    if s.get("stale"):
-        return "stale"
-    return "done"
-
-
-_STATUS_ICON = {"done": "✓", "stale": "⚠", "pending": "☐", "running": "⟳"}
-
-
-def _active_bg_run_for(idea_name: str) -> dict | None:
-    """Return the most recent still-running background run whose run_id references
-    this idea, or None. Run ids embed the label (e.g. ``..._Validate_<Idea>``)."""
-    safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in idea_name)
-    for run in background.list_recent_runs(30):
-        rid = run.get("run_id", "")
-        if safe in rid and run.get("status") == "running":
-            return run
+def _recommendation(folder) -> str | None:
+    """Pull a recommendation from MASTER.md / scorecard, if any."""
+    for name in ("MASTER.md", "11_Decision_Scorecard.md"):
+        p = folder / name
+        if not p.exists():
+            continue
+        m = re.search(r"(?:Final recommendation|Recommendation):\s*\n?(.+)",
+                      p.read_text(encoding="utf-8"))
+        if m and m.group(1).strip() and "(set after" not in m.group(1):
+            return m.group(1).strip()
     return None
 
 
-def _launch_full_validation(idea_name: str) -> None:
-    info = background.launch(
-        module_path=RUNNER_MODULE,
-        callable_name="run_all",
-        args=[idea_name],
-        label=f"Validate {idea_name}",
+def _score(folder) -> str | None:
+    """Pull an aggregate score from the scorecard, if present (e.g. '72/100')."""
+    p = folder / "11_Decision_Scorecard.md"
+    if not p.exists():
+        return None
+    m = re.search(r"(?:Aggregate|Total|Overall)\s*[Ss]core[^0-9]*([0-9]+(?:\.[0-9]+)?\s*/\s*[0-9]+)",
+                  p.read_text(encoding="utf-8"))
+    return m.group(1).replace(" ", "") if m else None
+
+
+def _status(folder, n_done: int) -> tuple[str, str]:
+    master = _master_text(folder).lower()
+    if "## decision" in master or "decision:" in master:
+        return "DECIDED", "#3B82F6"
+    if n_done == 0:
+        return "NEW", "#9CA3AF"
+    return "VALIDATING", "#F59E0B"
+
+
+def _last_touched(folder) -> str:
+    try:
+        mtime = datetime.fromtimestamp(folder.stat().st_mtime)
+    except OSError:
+        return "—"
+    secs = (datetime.now() - mtime).total_seconds()
+    if secs < 3600:
+        return f"{int(secs // 60)}m ago"
+    if secs < 86400:
+        return f"{int(secs // 3600)}h ago"
+    return f"{int(secs // 86400)}d ago"
+
+
+def status_span(label: str, color: str) -> str:
+    return (
+        f'<span style="color:{color}; font-size:0.78rem; font-weight:600; '
+        f'letter-spacing:0.05em;">{label}</span>'
     )
-    st.toast(f"Full validation started in background: {info['run_id']}", icon="🚀")
 
 
-def _launch_stage_bg(idea_name: str, stage_key: str) -> None:
-    info = background.launch(
-        module_path=RUNNER_MODULE,
-        callable_name="run_stage",
-        args=[idea_name, stage_key],
-        label=f"Stage {stage_key} {idea_name}",
-    )
-    st.toast(f"Stage {stage_key} started in background: {info['run_id']}", icon="🚀")
-
-
-# ---------------------------------------------------------------------------
-# Header
-# ---------------------------------------------------------------------------
+# --- Header -----------------------------------------------------------------
 st.title("💡 Ideas")
 st.caption(
-    "Idea Validation System — drop an idea, run a 12-stage validation pack "
-    "(market, competition, financials, plan, deck, risk, scorecard, pre-mortem), "
-    "then make a real go / park / kill call. Inference via `claude -p` — zero API cost."
+    "Idea Validation System — capture an idea, run a 12-stage validation pack, "
+    "then make a real go / park / kill call. Open a workspace in a new tab to run it."
 )
 
-active_idea = st.session_state.get("active_idea")
 
-
-# ---------------------------------------------------------------------------
-# New idea intake
-# ---------------------------------------------------------------------------
+# --- + New idea -------------------------------------------------------------
 with st.container(border=True):
     st.subheader("New idea")
-    with st.form("new_idea_form", clear_on_submit=True):
-        new_name = st.text_input("Idea name", placeholder="e.g. Carbon Accounting for SMBs")
-        new_brief = st.text_area(
-            "Idea brief",
-            height=200,
-            placeholder=(
-                "Problem, solution, target customer, value prop, why now, why you, "
-                "biggest unknowns, kill criteria you'd accept. Be specific — vague "
-                "briefs produce vague analysis. (~500-2000 chars)"
-            ),
-        )
-        submitted = st.form_submit_button("Create idea", type="primary")
-    if submitted:
-        if not new_name.strip() or not new_brief.strip():
-            st.warning("Enter both an idea name and a brief.")
-        else:
-            try:
-                folder = iv.create_idea(new_name.strip(), new_brief.strip())
-                st.session_state["active_idea"] = folder.name
-                st.toast(f"Created idea folder: {folder.name}", icon="✅")
-                st.rerun()
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("create_idea failed")
-                st.error(f"Could not create idea: {exc}")
+    tab_quick, tab_full = st.tabs(["Quick capture", "Full intake"])
 
-
-# ---------------------------------------------------------------------------
-# Workspace view (an idea is selected)
-# ---------------------------------------------------------------------------
-def _render_workspace(idea_name: str) -> None:
-    folder = iv.idea_folder(idea_name)
-    if not folder.exists():
-        st.warning(f"Idea folder not found: {idea_name}")
-        st.session_state.pop("active_idea", None)
-        return
-
-    state = iv._read_state(folder)
-
-    top_l, top_r = st.columns([4, 1])
-    with top_l:
-        st.header(idea_name.replace("_", " "))
-    with top_r:
-        if st.button("← Back to all ideas", key="back_to_list"):
-            st.session_state.pop("active_idea", None)
-            st.rerun()
-
-    # Active background-run banner
-    run = _active_bg_run_for(idea_name)
-    if run:
-        started = run.get("started_at", "?")
-        st.info(
-            f"⟳ A validation run is in progress in the background "
-            f"(started {started}). Refresh this page to update progress."
-        )
-
-    # MASTER.md preview
-    master = folder / "MASTER.md"
-    if master.exists():
-        with st.expander("MASTER.md", expanded=True):
-            st.markdown(master.read_text(encoding="utf-8"))
-
-    # Progress strip
-    done = sum(1 for k, _, _ in iv.STAGES if _stage_status(state, k) == "done")
-    st.markdown(f"**Progress — {done} / {len(iv.STAGES)} stages complete**")
-    st.progress(done / len(iv.STAGES))
-    strip = "  ".join(
-        f"{_STATUS_ICON[_stage_status(state, k)]} {k}" for k, _, _ in iv.STAGES
-    )
-    st.caption(strip)
-    st.caption("✓ done · ⚠ stale (re-run recommended) · ☐ pending")
-
-    st.write("")
-    st.markdown("### Stages")
-
-    for stage_key, slug, filename in iv.STAGES:
-        status = _stage_status(state, stage_key)
-        title = f"{_STATUS_ICON[status]} Stage {stage_key} — {slug.replace('_', ' ').title()}"
-        with st.expander(title, expanded=False):
-            out_path = folder / filename
-
-            # Latest output
-            if out_path.exists():
-                st.caption(
-                    f"{filename} · modified "
-                    f"{datetime.fromtimestamp(out_path.stat().st_mtime):%Y-%m-%d %H:%M}"
-                )
-                try:
-                    st.markdown(out_path.read_text(encoding="utf-8"))
-                except Exception as exc:  # noqa: BLE001
-                    st.error(f"Could not read output: {exc}")
+    with tab_quick:
+        with st.form("quick_idea_form", clear_on_submit=True):
+            q_name = st.text_input("Idea name", key="q_name")
+            q_brief = st.text_area("One-liner (refine later in the workspace)", height=90, key="q_brief")
+            q_submit = st.form_submit_button("Capture idea", type="primary")
+        if q_submit:
+            if not q_name.strip() or not q_brief.strip():
+                st.warning("Enter an idea name and at least a one-liner.")
             else:
-                st.caption("Not generated yet.")
+                try:
+                    folder = iv.create_idea(q_name.strip(), q_brief.strip())
+                    st.toast(f"Created idea: {folder.name}", icon="✅")
+                    st.rerun()
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("create_idea (quick) failed")
+                    st.error(f"Could not create idea: {exc}")
 
-            # Binary deliverable (xlsx / docx / pptx)
-            bin_name = BINARY_OUTPUTS.get(stage_key)
-            if bin_name:
-                bin_path = folder / bin_name
-                if bin_path.exists():
-                    bc1, bc2 = st.columns(2)
-                    with bc1:
-                        st.download_button(
-                            f"⬇ Download {bin_name}",
-                            data=bin_path.read_bytes(),
-                            file_name=bin_name,
-                            key=f"dl_{stage_key}",
-                        )
-                    with bc2:
-                        if st.button(f"Open {bin_name} in OS", key=f"open_{stage_key}"):
-                            _open_in_os(bin_path)
-                else:
-                    st.caption(f"({bin_name} not generated yet.)")
-
-            # Run controls
-            run_in_bg = st.checkbox(
-                "Run in background", key=f"bg_{stage_key}", value=False
+    with tab_full:
+        with st.form("full_idea_form", clear_on_submit=True):
+            f_name = st.text_input("Idea name", key="f_name")
+            f_brief = st.text_area(
+                "Idea brief",
+                height=200,
+                placeholder=(
+                    "Problem, solution, target customer, value prop, why now, why you, "
+                    "biggest unknowns, kill criteria you'd accept. Be specific — vague "
+                    "briefs produce vague analysis. (~500-2000 chars)"
+                ),
+                key="f_brief",
             )
-            label = "Re-run" if out_path.exists() else "Run now"
-            if st.button(label, key=f"run_{stage_key}", type="primary"):
-                if run_in_bg:
-                    _launch_stage_bg(idea_name, stage_key)
-                    st.rerun()
-                else:
-                    with st.spinner(
-                        f"Running Stage {stage_key} via claude -p — this can take "
-                        f"several minutes…"
-                    ):
-                        try:
-                            iv.run_stage(idea_name, stage_key)
-                            st.toast(f"Stage {stage_key} complete", icon="✅")
-                            st.rerun()
-                        except Exception as exc:  # noqa: BLE001
-                            logger.exception("run_stage failed")
-                            st.error(f"Stage {stage_key} failed: {exc}")
-
-    # Run full validation (always background — 30-60 min)
-    st.write("")
-    with st.container(border=True):
-        st.markdown("**Run full validation (all 12 stages)**")
-        st.caption(
-            "Runs Stages 2-12 sequentially in the background (~30-60 min). "
-            "Refresh this page to track progress; outputs appear stage by stage."
-        )
-        if st.button("🚀 Run full validation", key="run_all", type="primary"):
-            _launch_full_validation(idea_name)
-            st.rerun()
-
-    # Mark as decided
-    st.write("")
-    with st.container(border=True):
-        st.markdown("**Mark as decided**")
-        decision = st.radio(
-            "Decision", ["Pursue", "Park", "Kill"], horizontal=True, key="decision_radio"
-        )
-        reason = st.text_area("Reason / notes", key="decision_reason", height=80)
-        if st.button("Apply decision", key="apply_decision"):
-            if decision == "Kill":
-                if not reason.strip():
-                    st.warning("Add a kill reason so the pattern analysis is useful.")
-                else:
-                    try:
-                        iv.kill_idea(idea_name, reason.strip())
-                        st.session_state.pop("active_idea", None)
-                        st.toast(f"Killed: {idea_name}", icon="🗑️")
-                        st.rerun()
-                    except Exception as exc:  # noqa: BLE001
-                        logger.exception("kill_idea failed")
-                        st.error(f"Could not kill idea: {exc}")
+            f_submit = st.form_submit_button("Create idea", type="primary")
+        if f_submit:
+            if not f_name.strip() or not f_brief.strip():
+                st.warning("Enter both an idea name and a brief.")
             else:
-                # Pursue / Park — annotate MASTER.md via Python file I/O.
                 try:
-                    note = (
-                        f"\n\n## Decision\n{decision} — "
-                        f"{datetime.now():%Y-%m-%d %H:%M}\n\n{reason.strip()}\n"
-                    )
-                    mp = folder / "MASTER.md"
-                    existing = mp.read_text(encoding="utf-8") if mp.exists() else ""
-                    mp.write_text(existing + note, encoding="utf-8")
-                    st.toast(f"Marked as {decision}", icon="✅")
+                    folder = iv.create_idea(f_name.strip(), f_brief.strip())
+                    st.toast(f"Created idea folder: {folder.name}", icon="✅")
                     st.rerun()
                 except Exception as exc:  # noqa: BLE001
-                    logger.exception("decision annotate failed")
-                    st.error(f"Could not record decision: {exc}")
+                    logger.exception("create_idea (full) failed")
+                    st.error(f"Could not create idea: {exc}")
 
 
-# ---------------------------------------------------------------------------
-# List view (no idea selected)
-# ---------------------------------------------------------------------------
-def _render_list() -> None:
-    ideas = iv.list_ideas()
-    if not ideas:
-        st.info("No ideas yet. Use **New idea** above to start one.")
-    else:
-        st.markdown(f"### Active ideas ({len(ideas)})")
-        for item in ideas:
-            name = item["name"]
-            n_done = item["stages_complete"]
-            with st.container(border=True):
-                c_name, c_prog, c_btn = st.columns([3, 2, 1])
-                with c_name:
-                    st.markdown(f"**{name.replace('_', ' ')}**")
-                    run = _active_bg_run_for(name)
-                    if run:
-                        st.caption("⟳ validation running in background")
-                with c_prog:
-                    st.progress(
-                        min(n_done, len(iv.STAGES)) / len(iv.STAGES),
-                        text=f"{n_done} / {len(iv.STAGES)} stages",
-                    )
-                with c_btn:
-                    if st.button("Open", key=f"open_idea_{name}"):
-                        st.session_state["active_idea"] = name
-                        st.rerun()
-
-                qa1, qa2 = st.columns([3, 1])
-                with qa1:
-                    action = st.selectbox(
-                        "Quick action",
-                        ["—", "Run full validation"]
-                        + [f"Re-run stage {k}" for k, _, _ in iv.STAGES],
-                        key=f"qa_{name}",
-                        label_visibility="collapsed",
-                    )
-                with qa2:
-                    if st.button("Go", key=f"qa_go_{name}"):
-                        if action == "Run full validation":
-                            _launch_full_validation(name)
-                            st.rerun()
-                        elif action.startswith("Re-run stage "):
-                            sk = action.replace("Re-run stage ", "").strip()
-                            _launch_stage_bg(name, sk)
-                            st.rerun()
-
-    # Killed ideas archive
-    st.write("")
-    killed = iv.list_killed()
-    with st.expander(f"Killed ideas ({len(killed)})", expanded=False):
-        if not killed:
-            st.caption("No killed ideas yet.")
-        else:
-            # Pattern view — naive count of recurring kill-reason keywords.
-            patterns: dict[str, int] = {}
-            keywords = [
-                "market", "competit", "capital", "time", "moat",
-                "interest", "regulat", "team", "margin",
-            ]
-            for k in killed:
-                low = k["reason"].lower()
-                for kw in keywords:
-                    if kw in low:
-                        patterns[kw] = patterns.get(kw, 0) + 1
-            if patterns:
-                summary = "; ".join(
-                    f"{kw}: {n}" for kw, n in sorted(
-                        patterns.items(), key=lambda x: -x[1]
-                    )
-                )
-                st.caption(f"Kill-reason patterns — {summary}")
-            for k in killed:
-                st.markdown(f"**{k['name'].replace('_', ' ')}**")
-                st.caption(k["reason"] or "(no reason recorded)")
-
-
-# ---------------------------------------------------------------------------
-# Route
-# ---------------------------------------------------------------------------
-if active_idea:
-    _render_workspace(active_idea)
+# --- Active idea cards ------------------------------------------------------
+ideas = iv.list_ideas()
+st.write("")
+if not ideas:
+    st.info("No ideas yet. Use **New idea** above to start one.")
 else:
-    _render_list()
+    st.markdown(f"### Active ideas ({len(ideas)})")
+    cols = st.columns(3)
+    for i, item in enumerate(ideas):
+        folder = item["path"]
+        n_done = min(item["stages_complete"], N_STAGES)
+        with cols[i % 3]:
+            with st.container(border=True):
+                st.markdown(f"**{item['name'].replace('_', ' ')}**")
+                label, color = _status(folder, n_done)
+                st.markdown(status_span(label, color), unsafe_allow_html=True)
+                st.progress(n_done / N_STAGES, text=f"{n_done} / {N_STAGES} stages")
+                rec = _recommendation(folder)
+                if rec:
+                    st.caption(f"📌 {rec[:80]}")
+                sc = _score(folder)
+                if sc:
+                    st.caption(f"Score: {sc}")
+                st.caption(f"Last touched {_last_touched(folder)}")
+                workspace_link("Open Workspace ↗", "idea", item["name"])
+
+
+# --- Killed ideas archive ---------------------------------------------------
+st.write("")
+killed = iv.list_killed()
+with st.expander(f"Killed ideas ({len(killed)})", expanded=False):
+    if not killed:
+        st.caption("No killed ideas yet.")
+    else:
+        patterns: dict[str, int] = {}
+        keywords = ["market", "competit", "capital", "time", "moat",
+                    "interest", "regulat", "team", "margin"]
+        for k in killed:
+            low = k["reason"].lower()
+            for kw in keywords:
+                if kw in low:
+                    patterns[kw] = patterns.get(kw, 0) + 1
+        if patterns:
+            summary = "; ".join(
+                f"{kw}: {n}" for kw, n in sorted(patterns.items(), key=lambda x: -x[1])
+            )
+            st.caption(f"Kill-reason patterns — {summary}")
+        for k in killed:
+            st.markdown(f"**{k['name'].replace('_', ' ')}**")
+            st.caption(k["reason"] or "(no reason recorded)")
