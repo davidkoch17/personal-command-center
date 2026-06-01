@@ -8,6 +8,7 @@ import streamlit as st
 from dashboard._theme import inject_theme, inject_shortcuts
 from core.config import get_logger
 from modules.agents import market_researcher as mr
+from modules.agents import background
 
 logger = get_logger(__name__)
 
@@ -33,19 +34,37 @@ with st.container(border=True):
     col1.metric("Last run", last.isoformat() if last else "Never")
     col2.metric("Next scheduled run", nxt.strftime("%a %Y-%m-%d %H:%M"))
 
+    run_bg = st.checkbox(
+        "Run in background", key="mr_run_bg",
+        help="Launch detached so the dashboard stays interactive. Track it on the "
+             "Background Runs page.",
+    )
     if st.button("▶ Run now", type="primary", key="run_market_researcher"):
-        with st.spinner(
-            "Running Market Researcher — fetching data and calling claude -p. "
-            "This can take a few minutes…"
-        ):
+        if run_bg:
             try:
-                path = mr.run()
-                st.toast(f"Brief written: {path.name}", icon="✅")
-                st.success(f"Brief written to {path}")
-                st.rerun()
+                info = background.launch(
+                    module_path="modules.agents.market_researcher",
+                    callable_name="run",
+                    args=[],
+                    label="Market Researcher",
+                )
+                st.toast(f"Started in background: {info['run_id']}", icon="🚀")
             except Exception as e:  # noqa: BLE001
-                logger.exception("Market Researcher run failed")
-                st.error(f"Run failed: {e}")
+                logger.exception("Background launch failed")
+                st.error(f"Could not launch in background: {e}")
+        else:
+            with st.spinner(
+                "Running Market Researcher — fetching data and calling claude -p. "
+                "This can take a few minutes…"
+            ):
+                try:
+                    path = mr.run()
+                    st.toast(f"Brief written: {path.name}", icon="✅")
+                    st.success(f"Brief written to {path}")
+                    st.rerun()
+                except Exception as e:  # noqa: BLE001
+                    logger.exception("Market Researcher run failed")
+                    st.error(f"Run failed: {e}")
 
     st.markdown("**Recent briefs**")
     briefs = mr.list_briefs(limit=8)

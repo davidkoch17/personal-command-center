@@ -12,6 +12,7 @@ from core import vault, markdown
 from core.config import SYSTEM_PATH, DATA_DIR, get_logger
 from modules.projects import workspace, templates
 from modules.agents.skills import ask_about_project
+from modules.agents import background
 
 logger = get_logger(__name__)
 
@@ -282,9 +283,25 @@ with st.container(border=True):
         "(Claude Max subscription — zero API cost)."
     )
     question = st.text_area("Question", key=f"ask_{pid}")
+    ask_bg = st.checkbox(
+        "Run in background", key=f"ask_bg_{pid}",
+        help="Launch detached for long answers; track on the Background Runs page.",
+    )
     if st.button("Ask", key=f"ask_btn_{pid}", type="primary"):
         if not question.strip():
             st.warning("Type a question first.")
+        elif ask_bg:
+            try:
+                info = background.launch(
+                    module_path="modules.agents.skills.ask_about_project",
+                    callable_name="ask",
+                    args=[pid, question],
+                    label=f"Ask {pid}",
+                )
+                st.toast(f"Started in background: {info['run_id']}", icon="🚀")
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("Background launch failed")
+                st.error(f"Could not launch in background: {exc}")
         else:
             with st.spinner("Asking Claude about this project…"):
                 try:

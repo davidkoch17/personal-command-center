@@ -19,6 +19,7 @@ from modules.habits import health_journal
 from modules.finance import money, portfolio, watchlist
 from modules.projects import activity
 from modules.integrations import calendar_ical, github, travel, whoop
+from modules.agents.skills import idea_validator as iv
 
 LAST_ACTIVE_FILE = DATA_DIR / "last_active.json"
 
@@ -513,3 +514,21 @@ with st.container(border=True):
             st.markdown("**Recent code commits**")
             for _c in _commits:
                 st.caption(f"`{_c['sha']}` {_c['repo']}: {_c['message']}")
+
+    # Ideas in progress — N/12 validation stages each.
+    try:
+        _ideas = iv.list_ideas()
+    except Exception:  # noqa: BLE001
+        _ideas = []
+    if _ideas:
+        st.markdown("**Ideas in progress**")
+        _n_stages = len(iv.STAGES)
+        for _idea in _ideas:
+            _done = _idea["stages_complete"]
+            st.caption(
+                f"💡 {_idea['name'].replace('_', ' ')} — {_done}/{_n_stages} stages"
+            )
+        try:
+            st.page_link("pages/04_Ideas.py", label="Open Ideas")
+        except Exception:  # noqa: BLE001
+            pass

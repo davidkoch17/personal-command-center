@@ -9,6 +9,7 @@ import streamlit as st
 from dashboard._theme import inject_theme, inject_shortcuts
 from core.config import VAULT_PATH, get_logger
 from modules.agents.skills import earnings_reviewer, model_builder, valuation_reviewer
+from modules.agents import background
 
 logger = get_logger(__name__)
 
@@ -36,6 +37,22 @@ tab_earn, tab_val, tab_model = st.tabs(
     ["Earnings Reviewer", "Valuation Reviewer", "Model Builder"]
 )
 
+
+def _launch_bg(module_path: str, callable_name: str, args: list, label: str) -> None:
+    """Launch a skill detached; surface a toast. Output is captured on the
+    Background Runs page (truncated) rather than rendered here."""
+    try:
+        info = background.launch(
+            module_path=module_path,
+            callable_name=callable_name,
+            args=args,
+            label=label,
+        )
+        st.toast(f"Started in background: {info['run_id']}", icon="🚀")
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Background launch failed")
+        st.error(f"Could not launch in background: {exc}")
+
 # ---------------------------------------------------------------------------
 # Earnings Reviewer
 # ---------------------------------------------------------------------------
@@ -47,9 +64,16 @@ with tab_earn:
         key="earn_transcript",
         height=200,
     )
+    earn_bg = st.checkbox("Run in background", key="earn_bg")
     if st.button("Run review", key="earn_run", type="primary"):
         if not ticker.strip():
             st.warning("Enter a ticker first.")
+        elif earn_bg:
+            _launch_bg(
+                "modules.agents.skills.earnings_reviewer", "review",
+                [ticker.strip().upper(), transcript or None],
+                f"Earnings {ticker.strip().upper()}",
+            )
         else:
             with st.spinner(f"Reviewing {ticker} earnings via claude -p…"):
                 try:
@@ -82,19 +106,27 @@ with tab_val:
     v_peers = st.text_input(
         "Peers (comma-separated)", key="val_peers", placeholder="AMD, AVGO, TSM"
     )
+    val_bg = st.checkbox("Run in background", key="val_bg")
     if st.button("Review", key="val_run", type="primary"):
         if not v_ticker.strip() or not v_summary.strip():
             st.warning("Enter a ticker and a valuation summary first.")
         else:
             peers = [p.strip() for p in v_peers.split(",") if p.strip()]
-            with st.spinner(f"Reviewing {v_ticker} valuation via claude -p…"):
-                try:
-                    st.session_state["val_output"] = valuation_reviewer.review(
-                        v_ticker.strip().upper(), v_summary, peers
-                    )
-                except Exception as e:  # noqa: BLE001
-                    logger.exception("Valuation review failed")
-                    st.error(f"Review failed: {e}")
+            if val_bg:
+                _launch_bg(
+                    "modules.agents.skills.valuation_reviewer", "review",
+                    [v_ticker.strip().upper(), v_summary, peers],
+                    f"Valuation {v_ticker.strip().upper()}",
+                )
+            else:
+                with st.spinner(f"Reviewing {v_ticker} valuation via claude -p…"):
+                    try:
+                        st.session_state["val_output"] = valuation_reviewer.review(
+                            v_ticker.strip().upper(), v_summary, peers
+                        )
+                    except Exception as e:  # noqa: BLE001
+                        logger.exception("Valuation review failed")
+                        st.error(f"Review failed: {e}")
 
     if st.session_state.get("val_output"):
         st.markdown(st.session_state["val_output"])
@@ -119,9 +151,16 @@ with tab_model:
         "Assumptions (raw JSON or bullet list)", key="model_assumptions", height=160,
         placeholder="- Revenue growth: 15%\n- Gross margin: 22%\n…",
     )
+    model_bg = st.checkbox("Run in background", key="model_bg")
     if st.button("Build", key="model_run", type="primary"):
         if not m_ticker.strip():
             st.warning("Enter a ticker first.")
+        elif model_bg:
+            _launch_bg(
+                "modules.agents.skills.model_builder", "build",
+                [m_ticker.strip().upper(), m_filings, m_assumptions],
+                f"Model {m_ticker.strip().upper()}",
+            )
         else:
             with st.spinner(f"Building {m_ticker} model spec via claude -p…"):
                 try:
