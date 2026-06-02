@@ -12,3 +12,14 @@ websockets>=12
 # in backend/voice/piper/ — see README.
 openai-whisper>=20231117
 pvporcupine>=3.0.0  # wake word, free for personal use with an access key
+
+# Phase 15a — finance foundation (performance + risk analytics).
+# NOTE: the original `empyrical` (0.5.5) fails to build on Python 3.12 (its
+# bundled versioneer uses the removed configparser.SafeConfigParser).
+# `empyrical-reloaded` is the maintained drop-in fork and imports under the SAME
+# `empyrical` namespace, so all module code (`import empyrical as ep`) is unchanged.
+empyrical-reloaded>=0.5.11
+quantstats>=0.0.62
+scipy>=1.11
+numpy-financial>=1.0.0
+# (yfinance, pandas, pyarrow already present in the project-root requirements.txt)

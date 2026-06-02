@@ -29,6 +29,7 @@ from backend.api import (
     watchlist, brand, career, integrations, runs,
     search, skills, reading, system, voice, priorities, daily,
 )
+from backend.api import finance
 
 
 app = FastAPI(
@@ -60,6 +61,7 @@ app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(ideas.router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(inbox.router, prefix="/api/inbox", tags=["inbox"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
+app.include_router(finance.router, prefix="/api/finance", tags=["finance"])
 app.include_router(money.router, prefix="/api/money", tags=["money"])
 app.include_router(watchlist.router, prefix="/api/watchlist", tags=["watchlist"])
 app.include_router(brand.router, prefix="/api/brand", tags=["brand"])

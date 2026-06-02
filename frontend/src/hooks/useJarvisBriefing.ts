@@ -21,6 +21,15 @@ interface RouteResponse {
   toggle_match?: string
   hypothesis_ticker?: string
   hypothesis_text?: string
+  transaction?: {
+    ticker: string
+    action: string
+    quantity: number
+    price: number
+    currency?: string
+    fees?: number
+    notes?: string | null
+  }
   clarification_question?: string
   answer?: string
   spoken_response?: string
@@ -274,6 +283,22 @@ export function useJarvisBriefing() {
             `/api/watchlist/${encodeURIComponent(route.hypothesis_ticker)}/hypothesis`,
             { text: route.hypothesis_text },
           )
+        }
+        break
+
+      case "add_transaction":
+        if (route.transaction?.ticker) {
+          const t = route.transaction
+          await api.post("/api/finance/transactions", {
+            date: new Date().toISOString().slice(0, 10),
+            ticker: t.ticker.toUpperCase(),
+            action: t.action || "buy",
+            quantity: t.quantity,
+            price: t.price,
+            currency: t.currency || "USD",
+            fees: t.fees ?? 0,
+            notes: t.notes ?? "Logged via Jarvis voice command",
+          })
         }
         break
 

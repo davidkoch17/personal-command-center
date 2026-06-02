@@ -78,6 +78,212 @@ export function usePortfolioSnapshot() {
   })
 }
 
+// --- Phase 15a: sophisticated finance layer (/api/finance/*) ----------------
+
+export interface FinanceHolding {
+  ticker: string
+  name: string
+  type: string | null
+  bucket: string | null
+  currency: string
+  quantity: number
+  avg_cost: number
+  total_basis: number
+  current_price: number | null
+  market_value: number
+  unrealized_pnl: number | null
+  unrealized_pnl_pct: number | null
+  sharpe: number | null
+  volatility: number | null
+  beta: number | null
+  weight: number | null
+}
+
+export interface FinanceHoldingsResponse {
+  holdings: FinanceHolding[]
+  total_market_value: number
+  count: number
+}
+
+interface BestWorst {
+  period: string
+  return: number
+}
+
+export interface FinancePerformanceResponse {
+  period: string
+  benchmark: string
+  benchmark_name?: string
+  available: boolean
+  reason?: string
+  time_weighted_return?: number | null
+  money_weighted_return?: number | null
+  annualized_return?: number | null
+  alpha?: number | null
+  beta?: number | null
+  tracking_error?: number | null
+  information_ratio?: number | null
+  win_rate?: number | null
+  best_worst?: Record<string, BestWorst | null>
+  contribution?: {
+    ticker: string
+    weight: number
+    position_return: number
+    contribution: number
+  }[]
+}
+
+export interface CumulativeResponse {
+  period: string
+  benchmark: string
+  benchmark_name?: string
+  series: { date: string; portfolio: number; benchmark: number }[]
+}
+
+export interface RollingResponse {
+  window: number
+  benchmark: string
+  series: { date: string; sharpe: number | null; alpha: number | null; beta: number | null }[]
+}
+
+export interface RiskResponse {
+  available: boolean
+  reason?: string
+  benchmark?: string
+  volatility?: {
+    rolling_30d: number | null
+    rolling_90d: number | null
+    rolling_12m: number | null
+    annualized: number | null
+  }
+  sharpe?: number | null
+  sortino?: number | null
+  calmar?: number | null
+  max_drawdown?: {
+    magnitude: number | null
+    peak_date: string | null
+    trough_date: string | null
+    recovery_date: string | null
+    duration_days: number | null
+  }
+  beta?: number | null
+  var?: Record<string, number | null>
+  expected_shortfall?: Record<string, number | null>
+  concentration?: {
+    herfindahl_index: number | null
+    effective_n_bets: number | null
+    top_1_weight: number | null
+    top_3_weight: number | null
+    top_5_weight: number | null
+  }
+}
+
+export interface CorrelationResponse {
+  tickers: string[]
+  matrix: Record<string, string | number>[]
+}
+
+export interface BucketRow {
+  bucket: string
+  label: string
+  value: number
+  current_weight: number
+  target_weight: number
+  drift: number
+  status: "ok" | "warn" | "alert"
+}
+
+export interface BucketsResponse {
+  total_value: number
+  buckets: BucketRow[]
+  unassigned: { ticker: string; value: number }[]
+  alerts: { severity: string; bucket: string; message: string }[]
+}
+
+export interface TransactionRequest {
+  date: string
+  ticker: string
+  action: "buy" | "sell" | "dividend" | "split" | "deposit" | "withdraw"
+  quantity: number
+  price: number
+  currency?: string
+  fees?: number
+  notes?: string | null
+}
+
+export function useFinanceHoldings() {
+  return useQuery({
+    queryKey: ["finance", "holdings"],
+    queryFn: () => api.get<FinanceHoldingsResponse>("/api/finance/holdings"),
+  })
+}
+
+export function useFinancePerformance(period = "ytd", benchmark = "MSCI_WORLD") {
+  return useQuery({
+    queryKey: ["finance", "performance", period, benchmark],
+    queryFn: () =>
+      api.get<FinancePerformanceResponse>(
+        `/api/finance/performance?period=${period}&benchmark=${benchmark}`,
+      ),
+  })
+}
+
+export function useFinanceCumulative(period = "1y", benchmark = "MSCI_WORLD") {
+  return useQuery({
+    queryKey: ["finance", "cumulative", period, benchmark],
+    queryFn: () =>
+      api.get<CumulativeResponse>(
+        `/api/finance/performance/cumulative?period=${period}&benchmark=${benchmark}`,
+      ),
+  })
+}
+
+export function useFinanceRolling(window = 252, benchmark = "MSCI_WORLD") {
+  return useQuery({
+    queryKey: ["finance", "rolling", window, benchmark],
+    queryFn: () =>
+      api.get<RollingResponse>(
+        `/api/finance/performance/rolling?window=${window}&benchmark=${benchmark}`,
+      ),
+  })
+}
+
+export function useFinanceRisk(benchmark = "MSCI_WORLD") {
+  return useQuery({
+    queryKey: ["finance", "risk", benchmark],
+    queryFn: () => api.get<RiskResponse>(`/api/finance/risk?benchmark=${benchmark}`),
+  })
+}
+
+export function useFinanceCorrelation() {
+  return useQuery({
+    queryKey: ["finance", "correlation"],
+    queryFn: () => api.get<CorrelationResponse>("/api/finance/risk/correlation"),
+  })
+}
+
+export function useBuckets() {
+  return useQuery({
+    queryKey: ["finance", "buckets"],
+    queryFn: () => api.get<BucketsResponse>("/api/finance/buckets"),
+  })
+}
+
+export function useRecordTransaction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (req: TransactionRequest) =>
+      api.post<{ ok: boolean; ticker: string; action: string }>(
+        "/api/finance/transactions",
+        req,
+      ),
+    onSuccess: () => {
+      // A new transaction changes holdings, buckets, performance + risk.
+      qc.invalidateQueries({ queryKey: ["finance"] })
+    },
+  })
+}
+
 export function usePortfolioPerformance(period = "ytd") {
   return useQuery({
     queryKey: ["portfolio", "performance", period],

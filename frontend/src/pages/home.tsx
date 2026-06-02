@@ -12,6 +12,8 @@ import { Collapsible } from "@/components/ui/collapsible"
 import { StatusDot } from "@/components/ui/status-dot"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { ProjectCard } from "@/components/cards/project-card"
+import { BucketAllocation } from "@/components/finance/bucket-allocation"
+import { TransactionForm } from "@/components/finance/transaction-form"
 import {
   Dialog,
   DialogContent,
@@ -208,6 +210,7 @@ function QuickRun() {
   const [earningsOpen, setEarningsOpen] = useState(false)
   const [taxOpen, setTaxOpen] = useState(false)
   const [askOpen, setAskOpen] = useState(false)
+  const [txOpen, setTxOpen] = useState(false)
 
   function started(runId?: string) {
     toast.success("started in background — see background runs", runId)
@@ -215,7 +218,7 @@ function QuickRun() {
 
   return (
     <Panel title="quick run" statusDotColor="accent">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <Button
           variant="secondary"
           onClick={() =>
@@ -240,7 +243,19 @@ function QuickRun() {
         <Button variant="secondary" onClick={() => setAskOpen(true)}>
           ask claude
         </Button>
+        <Button variant="secondary" onClick={() => setTxOpen(true)}>
+          log transaction
+        </Button>
       </div>
+
+      <Dialog open={txOpen} onOpenChange={setTxOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>log transaction</DialogTitle>
+          </DialogHeader>
+          <TransactionForm onDone={() => setTxOpen(false)} />
+        </DialogContent>
+      </Dialog>
 
       <PromptDialog
         open={earningsOpen}
@@ -581,6 +596,7 @@ function FinancesRow() {
   return (
     <div className="space-y-2">
       <h2 className="text-lg font-semibold tracking-tight">finances</h2>
+      <BucketAllocation compact />
       <div className="grid gap-4 md:grid-cols-3">
         <Panel title="portfolio" statusDotColor="accent">
           {portfolio.isLoading ? (

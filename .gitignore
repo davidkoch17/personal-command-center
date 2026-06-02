@@ -4,6 +4,11 @@ __pycache__/
 .env
 .streamlit/secrets.toml
 data/cache/
+
+# Phase 15a finance foundation — generated/personal financial data (per-machine).
+data/positions.json
+data/transactions.jsonl
+data/price_cache/
 .venv/
 venv/
 .DS_Store
