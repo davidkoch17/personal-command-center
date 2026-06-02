@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { Panel } from "@/components/ui/panel"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -19,6 +19,8 @@ import { TransactionForm } from "@/components/finance/transaction-form"
 import { BucketAllocation } from "@/components/finance/bucket-allocation"
 import { OptimizationTab } from "@/components/finance/optimization-panel"
 import { FactorsTab } from "@/components/finance/factors-panel"
+import { DecisionsTab } from "@/components/finance/decisions-panel"
+import { ScenarioTools } from "@/components/finance/scenarios-panel"
 import {
   AllocationBar,
   CategoryDonut,
@@ -79,6 +81,12 @@ export function PortfolioWorkspace() {
   const alloc = usePortfolioAllocations()
   const holdings = snap.data?.holdings ?? []
 
+  // Tab is URL-driven so Home's decision-alerts panel can deep-link a tab.
+  const [params, setParams] = useSearchParams()
+  const tab = params.get("tab") ?? "holdings"
+  const setTab = (v: string) =>
+    setParams(v === "holdings" ? {} : { tab: v }, { replace: true })
+
   return (
     <div className="min-h-screen bg-bg text-text p-6">
       <div className="mx-auto max-w-[1400px] space-y-5">
@@ -92,7 +100,7 @@ export function PortfolioWorkspace() {
         {/* 4-bucket allocation vs target — always visible above the tabs. */}
         <BucketAllocation />
 
-        <Tabs defaultValue="holdings">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="holdings">holdings</TabsTrigger>
             <TabsTrigger value="allocations">allocations</TabsTrigger>
@@ -103,6 +111,7 @@ export function PortfolioWorkspace() {
             <TabsTrigger value="risk">risk</TabsTrigger>
             <TabsTrigger value="scenarios">scenarios</TabsTrigger>
             <TabsTrigger value="tax">tax</TabsTrigger>
+            <TabsTrigger value="decisions">decisions</TabsTrigger>
           </TabsList>
 
           {/* 1. Holdings — real per-position metrics + log-transaction form. */}
@@ -180,6 +189,11 @@ export function PortfolioWorkspace() {
           {/* 7. Tax */}
           <TabsContent value="tax">
             <TaxTab holdings={holdings} loading={snap.isLoading} />
+          </TabsContent>
+
+          {/* 8. Decisions — sizing, rebalancing, harvest, concentration (Phase 15c). */}
+          <TabsContent value="decisions">
+            <DecisionsTab />
           </TabsContent>
         </Tabs>
       </div>
@@ -528,8 +542,20 @@ function AttribList({ rows }: { rows: { name: string; contribution: number }[] }
   )
 }
 
-// 6. Scenarios — portfolio_scenario skill (background).
+// 6. Scenarios — real quantitative tools (market shock, what-if, fx) + a
+// free-form Claude scenario for anything the structured tools don't cover.
 function ScenariosTab() {
+  return (
+    <div className="space-y-4">
+      <ScenarioTools />
+      <Collapsible title="ask claude a free-form scenario" meta="deeper / qualitative">
+        <ClaudeScenario />
+      </Collapsible>
+    </div>
+  )
+}
+
+function ClaudeScenario() {
   const runSkill = useRunSkill()
   const [text, setText] = useState("")
 
@@ -549,7 +575,7 @@ function ScenariosTab() {
   }
 
   return (
-    <Panel title="what-if scenario" statusDotColor="accent">
+    <div>
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -573,7 +599,7 @@ function ScenariosTab() {
           run scenario
         </Button>
       </div>
-    </Panel>
+    </div>
   )
 }
 

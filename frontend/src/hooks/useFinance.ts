@@ -539,3 +539,188 @@ export function useFactorDecomposition(region = "US") {
       api.get<DecompositionResponse>(`/api/finance/factors/decomposition?region=${region}`),
   })
 }
+
+// --- Phase 15c: decision support + backtesting ------------------------------
+
+export interface SizeResponse {
+  portfolio_value: number
+  conviction_score: number
+  weight_pct: number
+  eur_amount: number
+  can_enter: boolean
+  rationale: string
+}
+
+export interface BucketAlloc {
+  value: number
+  weight: number
+  target: number
+  drift: number
+}
+
+export interface RebalanceRec {
+  bucket: string
+  action: string
+  current_weight?: number
+  target_weight?: number
+  drift_pct?: number
+  delta_eur: number
+  priority: string
+  rationale: string
+}
+
+export interface RebalanceResponse {
+  portfolio_value: number
+  allocations: Record<string, BucketAlloc>
+  recommendations: RebalanceRec[]
+  drift_tolerance: number
+}
+
+export interface HarvestCandidate {
+  ticker: string
+  unrealized_pnl: number
+  unrealized_pnl_pct: number
+  holding_days: number
+  type: string | null
+  tax_savings_estimate: number
+  warning: string | null
+}
+
+export interface HarvestResponse {
+  candidates: HarvestCandidate[]
+  count: number
+}
+
+export interface ConcentrationAlert {
+  type: string
+  ticker: string
+  weight: number
+  rationale: string
+  severity: string
+}
+
+export interface AlertsResponse {
+  alerts: ConcentrationAlert[]
+  count: number
+}
+
+export interface HypothesesViewResponse {
+  views: BLView[]
+  aggregate_expected_return: number | null
+  n_views: number
+}
+
+export interface DecisionSummaryResponse {
+  portfolio_value: number
+  rebalance_count: number
+  rebalance_high: number
+  concentration_count: number
+  concentration_high: number
+  harvest_count: number
+  harvest_savings: number
+}
+
+export interface WhatIfResponse {
+  ticker?: string
+  action?: string
+  action_date?: string
+  initial_price?: number
+  current_price?: number
+  qty?: number
+  counterfactual_pnl?: number
+  cumulative_return_pct?: number
+  error?: string
+}
+
+export interface ShockPosition {
+  beta?: number
+  value?: number
+  impact?: number
+  error?: string
+}
+
+export interface MarketShockResponse {
+  shock_pct: number
+  total_value: number
+  total_estimated_impact: number
+  impact_pct: number | null
+  per_position: Record<string, ShockPosition>
+}
+
+export interface FxAffected {
+  currency?: string
+  value?: number
+  impact?: number
+  error?: string
+}
+
+export interface FxShockResponse {
+  currency: string
+  shock_pct: number
+  total_impact: number
+  total_exposure: number
+  affected: Record<string, FxAffected>
+}
+
+export function useDecisionRebalance() {
+  return useQuery({
+    queryKey: ["finance", "decisions", "rebalance"],
+    queryFn: () => api.get<RebalanceResponse>("/api/finance/decisions/rebalance"),
+  })
+}
+
+export function useDecisionHarvest() {
+  return useQuery({
+    queryKey: ["finance", "decisions", "harvest"],
+    queryFn: () => api.get<HarvestResponse>("/api/finance/decisions/harvest"),
+  })
+}
+
+export function useDecisionAlerts() {
+  return useQuery({
+    queryKey: ["finance", "decisions", "alerts"],
+    queryFn: () => api.get<AlertsResponse>("/api/finance/decisions/alerts"),
+  })
+}
+
+export function useDecisionHypothesesView() {
+  return useQuery({
+    queryKey: ["finance", "decisions", "hypotheses-view"],
+    queryFn: () => api.get<HypothesesViewResponse>("/api/finance/decisions/hypotheses-view"),
+  })
+}
+
+export function useDecisionSummary() {
+  return useQuery({
+    queryKey: ["finance", "decisions", "summary"],
+    queryFn: () => api.get<DecisionSummaryResponse>("/api/finance/decisions/summary"),
+  })
+}
+
+export function useSuggestSize() {
+  return useMutation({
+    mutationFn: (conviction_score: number) =>
+      api.post<SizeResponse>("/api/finance/decisions/size", { conviction_score }),
+  })
+}
+
+export function useMarketShock() {
+  return useMutation({
+    mutationFn: (shock_pct: number) =>
+      api.post<MarketShockResponse>("/api/finance/backtest/market-shock", { shock_pct }),
+  })
+}
+
+export function useFxShock() {
+  return useMutation({
+    mutationFn: (req: { currency: string; shock_pct: number }) =>
+      api.post<FxShockResponse>("/api/finance/backtest/fx-shock", req),
+  })
+}
+
+export function useWhatIf() {
+  return useMutation({
+    mutationFn: (req: { ticker: string; action: string; qty: number; date: string }) =>
+      api.post<WhatIfResponse>("/api/finance/backtest/what-if", req),
+  })
+}

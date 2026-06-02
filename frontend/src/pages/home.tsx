@@ -14,6 +14,7 @@ import { NumberDisplay } from "@/components/ui/number-display"
 import { ProjectCard } from "@/components/cards/project-card"
 import { BucketAllocation } from "@/components/finance/bucket-allocation"
 import { OptimizationSignals } from "@/components/finance/optimization-signals"
+import { DecisionAlerts } from "@/components/finance/decision-alerts"
 import { TransactionForm } from "@/components/finance/transaction-form"
 import {
   Dialog,
@@ -58,6 +59,9 @@ export function Home() {
 
       {/* Morning anchor: Claude-suggested priorities → curated daily todo list. */}
       <DailyPrioritiesPanel />
+
+      {/* Actionable finance signals: rebalance / concentration / harvest counts. */}
+      <DecisionAlerts />
 
       <SearchBar />
 
