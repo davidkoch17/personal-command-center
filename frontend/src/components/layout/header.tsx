@@ -10,6 +10,7 @@ import {
 import { useSystemStatus } from "@/hooks/useSystem"
 import { isoDate } from "@/lib/utils"
 import { JarvisBall } from "@/components/jarvis/jarvis-ball"
+import { useJarvisBriefing } from "@/hooks/useJarvisBriefing"
 
 interface IntegrationCheck {
   name?: string
@@ -31,18 +32,15 @@ function aggregateHealth(checks: IntegrationCheck[] | undefined): {
 
 /**
  * Top header: hamburger (mobile) + app name on the left; aggregate system-status
- * dot (click → settings diagnostics) and the current date on the right.
+ * dot (click → settings diagnostics), the current date, and the small Jarvis
+ * ball on the right. The ball runs the same briefing flow as the Home one (its
+ * own hook instance); a short subtitle appears beside it while it's active.
  */
-export function Header({
-  onMenuClick,
-  onOpenBriefing,
-}: {
-  onMenuClick: () => void
-  onOpenBriefing?: () => void
-}) {
+export function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const navigate = useNavigate()
   const { data } = useSystemStatus()
   const today = isoDate()
+  const jarvis = useJarvisBriefing()
 
   const health = useMemo(
     () => aggregateHealth(data?.integrations as IntegrationCheck[] | undefined),
@@ -78,8 +76,19 @@ export function Header({
           <TooltipContent>{health.label} · diagnostics →</TooltipContent>
         </Tooltip>
         <span className="font-mono text-xs text-text-secondary tabular-nums">{today}</span>
-        {/* Small Jarvis ball — opens the briefing overlay from any page. */}
-        <JarvisBall size="small" onClick={onOpenBriefing} className="h-9 w-9" />
+        {/* Small Jarvis ball — runs the briefing flow from any page. Subtitle
+            shows beside it (≥sm) while active; the small ball is otherwise quiet. */}
+        {jarvis.subtitle && (
+          <span className="hidden max-w-[180px] truncate font-mono text-[11px] uppercase tracking-wider text-text-secondary animate-fade-in sm:inline">
+            {jarvis.subtitle}
+          </span>
+        )}
+        <JarvisBall
+          size="small"
+          state={jarvis.state}
+          onClick={jarvis.trigger}
+          className="h-9 w-9"
+        />
       </div>
     </header>
   )

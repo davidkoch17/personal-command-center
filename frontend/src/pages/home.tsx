@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { JarvisBall } from "@/components/jarvis/jarvis-ball"
-import { BriefingOverlay } from "@/components/jarvis/briefing-overlay"
+import { useJarvisBriefing } from "@/hooks/useJarvisBriefing"
 import { Panel } from "@/components/ui/panel"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -45,19 +45,26 @@ function greeting(): string {
 }
 
 export function Home() {
-  const [briefingOpen, setBriefingOpen] = useState(false)
+  const { state, subtitle, trigger } = useJarvisBriefing()
 
   return (
     <div className="space-y-6">
       <HomeHeader />
       <SearchBar />
 
-      {/* Central Jarvis ball — the welcome experience. Click to open the briefing. */}
-      <div className="my-8 flex flex-col items-center justify-center">
-        <JarvisBall size="large" onClick={() => setBriefingOpen(true)} />
-        <p className="-mt-4 font-mono text-xs uppercase tracking-wider text-text-secondary">
-          click for your briefing
-        </p>
+      {/* Central Jarvis ball — the entire briefing UX lives here. Click to start;
+          the ball's state + subtitle telegraph what Jarvis is doing. No overlay. */}
+      <div className="my-12 flex flex-col items-center gap-3">
+        <JarvisBall size="large" state={state} onClick={trigger} />
+        {subtitle ? (
+          <p className="animate-fade-in font-mono text-sm uppercase tracking-wider text-text-secondary">
+            {subtitle}
+          </p>
+        ) : (
+          <p className="font-mono text-xs uppercase tracking-wider text-text-secondary">
+            click for your briefing
+          </p>
+        )}
       </div>
 
       <QuickRun />
@@ -73,8 +80,6 @@ export function Home() {
       <ProjectsRow />
       <FinancesRow />
       <SignalsRow />
-
-      {briefingOpen && <BriefingOverlay onClose={() => setBriefingOpen(false)} />}
     </div>
   )
 }

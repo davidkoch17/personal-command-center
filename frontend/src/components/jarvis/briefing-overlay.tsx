@@ -35,7 +35,7 @@ const PHASE_LABEL: Record<Phase, string> = {
 function ballState(phase: Phase): JarvisState {
   if (phase === "listening") return "listening"
   if (phase === "speaking") return "speaking"
-  if (phase === "routing") return "processing"
+  if (phase === "routing") return "routing"
   return "idle"
 }
 

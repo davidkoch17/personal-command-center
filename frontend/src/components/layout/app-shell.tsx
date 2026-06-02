@@ -6,28 +6,24 @@ import { Sidebar, MobileNav } from "./sidebar"
 import { Header } from "./header"
 import { SearchPalette } from "./search-palette"
 import { PageTransition } from "./page-transition"
-import { BriefingOverlay } from "@/components/jarvis/briefing-overlay"
 
 /**
  * Overall layout container: fixed header (with the small Jarvis ball), responsive
- * sidebar + scrollable main. Clicking the header ball opens the full-screen
- * briefing overlay. Workspace deep-dive routes render outside this shell.
+ * sidebar + scrollable main. The header ball runs the briefing flow inline — no
+ * overlay (Phase 13.6: the ball IS the entire interaction). Workspace deep-dive
+ * routes render outside this shell.
  *
  * Phase 13.5 retired the bottom-center voice bar in favour of the Jarvis ball;
  * ``voice-bar.tsx`` is kept for reference but no longer mounted.
  */
 export function AppShell() {
   const [navOpen, setNavOpen] = useState(false)
-  const [briefingOpen, setBriefingOpen] = useState(false)
   const location = useLocation()
 
   return (
     <TooltipProvider delayDuration={200}>
       <div className="min-h-screen flex flex-col bg-bg text-text">
-        <Header
-          onMenuClick={() => setNavOpen(true)}
-          onOpenBriefing={() => setBriefingOpen(true)}
-        />
+        <Header onMenuClick={() => setNavOpen(true)} />
         <div className="flex flex-1 min-h-0">
           <Sidebar />
           <MobileNav open={navOpen} onClose={() => setNavOpen(false)} />
@@ -40,7 +36,6 @@ export function AppShell() {
         </div>
         <Toaster />
         <SearchPalette />
-        {briefingOpen && <BriefingOverlay onClose={() => setBriefingOpen(false)} />}
       </div>
     </TooltipProvider>
   )
