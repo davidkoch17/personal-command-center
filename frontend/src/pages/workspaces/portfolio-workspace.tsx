@@ -20,6 +20,8 @@ import { BucketAllocation } from "@/components/finance/bucket-allocation"
 import { OptimizationTab } from "@/components/finance/optimization-panel"
 import { FactorsTab } from "@/components/finance/factors-panel"
 import { DecisionsTab } from "@/components/finance/decisions-panel"
+import { JournalTab } from "@/components/finance/journal-panel"
+import { WatchlistComparisonTab } from "@/components/finance/watchlist-comparison"
 import { ScenarioTools } from "@/components/finance/scenarios-panel"
 import {
   AllocationBar,
@@ -112,6 +114,8 @@ export function PortfolioWorkspace() {
             <TabsTrigger value="scenarios">scenarios</TabsTrigger>
             <TabsTrigger value="tax">tax</TabsTrigger>
             <TabsTrigger value="decisions">decisions</TabsTrigger>
+            <TabsTrigger value="journal">journal</TabsTrigger>
+            <TabsTrigger value="watchlist">watchlist</TabsTrigger>
           </TabsList>
 
           {/* 1. Holdings — real per-position metrics + log-transaction form. */}
@@ -194,6 +198,16 @@ export function PortfolioWorkspace() {
           {/* 8. Decisions — sizing, rebalancing, harvest, concentration (Phase 15c). */}
           <TabsContent value="decisions">
             <DecisionsTab />
+          </TabsContent>
+
+          {/* 9. Journal — decision log, hypothesis hit rate, anti-portfolio (Phase 15d). */}
+          <TabsContent value="journal">
+            <JournalTab />
+          </TabsContent>
+
+          {/* 10. Watchlist comparison — same metrics as holdings + add simulation (Phase 15d). */}
+          <TabsContent value="watchlist">
+            <WatchlistComparisonTab />
           </TabsContent>
         </Tabs>
       </div>

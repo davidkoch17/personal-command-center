@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { IncomeExpenseBar, CategoryDonut, CategoryTrendLine } from "@/components/charts/finance-charts"
+import { TaxIntegrationPanels } from "@/components/finance/tax-panel"
 import {
   useMoneySnapshot,
   useMoneyCashflow,
@@ -322,13 +323,9 @@ function TaxTab() {
 
   return (
     <div className="space-y-4">
-      {/* A */}
-      <Panel title="a · current state" statusDotColor="muted">
-        <p className="text-sm text-text-label">
-          ytd income / deductible summary + estimated lohnsteuer need the tax source
-          sheets (pending). use section b to model hypotheticals now.
-        </p>
-      </Panel>
+      {/* A · investment tax integration (Phase 15d) — Abgeltungsteuer estimate,
+          crypto Spekulationsfrist countdown, capital-allocation suggestions. */}
+      <TaxIntegrationPanels />
 
       {/* B */}
       <Panel title="b · run a tax scenario" statusDotColor="accent">

@@ -15,6 +15,7 @@ import { ProjectCard } from "@/components/cards/project-card"
 import { BucketAllocation } from "@/components/finance/bucket-allocation"
 import { OptimizationSignals } from "@/components/finance/optimization-signals"
 import { DecisionAlerts } from "@/components/finance/decision-alerts"
+import { BehavioralNudges } from "@/components/finance/behavioral-nudges"
 import { TransactionForm } from "@/components/finance/transaction-form"
 import {
   Dialog,
@@ -603,6 +604,7 @@ function FinancesRow() {
       <h2 className="text-lg font-semibold tracking-tight">finances</h2>
       <BucketAllocation compact />
       <OptimizationSignals />
+      <BehavioralNudges />
       <div className="grid gap-4 md:grid-cols-3">
         <Panel title="portfolio" statusDotColor="accent">
           {portfolio.isLoading ? (

@@ -8,6 +8,7 @@ import {
   LineChart,
   Wallet,
   Eye,
+  NotebookPen,
   GraduationCap,
   Video,
   BookOpen,
@@ -46,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/portfolio", label: "portfolio", icon: LineChart },
       { to: "/money", label: "money", icon: Wallet },
       { to: "/watchlist", label: "watchlist", icon: Eye },
+      { to: "/decision-journal", label: "journal", icon: NotebookPen },
     ],
   },
   {

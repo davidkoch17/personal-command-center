@@ -12,6 +12,7 @@ import { Inbox } from "@/pages/inbox"
 import { Portfolio } from "@/pages/portfolio"
 import { Money } from "@/pages/money"
 import { Watchlist } from "@/pages/watchlist"
+import { DecisionJournal } from "@/pages/decision-journal"
 import { Brand } from "@/pages/brand"
 import { Career } from "@/pages/career"
 import { Reading } from "@/pages/reading"
@@ -69,6 +70,7 @@ const router = createBrowserRouter([
       { path: "/portfolio", element: <Portfolio /> },
       { path: "/money", element: <Money /> },
       { path: "/watchlist", element: <Watchlist /> },
+      { path: "/decision-journal", element: <DecisionJournal /> },
       { path: "/brand", element: <Brand /> },
       { path: "/career", element: <Career /> },
       { path: "/reading", element: <Reading /> },

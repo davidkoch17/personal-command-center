@@ -36,6 +36,20 @@ Phase 15c (decision support + backtesting):
 - ``/api/finance/backtest/what-if``             (POST)
 - ``/api/finance/backtest/market-shock``        (POST)
 - ``/api/finance/backtest/fx-shock``            (POST)
+
+Phase 15d (ecosystem — journal + watchlist + money integration):
+- ``/api/finance/journal/decision``             (POST)
+- ``/api/finance/journal/decisions``            (GET)
+- ``/api/finance/journal/decision/{filename}``  (GET)
+- ``/api/finance/journal/{filename}/retrospective`` (POST)
+- ``/api/finance/journal/hit-rate``             (GET)
+- ``/api/finance/journal/anti-portfolio``       (GET, POST)
+- ``/api/finance/watchlist/metrics``            (GET)
+- ``/api/finance/watchlist/simulate-add``       (POST)
+- ``/api/finance/tax/annual-estimate``          (POST)
+- ``/api/finance/tax/holding-period/{ticker}``  (GET)
+- ``/api/finance/tax/after-tax-return``         (GET)
+- ``/api/finance/capital-allocation/suggest``   (GET)
 """
 from __future__ import annotations
 
@@ -44,13 +58,17 @@ from fastapi import APIRouter
 from backend.api.finance import (
     backtest,
     buckets,
+    capital_allocation,
     decisions,
     factors,
+    journal,
     optimization,
     performance,
     positions,
     prices,
     risk,
+    tax,
+    watchlist_analytics,
 )
 
 router = APIRouter()
@@ -63,3 +81,7 @@ router.include_router(optimization.router)
 router.include_router(factors.router)
 router.include_router(decisions.router)
 router.include_router(backtest.router)
+router.include_router(journal.router)
+router.include_router(watchlist_analytics.router)
+router.include_router(tax.router)
+router.include_router(capital_allocation.router)

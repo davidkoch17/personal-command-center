@@ -724,3 +724,259 @@ export function useWhatIf() {
       api.post<WhatIfResponse>("/api/finance/backtest/what-if", req),
   })
 }
+
+// --- Phase 15d: behavioral journal + watchlist + money integration ----------
+
+export interface DecisionSummaryRow {
+  filename: string
+  date: string
+  ticker: string | null
+  action: string | null
+  conviction: number | null
+  emotion: string | null
+  has_retrospective: boolean
+  path: string
+}
+
+export interface DecisionsResponse {
+  decisions: DecisionSummaryRow[]
+  count: number
+}
+
+export interface DecisionDetail extends Partial<DecisionSummaryRow> {
+  filename: string
+  content: string
+}
+
+export interface LogDecisionRequest {
+  ticker: string
+  action: string
+  quantity: number
+  price: number
+  rationale: string
+  conviction_score: number
+  emotion: string
+  expected_return?: number | null
+  expected_timeframe_months?: number | null
+  thesis?: string
+  risks?: string
+  pre_mortem?: string
+}
+
+export interface HitRateResponse {
+  hypotheses_reviewed: number
+  confirmed: number
+  weakened: number
+  hit_rate: number | null
+  details: { ticker: string; status: string; raw: string }[]
+  quarters_back: number
+}
+
+export interface AntiPortfolioEntry {
+  considered_date: string
+  ticker: string
+  name: string
+  price: number | null
+  reason: string | null
+  months_ago?: number
+}
+
+export interface AntiPortfolioResponse {
+  skips: AntiPortfolioEntry[]
+  count: number
+  review_due: AntiPortfolioEntry[]
+}
+
+export interface WatchlistMetric {
+  ticker: string
+  sharpe?: number | null
+  volatility?: number | null
+  beta?: number | null
+  max_drawdown?: number | null
+  momentum_3m?: number | null
+  momentum_12m?: number | null
+  error?: string
+}
+
+export interface WatchlistMetricsResponse {
+  metrics: WatchlistMetric[]
+  count: number
+  beta_benchmark: string
+}
+
+export interface SimulateAddResponse {
+  new_ticker: string
+  weight: number
+  available: boolean
+  reason?: string
+  before?: { sharpe: number | null; volatility: number | null; beta: number | null }
+  after?: { sharpe: number | null; volatility: number | null; beta: number | null }
+  modeled_metrics?: {
+    delta_sharpe: number | null
+    delta_volatility: number | null
+    delta_beta: number | null
+    correlation_to_portfolio: number
+  }
+}
+
+export interface AnnualTaxRequest {
+  realized_gains: number
+  dividends?: number
+  church_tax?: boolean
+}
+
+export interface AnnualTaxResponse {
+  realized_gains: number
+  dividends: number
+  sparerpauschbetrag: number
+  sparerpauschbetrag_used: number
+  taxable_base: number
+  tax_owed: number
+  effective_rate: number
+}
+
+export interface HoldingPeriodResponse {
+  ticker: string
+  available: boolean
+  reason?: string
+  type?: string | null
+  is_crypto?: boolean | null
+  earliest_buy_date?: string
+  days_held?: number
+  days_to_tax_free?: number
+  is_tax_free?: boolean
+  tax_free_date?: string
+}
+
+export interface CapitalAllocationSuggestion {
+  bucket: string
+  label: string
+  current_weight: number
+  target_weight: number
+  drift_pct: number
+  current_value: number
+  suggested_deploy_eur: number
+  rationale: string
+}
+
+export interface CapitalAllocationResponse {
+  cash_deployable: number
+  portfolio_value: number
+  new_total: number
+  suggestions: CapitalAllocationSuggestion[]
+}
+
+export function useDecisions(limit = 50) {
+  return useQuery({
+    queryKey: ["finance", "journal", "decisions", limit],
+    queryFn: () => api.get<DecisionsResponse>(`/api/finance/journal/decisions?limit=${limit}`),
+  })
+}
+
+export function useDecision(filename: string | undefined) {
+  return useQuery({
+    queryKey: ["finance", "journal", "decision", filename],
+    queryFn: () =>
+      api.get<DecisionDetail>(`/api/finance/journal/decision/${encodeURIComponent(filename!)}`),
+    enabled: !!filename,
+  })
+}
+
+export function useLogDecision() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (req: LogDecisionRequest) =>
+      api.post<{ ok: boolean; filename: string }>("/api/finance/journal/decision", req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["finance", "journal"] }),
+  })
+}
+
+export function useAddRetrospective() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (req: { filename: string; retro_text: string; was_right: boolean }) =>
+      api.post<{ ok: boolean; filename: string }>(
+        `/api/finance/journal/${encodeURIComponent(req.filename)}/retrospective`,
+        { retro_text: req.retro_text, was_right: req.was_right },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["finance", "journal"] }),
+  })
+}
+
+export function useHitRate(quartersBack = 4) {
+  return useQuery({
+    queryKey: ["finance", "journal", "hit-rate", quartersBack],
+    queryFn: () =>
+      api.get<HitRateResponse>(`/api/finance/journal/hit-rate?quarters_back=${quartersBack}`),
+  })
+}
+
+export function useAntiPortfolio() {
+  return useQuery({
+    queryKey: ["finance", "journal", "anti-portfolio"],
+    queryFn: () => api.get<AntiPortfolioResponse>("/api/finance/journal/anti-portfolio"),
+  })
+}
+
+export function useWatchlistMetrics() {
+  return useQuery({
+    queryKey: ["finance", "watchlist", "metrics"],
+    queryFn: () => api.get<WatchlistMetricsResponse>("/api/finance/watchlist/metrics"),
+    staleTime: 5 * 60_000, // network-heavy; cache for 5 min
+  })
+}
+
+export function useSimulateAdd() {
+  return useMutation({
+    mutationFn: (req: { ticker: string; weight: number }) =>
+      api.post<SimulateAddResponse>("/api/finance/watchlist/simulate-add", req),
+  })
+}
+
+export function useAnnualTaxEstimate() {
+  return useMutation({
+    mutationFn: (req: AnnualTaxRequest) =>
+      api.post<AnnualTaxResponse>("/api/finance/tax/annual-estimate", req),
+  })
+}
+
+export function useHoldingPeriod(ticker: string | undefined) {
+  return useQuery({
+    queryKey: ["finance", "tax", "holding-period", ticker],
+    queryFn: () =>
+      api.get<HoldingPeriodResponse>(`/api/finance/tax/holding-period/${encodeURIComponent(ticker!)}`),
+    enabled: !!ticker,
+  })
+}
+
+/** Holding-period (Spekulationsfrist) status for every held crypto ticker.
+ *  Drives the Home "next tax-free" nudge and the Money tax tab. */
+export function useCryptoHoldingPeriods() {
+  const holdings = useFinanceHoldings()
+  const cryptoTickers = (holdings.data?.holdings ?? [])
+    .filter((h) => h.type === "crypto")
+    .map((h) => h.ticker)
+  const results = useQueries({
+    queries: cryptoTickers.map((t) => ({
+      queryKey: ["finance", "tax", "holding-period", t],
+      queryFn: () =>
+        api.get<HoldingPeriodResponse>(`/api/finance/tax/holding-period/${encodeURIComponent(t)}`),
+      enabled: !!t,
+      staleTime: 60 * 60_000,
+    })),
+  })
+  return {
+    isLoading: holdings.isLoading || results.some((r) => r.isLoading),
+    data: results.map((r) => r.data).filter(Boolean) as HoldingPeriodResponse[],
+  }
+}
+
+export function useCapitalAllocation(cash?: number) {
+  return useQuery({
+    queryKey: ["finance", "capital-allocation", cash ?? "auto"],
+    queryFn: () =>
+      api.get<CapitalAllocationResponse>(
+        `/api/finance/capital-allocation/suggest${cash != null ? `?cash=${cash}` : ""}`,
+      ),
+  })
+}
