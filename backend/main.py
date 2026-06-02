@@ -27,7 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.api import (
     tasks, projects, ideas, inbox, portfolio, money,
     watchlist, brand, career, integrations, runs,
-    search, skills, reading, system, voice, priorities,
+    search, skills, reading, system, voice, priorities, daily,
 )
 
 
@@ -71,6 +71,7 @@ app.include_router(skills.router, prefix="/api/skills", tags=["skills"])
 app.include_router(reading.router, prefix="/api/reading", tags=["reading"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(voice.router, prefix="/api/voice", tags=["voice"])
+app.include_router(daily.router, prefix="/api/daily", tags=["daily"])
 
 
 @app.get("/health")

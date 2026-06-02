@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { JarvisBall } from "@/components/jarvis/jarvis-ball"
 import { useJarvisBriefing } from "@/hooks/useJarvisBriefing"
+import { DailyPrioritiesPanel } from "@/components/home/DailyPrioritiesPanel"
 import { Panel } from "@/components/ui/panel"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -45,25 +46,60 @@ function greeting(): string {
 }
 
 export function Home() {
-  const { state, subtitle, trigger } = useJarvisBriefing()
+  const { state, subtitle, trigger, triggerWithText } = useJarvisBriefing()
+  const [textInput, setTextInput] = useState("")
 
   return (
     <div className="space-y-6">
       <HomeHeader />
+
+      {/* Morning anchor: Claude-suggested priorities → curated daily todo list. */}
+      <DailyPrioritiesPanel />
+
       <SearchBar />
 
       {/* Central Jarvis ball — the entire briefing UX lives here. Click to start;
-          the ball's state + subtitle telegraph what Jarvis is doing. No overlay. */}
+          the ball's state + subtitle telegraph what Jarvis is doing. No overlay.
+          Below it, a text input offers a typed alternative to voice. */}
       <div className="my-12 flex flex-col items-center gap-3">
         <JarvisBall size="large" state={state} onClick={trigger} />
-        {subtitle ? (
-          <p className="animate-fade-in font-mono text-sm uppercase tracking-wider text-text-secondary">
-            {subtitle}
-          </p>
-        ) : (
+        {!subtitle && (
           <p className="font-mono text-xs uppercase tracking-wider text-text-secondary">
             click for your briefing
           </p>
+        )}
+
+        {/* Typed command — paste/type a prompt as an alternative to speaking. */}
+        <div className="mt-2 w-full max-w-xl">
+          <input
+            type="text"
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && textInput.trim()) {
+                void triggerWithText(textInput.trim())
+                setTextInput("")
+              }
+            }}
+            placeholder="or type a command for Jarvis..."
+            className="w-full rounded-lg border border-border bg-bg-panel px-4 py-3 font-mono text-sm text-text placeholder:text-text-label focus:border-accent focus:outline-none disabled:opacity-50"
+            disabled={state !== "idle"}
+          />
+        </div>
+
+        {/* Live captions — large, panelled, and held for the whole utterance. */}
+        {subtitle && (
+          <div className="mt-2 w-full max-w-3xl animate-fade-in">
+            <div className="rounded-lg border border-border bg-bg-panel px-6 py-4">
+              <p
+                className={`font-mono text-base leading-relaxed ${
+                  state === "speaking" ? "text-text" : "text-text-secondary"
+                }`}
+              >
+                {subtitle}
+              </p>
+            </div>
+          </div>
         )}
       </div>
 

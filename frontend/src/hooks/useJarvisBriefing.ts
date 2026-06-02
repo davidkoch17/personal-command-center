@@ -141,8 +141,8 @@ export function useJarvisBriefing() {
    */
   function recordWithSilenceDetection(
     maxDurationMs = 15000,
-    silenceMs = 1500,
-    silenceThreshold = -45,
+    silenceMs = 2000,
+    silenceThreshold = -50,
   ): Promise<Blob> {
     return new Promise<Blob>((resolve, reject) => {
       navigator.mediaDevices
@@ -166,9 +166,17 @@ export function useJarvisBriefing() {
 
           const startTime = Date.now()
           let lastSoundTime = startTime
+          let lastDb = -Infinity
+          let peakDb = -Infinity
           const dataArray = new Float32Array(analyser.fftSize)
 
           const finish = () => {
+            // Client-side debug: how long we captured + the loudest level seen.
+            // eslint-disable-next-line no-console
+            console.debug(
+              `[jarvis] recording done: ${((Date.now() - startTime) / 1000).toFixed(2)}s, ` +
+                `peak ${peakDb.toFixed(1)}dB, last ${lastDb.toFixed(1)}dB`,
+            )
             mediaRecorder.onstop = () => resolve(new Blob(chunks, { type: "audio/webm" }))
             try {
               if (mediaRecorder.state !== "inactive") mediaRecorder.stop()
@@ -191,6 +199,8 @@ export function useJarvisBriefing() {
             for (let i = 0; i < dataArray.length; i++) sum += dataArray[i] * dataArray[i]
             const rms = Math.sqrt(sum / dataArray.length)
             const db = 20 * Math.log10(rms || 0.0001)
+            lastDb = db
+            if (db > peakDb) peakDb = db
 
             const now = Date.now()
             if (db > silenceThreshold) lastSoundTime = now
@@ -212,48 +222,11 @@ export function useJarvisBriefing() {
   }
 
   /**
-   * Listen → transcribe → route → execute. Recurses for ambiguous commands
-   * (Jarvis asks a clarifying question and listens again), capped at 2 follow-ups.
+   * Perform the side-effect for a routed command (everything except the
+   * multi-turn ``ambiguous`` dance, which the callers own). Shared by the voice
+   * flow and the typed-input flow so both behave identically.
    */
-  async function recordAndRoute(depth: number): Promise<void> {
-    if (cancelledRef.current) return
-
-    // 1. Listen (silence-detected).
-    setState("listening")
-    setSubtitle("listening…")
-    const audioBlob = await recordWithSilenceDetection()
-    if (cancelledRef.current) return
-
-    // 2. Transcribe.
-    setState("routing")
-    setSubtitle("thinking…")
-    const formData = new FormData()
-    formData.append("audio", audioBlob, "rec.webm")
-    const transcribeRes = await fetch(`${API_BASE}/api/voice/transcribe`, {
-      method: "POST",
-      body: formData,
-      signal: abortRef.current?.signal,
-    })
-    const { text: transcript } = (await transcribeRes.json()) as { text: string }
-    if (cancelledRef.current) return
-
-    const heard = (transcript || "").trim()
-    if (!heard) {
-      await playSpoken("I didn't catch that. Could you repeat?")
-      return
-    }
-    // Echo what Jarvis heard so David can correct course immediately.
-    setSubtitle(`heard: "${heard}"`)
-
-    // 3. Route.
-    const route = await voiceJson<RouteResponse>("/api/voice/route", {
-      text: heard,
-      current_page: window.location.pathname,
-      context: { briefing_suggestions: suggestionsRef.current },
-    })
-    if (cancelledRef.current) return
-
-    // 4. Execute the action.
+  async function executeRoute(route: RouteResponse): Promise<void> {
     switch (route.action) {
       case "navigate":
         if (route.navigate_to) window.open(route.navigate_to, "_blank")
@@ -304,26 +277,128 @@ export function useJarvisBriefing() {
         }
         break
 
-      case "ambiguous": {
-        // Multi-turn: speak the clarification, then listen again (≤2 follow-ups).
-        await playSpoken(route.spoken_response || route.clarification_question || "Could you clarify?")
-        if (cancelledRef.current) return
-        if (depth < 2) {
-          setSubtitle(route.clarification_question || "…")
-          return recordAndRoute(depth + 1)
-        }
-        return
-      }
-
       case "unclear":
       default:
         break
     }
+  }
+
+  /**
+   * Listen → transcribe → route → execute. Recurses for ambiguous commands
+   * (Jarvis asks a clarifying question and listens again), capped at 2 follow-ups.
+   */
+  async function recordAndRoute(depth: number): Promise<void> {
     if (cancelledRef.current) return
 
-    // 5. Always speak the confirmation (ambiguous already spoke + re-listened).
-    if (route.spoken_response && route.action !== "ambiguous") {
+    // 1. Listen (silence-detected).
+    setState("listening")
+    setSubtitle("listening…")
+    const audioBlob = await recordWithSilenceDetection()
+    if (cancelledRef.current) return
+
+    // 2. Transcribe.
+    setState("routing")
+    setSubtitle("thinking…")
+    const formData = new FormData()
+    formData.append("audio", audioBlob, "rec.webm")
+    const transcribeRes = await fetch(`${API_BASE}/api/voice/transcribe`, {
+      method: "POST",
+      body: formData,
+      signal: abortRef.current?.signal,
+    })
+    const { text: transcript, error: transcribeError } =
+      (await transcribeRes.json()) as { text: string; error?: string }
+    if (cancelledRef.current) return
+
+    const heard = (transcript || "").trim()
+    // Surface a clear reason instead of failing silently when nothing came back.
+    if (transcribeError || !heard) {
+      setSubtitle(
+        transcribeError
+          ? `couldn't transcribe (${transcribeError})`
+          : "didn't catch that, try again",
+      )
+      await playSpoken("I didn't catch that. Could you repeat?")
+      return
+    }
+    // Echo what Jarvis heard so David can correct course immediately.
+    setSubtitle(`heard: "${heard}"`)
+
+    // 3. Route.
+    const route = await voiceJson<RouteResponse>("/api/voice/route", {
+      text: heard,
+      current_page: window.location.pathname,
+      context: { briefing_suggestions: suggestionsRef.current },
+    })
+    if (cancelledRef.current) return
+
+    // 4. Ambiguous → speak the clarification, then listen again (≤2 follow-ups).
+    if (route.action === "ambiguous") {
+      await playSpoken(route.spoken_response || route.clarification_question || "Could you clarify?")
+      if (cancelledRef.current) return
+      if (depth < 2) {
+        setSubtitle(route.clarification_question || "…")
+        return recordAndRoute(depth + 1)
+      }
+      return
+    }
+
+    // 5. Execute the action, then speak the confirmation.
+    await executeRoute(route)
+    if (cancelledRef.current) return
+    if (route.spoken_response) {
       await playSpoken(route.spoken_response)
+    }
+  }
+
+  /**
+   * Typed-command path — the text input below the ball. Mirrors the voice flow
+   * minus mic/transcription: route the text, run the action, speak the reply.
+   * For an ambiguous command we just speak the clarification (no re-listen,
+   * since the user is typing — they can simply type a clearer command).
+   */
+  async function triggerWithText(text: string): Promise<void> {
+    if (runningRef.current) return
+    runningRef.current = true
+    cancelledRef.current = false
+    abortRef.current = new AbortController()
+    try {
+      setState("routing")
+      setSubtitle(`heard: "${text}"`)
+
+      const route = await voiceJson<RouteResponse>("/api/voice/route", {
+        text,
+        current_page: window.location.pathname,
+        context: {},
+      })
+      if (cancelledRef.current) return
+
+      if (route.action === "ambiguous") {
+        await playSpoken(
+          route.spoken_response || route.clarification_question || "Could you clarify?",
+        )
+      } else {
+        await executeRoute(route)
+        if (cancelledRef.current) return
+        if (route.spoken_response) {
+          await playSpoken(route.spoken_response)
+        }
+      }
+    } catch (e) {
+      if (!cancelledRef.current) {
+        console.error("Jarvis text trigger error:", e)
+        setSubtitle(`error: ${(e as Error).message}`)
+      }
+    } finally {
+      runningRef.current = false
+      if (!cancelledRef.current) {
+        window.setTimeout(() => {
+          if (!runningRef.current) {
+            setState("idle")
+            setSubtitle("")
+          }
+        }, 2000)
+      }
     }
   }
 
@@ -394,5 +469,5 @@ export function useJarvisBriefing() {
     }
   }
 
-  return { state, subtitle, trigger }
+  return { state, subtitle, trigger, triggerWithText }
 }

@@ -85,19 +85,39 @@ def status() -> dict:
 
 @router.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)) -> dict:
-    """Transcribe an uploaded audio file via local Whisper."""
+    """Transcribe an uploaded audio file via local Whisper.
+
+    Always returns a JSON dict with a ``text`` field (empty on failure) plus an
+    ``error`` field when something went wrong, so the frontend can surface the
+    cause instead of failing silently. A near-empty upload (silence detection
+    fired before any speech) short-circuits with ``error="audio_too_short"``.
+    """
     suffix = Path(audio.filename or "recording.webm").suffix or ".webm"
     # NamedTemporaryFile keeps this cross-platform (the spec's hard-coded
     # ``/tmp`` path does not exist on Windows).
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(await audio.read())
-        temp_path = Path(tmp.name)
     try:
-        model = _get_whisper()
-        result = model.transcribe(str(temp_path), fp16=False)
-    finally:
-        temp_path.unlink(missing_ok=True)
-    return {"text": result["text"].strip(), "language": result.get("language", "en")}
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(await audio.read())
+            temp_path = Path(tmp.name)
+        size = temp_path.stat().st_size
+        logger.info("Transcribing %s, size=%d bytes", temp_path, size)
+        # A webm header alone is a few hundred bytes; anything this small means
+        # silence detection cut before David actually said anything.
+        if size < 1000:
+            logger.warning("Audio too small (%d bytes), likely no speech", size)
+            temp_path.unlink(missing_ok=True)
+            return {"text": "", "error": "audio_too_short"}
+        try:
+            model = _get_whisper()
+            result = model.transcribe(str(temp_path), fp16=False, language="en")
+        finally:
+            temp_path.unlink(missing_ok=True)
+        text = result["text"].strip()
+        logger.info("Transcribed: %r", text)
+        return {"text": text, "language": result.get("language", "en")}
+    except Exception as exc:  # noqa: BLE001 - never crash the voice loop silently
+        logger.exception("Transcription failed: %s", exc)
+        return {"text": "", "error": str(exc)}
 
 
 class RouteRequest(BaseModel):
@@ -137,6 +157,8 @@ def route(req: RouteRequest) -> dict:
     """
     if not req.text.strip():
         return dict(_UNCLEAR)
+
+    logger.info("Routing command: %r (page=%s)", req.text, req.current_page)
 
     # Contextual data Claude needs to classify and to answer data queries.
     from core import vault
@@ -224,15 +246,22 @@ Tone in spoken_response: crisp British butler. Short. Direct. No filler.
     # Parse JSON from the response (Claude may wrap it in a code block / prose).
     match = re.search(r"\{.*\}", result, re.DOTALL)
     if not match:
+        logger.warning("Route: no JSON found in model output, falling back to unclear")
         return dict(_UNCLEAR)
     try:
-        return json.loads(match.group(0))
+        parsed = json.loads(match.group(0))
     except json.JSONDecodeError:
+        logger.warning("Route: malformed JSON in model output, falling back to unclear")
         return dict(_UNCLEAR)
+    logger.info("Routed to action=%s", parsed.get("action"))
+    return parsed
 
 
 class SpeakRequest(BaseModel):
     text: str
+    # 0.85 ≈ 17% faster than Piper's default 1.0; configurable so it can be
+    # tuned live from the client without a redeploy.
+    length_scale: float = 0.85
 
 
 @router.post("/speak")
@@ -241,7 +270,8 @@ def speak(req: SpeakRequest) -> StreamingResponse:
 
     Piper's ``--output_raw`` emits headerless PCM, which a browser ``Audio``
     element cannot decode, so we have Piper write a proper ``.wav`` to a temp
-    file and stream that back instead.
+    file and stream that back instead. ``length_scale`` controls speed (lower =
+    faster); the default 0.85 makes Jarvis noticeably snappier.
     """
     if not _PIPER_EXE.exists():
         raise HTTPException(status_code=500, detail="Piper not installed (see README).")
@@ -250,7 +280,12 @@ def speak(req: SpeakRequest) -> StreamingResponse:
         out_path = Path(tmp.name)
     try:
         proc = subprocess.run(
-            [str(_PIPER_EXE), "--model", str(_PIPER_MODEL), "--output_file", str(out_path)],
+            [
+                str(_PIPER_EXE),
+                "--model", str(_PIPER_MODEL),
+                "--length-scale", str(req.length_scale),
+                "--output_file", str(out_path),
+            ],
             input=req.text.encode("utf-8"),
             capture_output=True,
         )
