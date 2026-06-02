@@ -65,3 +65,28 @@ def suggest_deployment(cash: float | None = None) -> dict:
         "new_total": new_total,
         "suggestions": suggestions,
     }
+
+
+def deployment_plan(cash_available: float, current_allocations: dict) -> dict:
+    """Pure cash-deployment planner (Phase 15e, Category J S-priority).
+
+    Mirrors the spec's signature for unit-testing: given ``cash_available`` and a
+    ``current_allocations`` map of ``bucket -> {weight, target, value}``, suggest
+    how much to add to each underweight bucket. Capped at the available cash. The
+    live, money-tracker-backed view is :func:`suggest_deployment`.
+    """
+    invested = sum(a.get("value", 0.0) for a in current_allocations.values())
+    new_total = invested + max(0.0, cash_available)
+    suggestions: list[dict] = []
+    for bucket, alloc in current_allocations.items():
+        weight = alloc.get("weight", 0.0)
+        target = alloc.get("target", 0.0)
+        if weight < target:
+            underweight_eur = (target - weight) * new_total
+            suggestions.append({
+                "bucket": bucket,
+                "amount": round(min(underweight_eur, cash_available), 2),
+                "rationale": f"{bucket} underweight by {(target - weight) * 100:.1f}%",
+            })
+    suggestions.sort(key=lambda s: s["amount"], reverse=True)
+    return {"cash_available": cash_available, "suggestions": suggestions}

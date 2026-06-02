@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react"
 import { createBrowserRouter, RouterProvider } from "react-router-dom"
 import { QueryClientProvider } from "@tanstack/react-query"
 import { queryClient } from "@/lib/queryClient"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppShell } from "@/components/layout/app-shell"
 
 import { Home } from "@/pages/home"
@@ -97,7 +98,9 @@ const router = createBrowserRouter([
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <TooltipProvider delayDuration={150}>
+        <RouterProvider router={router} />
+      </TooltipProvider>
     </QueryClientProvider>
   )
 }

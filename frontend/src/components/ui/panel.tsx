@@ -6,6 +6,7 @@ interface PanelProps {
   title?: string
   meta?: string // top-right metadata
   statusDotColor?: StatusColor
+  titleSuffix?: ReactNode // small node rendered right after the title (e.g. an info tooltip)
   children: ReactNode
   className?: string
 }
@@ -19,6 +20,7 @@ export function Panel({
   title,
   meta,
   statusDotColor = "muted",
+  titleSuffix,
   children,
   className,
 }: PanelProps) {
@@ -29,6 +31,7 @@ export function Panel({
           <div className="flex items-center gap-2">
             {title && <StatusDot color={statusDotColor} />}
             {title && <span className="label">{title}</span>}
+            {titleSuffix}
           </div>
           {meta && (
             <span className="text-text-secondary text-xs font-mono">{meta}</span>

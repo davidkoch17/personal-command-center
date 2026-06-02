@@ -10,8 +10,18 @@ import {
 } from "@/components/ui/select"
 import { CategoryDonut } from "@/components/charts/finance-charts"
 import { FactorBetaBars } from "@/components/charts/finance-analytics-charts"
-import { useFF3, useFactorDecomposition, type FF3Response } from "@/hooks/useFinance"
+import {
+  useFF3,
+  useFactorDecomposition,
+  useFF5,
+  useMomentumFactor,
+  type FF3Response,
+  type FF5Response,
+  type MomentumResponse,
+} from "@/hooks/useFinance"
 import { CHART_COLORS } from "@/components/charts/theme"
+import { InfoTip } from "@/components/ui/info-tip"
+import { metricTip } from "@/components/finance/metric-glossary"
 
 const REGIONS = ["US", "Europe", "Global"]
 
@@ -114,9 +124,94 @@ export function FactorsTab() {
               <InterpretationCard ff3={r} variance={variance} />
             </Panel>
           </div>
+
+          {/* Phase 15e — FF5 (adds RMW + CMA) and Carhart momentum (UMD). */}
+          <AdvancedFactorModels region={region} />
         </>
       )}
     </div>
+  )
+}
+
+const FF5_TERMS: { key: string; label: string }[] = [
+  { key: "mkt", label: "β market" },
+  { key: "smb", label: "β size (SMB)" },
+  { key: "hml", label: "β value (HML)" },
+  { key: "rmw", label: "β profitability (RMW)" },
+  { key: "cma", label: "β investment (CMA)" },
+]
+
+const CARHART_TERMS: { key: string; label: string }[] = [
+  { key: "mkt", label: "β market" },
+  { key: "smb", label: "β size (SMB)" },
+  { key: "hml", label: "β value (HML)" },
+  { key: "umd", label: "β momentum (UMD)" },
+]
+
+function AdvancedFactorModels({ region }: { region: string }) {
+  const ff5 = useFF5(region)
+  const carhart = useMomentumFactor(region)
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Panel title="fama-french 5-factor" meta="adds RMW + CMA" statusDotColor="accent">
+        {ff5.isLoading ? (
+          <Skeleton className="h-44" />
+        ) : (
+          <FactorModelTable model={ff5.data} terms={FF5_TERMS} />
+        )}
+      </Panel>
+      <Panel title="carhart 4-factor" meta="FF3 + momentum" statusDotColor="accent">
+        {carhart.isLoading ? (
+          <Skeleton className="h-44" />
+        ) : (
+          <FactorModelTable model={carhart.data} terms={CARHART_TERMS} />
+        )}
+      </Panel>
+    </div>
+  )
+}
+
+function FactorModelTable({
+  model,
+  terms,
+}: {
+  model: FF5Response | MomentumResponse | undefined
+  terms: { key: string; label: string }[]
+}) {
+  if (!model?.available) {
+    return <p className="text-sm text-text-label">{model?.reason ?? "not available"}</p>
+  }
+  return (
+    <>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-xs text-text-label">
+            <th className="py-1.5 pr-2 font-normal">term</th>
+            <th className="py-1.5 px-2 text-right font-normal">coef</th>
+            <th className="py-1.5 px-2 text-right font-normal">t-stat</th>
+            <th className="py-1.5 pl-2 text-right font-normal"></th>
+          </tr>
+        </thead>
+        <tbody className="font-mono tabular-nums">
+          <FactorRow term="alpha (ann.)" coef={pct(model.alpha_annual)} t={model.t_alpha} />
+          {terms.map((t) => (
+            <FactorRow
+              key={t.key}
+              term={t.label}
+              coef={(model.betas?.[t.key] ?? 0).toFixed(2)}
+              t={model.t_stats?.[t.key]}
+            />
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-3 flex items-center gap-6 text-xs text-text-secondary">
+        <span className="inline-flex items-center gap-1">
+          R² {pct(model.r_squared)} <InfoTip text={metricTip("r²") ?? ""} />
+        </span>
+        <span>n {model.n_observations}</span>
+      </div>
+    </>
   )
 }
 

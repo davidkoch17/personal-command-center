@@ -50,16 +50,32 @@ Phase 15d (ecosystem — journal + watchlist + money integration):
 - ``/api/finance/tax/holding-period/{ticker}``  (GET)
 - ``/api/finance/tax/after-tax-return``         (GET)
 - ``/api/finance/capital-allocation/suggest``   (GET)
+
+Phase 15e (polish — currency + S-priority items + performance + diagnostics):
+- ``/api/finance/currency/fx/{from}/{to}``       (GET)
+- ``/api/finance/currency/breakdown``            (GET)
+- ``/api/finance/currency/performance``          (GET)
+- ``/api/finance/attribution/brinson``           (GET)
+- ``/api/finance/factors/ff5``                   (GET)
+- ``/api/finance/factors/momentum``              (GET)
+- ``/api/finance/stress/shocks``                 (GET)
+- ``/api/finance/stress/replay/{period_key}``    (GET)
+- ``/api/finance/stress/replay-all``             (GET)
+- ``/api/finance/portfolio/full-snapshot``       (GET)
+- ``/api/finance/diagnostics``                   (GET)
 """
 from __future__ import annotations
 
 from fastapi import APIRouter
 
 from backend.api.finance import (
+    attribution,
     backtest,
     buckets,
     capital_allocation,
+    currency,
     decisions,
+    diagnostics,
     factors,
     journal,
     optimization,
@@ -67,6 +83,8 @@ from backend.api.finance import (
     positions,
     prices,
     risk,
+    snapshot,
+    stress_tests,
     tax,
     watchlist_analytics,
 )
@@ -85,3 +103,9 @@ router.include_router(journal.router)
 router.include_router(watchlist_analytics.router)
 router.include_router(tax.router)
 router.include_router(capital_allocation.router)
+# Phase 15e — currency, Brinson attribution, stress tests, full snapshot, diagnostics.
+router.include_router(currency.router)
+router.include_router(attribution.router)
+router.include_router(stress_tests.router)
+router.include_router(snapshot.router)
+router.include_router(diagnostics.router)

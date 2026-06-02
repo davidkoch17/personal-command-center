@@ -29,3 +29,19 @@ def decomposition(region: str = Query("US", pattern=_REGION)) -> dict:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return factors.factor_exposure_decomposition(region=region)
+
+
+@router.get("/factors/ff5")
+def ff5(region: str = Query("US", pattern=_REGION)) -> dict:
+    """Fama-French 5-factor regression (adds RMW + CMA) — Phase 15e."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return factors.ff5_regression(region=region)
+
+
+@router.get("/factors/momentum")
+def momentum(region: str = Query("US", pattern=_REGION)) -> dict:
+    """Carhart 4-factor regression (FF3 + UMD momentum) — Phase 15e."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return factors.momentum_factor(region=region)

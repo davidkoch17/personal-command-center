@@ -215,8 +215,20 @@ export function useFinanceHoldings() {
   return useQuery({
     queryKey: ["finance", "holdings"],
     queryFn: () => api.get<FinanceHoldingsResponse>("/api/finance/holdings"),
+    // Holdings carry per-position price + risk (network-heavy); 5 min is plenty.
+    staleTime: 5 * 60_000,
   })
 }
+
+// Phase 15e staleTime tiers (Section 3.3): price/perf/risk are network-heavy and
+// change slowly intraday → 5 min; factor regressions → 24 h; FX → 1 h.
+const STALE = {
+  positions: 30_000,
+  price: 5 * 60_000,
+  performance: 5 * 60_000,
+  factors: 24 * 60 * 60_000,
+  fx: 60 * 60_000,
+} as const
 
 export function useFinancePerformance(period = "ytd", benchmark = "MSCI_WORLD") {
   return useQuery({
@@ -225,6 +237,7 @@ export function useFinancePerformance(period = "ytd", benchmark = "MSCI_WORLD") 
       api.get<FinancePerformanceResponse>(
         `/api/finance/performance?period=${period}&benchmark=${benchmark}`,
       ),
+    staleTime: STALE.performance,
   })
 }
 
@@ -235,6 +248,7 @@ export function useFinanceCumulative(period = "1y", benchmark = "MSCI_WORLD") {
       api.get<CumulativeResponse>(
         `/api/finance/performance/cumulative?period=${period}&benchmark=${benchmark}`,
       ),
+    staleTime: STALE.performance,
   })
 }
 
@@ -245,6 +259,7 @@ export function useFinanceRolling(window = 252, benchmark = "MSCI_WORLD") {
       api.get<RollingResponse>(
         `/api/finance/performance/rolling?window=${window}&benchmark=${benchmark}`,
       ),
+    staleTime: STALE.performance,
   })
 }
 
@@ -252,6 +267,7 @@ export function useFinanceRisk(benchmark = "MSCI_WORLD") {
   return useQuery({
     queryKey: ["finance", "risk", benchmark],
     queryFn: () => api.get<RiskResponse>(`/api/finance/risk?benchmark=${benchmark}`),
+    staleTime: STALE.performance,
   })
 }
 
@@ -529,6 +545,7 @@ export function useFF3(region = "US") {
   return useQuery({
     queryKey: ["finance", "ff3", region],
     queryFn: () => api.get<FF3Response>(`/api/finance/factors/ff3?region=${region}`),
+    staleTime: STALE.factors,
   })
 }
 
@@ -537,6 +554,44 @@ export function useFactorDecomposition(region = "US") {
     queryKey: ["finance", "factor-decomposition", region],
     queryFn: () =>
       api.get<DecompositionResponse>(`/api/finance/factors/decomposition?region=${region}`),
+    staleTime: STALE.factors,
+  })
+}
+
+// --- Phase 15e: FF5 + Carhart momentum factor models ------------------------
+
+export interface FF5Response {
+  available: boolean
+  reason?: string
+  region?: string
+  model?: string
+  alpha_monthly?: number
+  alpha_annual?: number
+  t_alpha?: number
+  r_squared?: number
+  n_observations?: number
+  betas?: Record<string, number>
+  t_stats?: Record<string, number>
+}
+
+export interface MomentumResponse extends FF5Response {
+  beta_umd?: number
+  t_umd?: number
+}
+
+export function useFF5(region = "US") {
+  return useQuery({
+    queryKey: ["finance", "ff5", region],
+    queryFn: () => api.get<FF5Response>(`/api/finance/factors/ff5?region=${region}`),
+    staleTime: STALE.factors,
+  })
+}
+
+export function useMomentumFactor(region = "US") {
+  return useQuery({
+    queryKey: ["finance", "momentum", region],
+    queryFn: () => api.get<MomentumResponse>(`/api/finance/factors/momentum?region=${region}`),
+    staleTime: STALE.factors,
   })
 }
 
@@ -978,5 +1033,142 @@ export function useCapitalAllocation(cash?: number) {
       api.get<CapitalAllocationResponse>(
         `/api/finance/capital-allocation/suggest${cash != null ? `?cash=${cash}` : ""}`,
       ),
+  })
+}
+
+// --- Phase 15e: currency, attribution, stress tests, diagnostics ------------
+
+export interface CurrencyBreakdownResponse {
+  reporting_currency: string
+  total_value: number
+  by_currency: Record<string, { value: number; weight: number }>
+  fx_missing: string[]
+}
+
+export interface HedgedUnhedged {
+  available: boolean
+  reason?: string
+  reporting_currency?: string
+  hedged_return?: number
+  unhedged_return?: number
+  currency_contribution?: number
+  note?: string
+}
+
+export interface CurrencyPerformanceResponse {
+  period: string
+  currency: string
+  available: boolean
+  reason?: string
+  time_weighted_return?: number | null
+  annualized_return?: number | null
+  volatility?: number | null
+  hedged_vs_unhedged?: HedgedUnhedged
+}
+
+export function useCurrencyBreakdown(currency = "EUR") {
+  return useQuery({
+    queryKey: ["finance", "currency", "breakdown", currency],
+    queryFn: () =>
+      api.get<CurrencyBreakdownResponse>(`/api/finance/currency/breakdown?currency=${currency}`),
+    staleTime: 60 * 60_000, // FX tier
+  })
+}
+
+export function useCurrencyPerformance(period = "ytd", currency = "EUR") {
+  return useQuery({
+    queryKey: ["finance", "currency", "performance", period, currency],
+    queryFn: () =>
+      api.get<CurrencyPerformanceResponse>(
+        `/api/finance/currency/performance?period=${period}&currency=${currency}`,
+      ),
+    staleTime: 5 * 60_000,
+  })
+}
+
+export function useFxRate(from: string, to: string) {
+  return useQuery({
+    queryKey: ["finance", "fx", from, to],
+    queryFn: () =>
+      api.get<{ from: string; to: string; rate: number | null; available: boolean }>(
+        `/api/finance/currency/fx/${from}/${to}`,
+      ),
+    staleTime: 60 * 60_000,
+  })
+}
+
+export interface BrinsonSegment {
+  portfolio_weight: number
+  benchmark_weight: number
+  portfolio_return: number
+  benchmark_return: number
+  allocation: number
+  selection: number
+  interaction: number
+  total: number
+}
+
+export interface BrinsonResponse {
+  available: boolean
+  reason?: string
+  period?: string
+  per_segment?: Record<string, BrinsonSegment>
+  labels?: Record<string, string>
+  allocation_effect?: number
+  selection_effect?: number
+  interaction_effect?: number
+  total_excess_return?: number
+}
+
+export function useBrinson(period = "ytd") {
+  return useQuery({
+    queryKey: ["finance", "attribution", "brinson", period],
+    queryFn: () => api.get<BrinsonResponse>(`/api/finance/attribution/brinson?period=${period}`),
+    staleTime: 5 * 60_000,
+  })
+}
+
+export interface StressPosition {
+  value?: number
+  shock_return?: number
+  impact?: number
+  estimated?: boolean
+  error?: string
+}
+
+export interface StressReplayResponse {
+  available: boolean
+  reason?: string
+  shock?: string
+  label?: string
+  start?: string
+  end?: string
+  benchmark?: string
+  benchmark_return?: number | null
+  total_value?: number
+  total_estimated_impact?: number
+  impact_pct?: number | null
+  per_position?: Record<string, StressPosition>
+}
+
+export function useStressReplayAll() {
+  return useQuery({
+    queryKey: ["finance", "stress", "replay-all"],
+    queryFn: () => api.get<Record<string, StressReplayResponse>>("/api/finance/stress/replay-all"),
+    staleTime: 24 * 60 * 60_000, // historical windows never change
+  })
+}
+
+export interface FinanceDiagnosticsResponse {
+  checks: { name: string; status: string; detail?: string }[]
+}
+
+export function useFinanceDiagnostics(enabled: boolean, probe = false) {
+  return useQuery({
+    queryKey: ["finance", "diagnostics", probe],
+    queryFn: () =>
+      api.get<FinanceDiagnosticsResponse>(`/api/finance/diagnostics?probe=${probe}`),
+    enabled,
+    staleTime: 0,
   })
 }

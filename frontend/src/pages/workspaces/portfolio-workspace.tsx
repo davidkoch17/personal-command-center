@@ -45,10 +45,17 @@ import {
   useFinanceRolling,
   useFinanceRisk,
   useFinanceCorrelation,
+  useBrinson,
+  useCurrencyBreakdown,
+  useCurrencyPerformance,
+  useStressReplayAll,
   type HoldingRow,
   type RiskResponse,
 } from "@/hooks/useFinance"
 import { useRunSkill } from "@/hooks/useSkills"
+import { useReportingCurrency } from "@/hooks/useReportingCurrency"
+import { InfoTip } from "@/components/ui/info-tip"
+import { metricTip } from "@/components/finance/metric-glossary"
 import { toast } from "@/lib/toast-store"
 import { formatCurrency } from "@/lib/utils"
 
@@ -89,14 +96,29 @@ export function PortfolioWorkspace() {
   const setTab = (v: string) =>
     setParams(v === "holdings" ? {} : { tab: v }, { replace: true })
 
+  const [currency, setCurrency] = useReportingCurrency()
+
   return (
-    <div className="min-h-screen bg-bg text-text p-6">
+    <div className="min-h-screen bg-bg text-text p-4 sm:p-6 print:p-0">
       <div className="mx-auto max-w-[1400px] space-y-5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">portfolio workspace</h1>
-          <Link to="/portfolio" className="font-mono text-xs text-text-secondary hover:text-accent">
-            ← portfolio
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Reporting-currency toggle — persisted, drives the currency tab +
+                currency-aware performance. Default EUR. */}
+            <div className="w-24 print:hidden">
+              <Select value={currency} onValueChange={(v) => setCurrency(v as "EUR" | "USD")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EUR">€ EUR</SelectItem>
+                  <SelectItem value="USD">$ USD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Link to="/portfolio" className="font-mono text-xs text-text-secondary hover:text-accent print:hidden">
+              ← portfolio
+            </Link>
+          </div>
         </div>
 
         {/* 4-bucket allocation vs target — always visible above the tabs. */}
@@ -110,6 +132,7 @@ export function PortfolioWorkspace() {
             <TabsTrigger value="factors">factors</TabsTrigger>
             <TabsTrigger value="performance">performance</TabsTrigger>
             <TabsTrigger value="attribution">attribution</TabsTrigger>
+            <TabsTrigger value="currency">currency</TabsTrigger>
             <TabsTrigger value="risk">risk</TabsTrigger>
             <TabsTrigger value="scenarios">scenarios</TabsTrigger>
             <TabsTrigger value="tax">tax</TabsTrigger>
@@ -175,9 +198,14 @@ export function PortfolioWorkspace() {
             <PerformanceTab />
           </TabsContent>
 
-          {/* 4. Attribution */}
+          {/* 4. Attribution — Brinson allocation/selection/interaction (Phase 15e). */}
           <TabsContent value="attribution">
             <AttributionTab holdings={holdings} loading={snap.isLoading} />
+          </TabsContent>
+
+          {/* Currency — breakdown + hedged/unhedged in the selected currency (Phase 15e). */}
+          <TabsContent value="currency">
+            <CurrencyTab currency={currency} />
           </TabsContent>
 
           {/* 5. Risk — real volatility / ratios / drawdown / VaR / correlation. */}
@@ -468,8 +496,13 @@ function fmtPct(v: number | null | undefined): string {
 }
 
 function Metric({ label, value, pct, ratio }: { label: string; value?: number | null; pct?: boolean; ratio?: boolean }) {
+  const tip = metricTip(label)
   return (
-    <Panel title={label} statusDotColor="muted">
+    <Panel
+      title={label}
+      statusDotColor="muted"
+      titleSuffix={tip ? <InfoTip text={tip} /> : undefined}
+    >
       {value == null ? (
         <span className="font-mono text-xl text-text-label">—</span>
       ) : pct ? (
@@ -512,8 +545,95 @@ function ConcMetric({ label, value }: { label: string; value?: string | null }) 
   )
 }
 
-// 4. Attribution — derived: contribution = market value × (%YTD / 100).
+// 4. Attribution — Brinson allocation/selection/interaction over the 4 buckets,
+// plus the legacy per-position estimate underneath.
 function AttributionTab({ holdings, loading }: { holdings: HoldingRow[]; loading: boolean }) {
+  const [period, setPeriod] = useState("ytd")
+  const brinson = useBrinson(period)
+  const b = brinson.data
+
+  const segments = b?.per_segment
+    ? Object.entries(b.per_segment).map(([key, seg]) => ({
+        key,
+        label: b.labels?.[key] ?? key,
+        ...seg,
+      }))
+    : []
+
+  return (
+    <div className="space-y-4">
+      <div className="flex w-32 items-center print:hidden">
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PERIODS.map((p) => (
+              <SelectItem key={p} value={p}>{p}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {brinson.isLoading ? (
+        <Skeleton className="h-48" />
+      ) : !b?.available ? (
+        <Panel title="brinson attribution" statusDotColor="muted">
+          <p className="text-sm text-text-label">{b?.reason ?? "not available"}</p>
+        </Panel>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Metric label="allocation" value={b.allocation_effect} pct />
+            <Metric label="selection" value={b.selection_effect} pct />
+            <Metric label="interaction" value={b.interaction_effect} pct />
+            <Metric label="total excess" value={b.total_excess_return} pct />
+          </div>
+          <Panel
+            title="brinson attribution by bucket"
+            meta={`${period} · vs target weights`}
+            statusDotColor="accent"
+            titleSuffix={<InfoTip text={metricTip("allocation") ?? ""} />}
+          >
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-text-label">
+                  <th className="py-1.5 pr-2 font-normal">bucket</th>
+                  <th className="py-1.5 px-2 text-right font-normal">w(p)</th>
+                  <th className="py-1.5 px-2 text-right font-normal">w(b)</th>
+                  <th className="py-1.5 px-2 text-right font-normal">alloc</th>
+                  <th className="py-1.5 px-2 text-right font-normal">select</th>
+                  <th className="py-1.5 pl-2 text-right font-normal">total</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {segments.map((s) => (
+                  <tr key={s.key} className="border-b border-border/40">
+                    <td className="py-1.5 pr-2 font-sans text-text">{s.label}</td>
+                    <td className="py-1.5 px-2 text-right text-text-secondary">{(s.portfolio_weight * 100).toFixed(0)}%</td>
+                    <td className="py-1.5 px-2 text-right text-text-secondary">{(s.benchmark_weight * 100).toFixed(0)}%</td>
+                    <td className={`py-1.5 px-2 text-right ${s.allocation >= 0 ? "text-success" : "text-danger"}`}>{(s.allocation * 100).toFixed(2)}%</td>
+                    <td className={`py-1.5 px-2 text-right ${s.selection >= 0 ? "text-success" : "text-danger"}`}>{(s.selection * 100).toFixed(2)}%</td>
+                    <td className={`py-1.5 pl-2 text-right ${s.total >= 0 ? "text-success" : "text-danger"}`}>{(s.total * 100).toFixed(2)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-xs text-text-label">
+              allocation = over/under-weighting buckets that beat the benchmark; selection = picking
+              better holdings within a bucket. benchmark weights are the section-0 bucket targets;
+              crypto benchmarks to BTC, the rest to MSCI World.
+            </p>
+          </Panel>
+        </>
+      )}
+
+      <Collapsible title="legacy per-position estimate" meta="market value × % ytd">
+        <LegacyAttribution holdings={holdings} loading={loading} />
+      </Collapsible>
+    </div>
+  )
+}
+
+function LegacyAttribution({ holdings, loading }: { holdings: HoldingRow[]; loading: boolean }) {
   if (loading) return <Skeleton className="h-40" />
   const contribs = holdings
     .map((h) => ({
@@ -556,16 +676,152 @@ function AttribList({ rows }: { rows: { name: string; contribution: number }[] }
   )
 }
 
-// 6. Scenarios — real quantitative tools (market shock, what-if, fx) + a
-// free-form Claude scenario for anything the structured tools don't cover.
+// Currency tab — breakdown by native currency + hedged/unhedged decomposition,
+// all in the selected reporting currency (Phase 15e, Category K).
+function CurrencyTab({ currency }: { currency: "EUR" | "USD" }) {
+  const [period, setPeriod] = useState("1y")
+  const breakdown = useCurrencyBreakdown(currency)
+  const cperf = useCurrencyPerformance(period, currency)
+  const bd = breakdown.data
+  const hu = cperf.data?.hedged_vs_unhedged
+
+  const rows = bd?.by_currency
+    ? Object.entries(bd.by_currency).sort((a, b) => b[1].value - a[1].value)
+    : []
+
+  return (
+    <div className="space-y-4">
+      <div className="flex w-32 items-center print:hidden">
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PERIODS.map((p) => (
+              <SelectItem key={p} value={p}>{p}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="currency breakdown" meta={`reporting in ${currency}`} statusDotColor="accent">
+          {breakdown.isLoading ? (
+            <Skeleton className="h-40" />
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-text-label">no priced holdings</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {rows.map(([ccy, v]) => (
+                <li key={ccy} className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-text">{ccy}</span>
+                  <span className="flex items-center gap-4">
+                    <span className="font-mono text-xs text-text-secondary">{(v.weight * 100).toFixed(1)}%</span>
+                    <span className="font-mono tabular-nums text-text">
+                      {currency === "EUR" ? "€" : "$"}{v.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {bd?.fx_missing && bd.fx_missing.length > 0 && (
+            <p className="mt-2 text-xs text-warning">
+              no FX for: {bd.fx_missing.join(", ")} — shown in native amounts.
+            </p>
+          )}
+        </Panel>
+
+        <Panel
+          title="hedged vs unhedged"
+          meta={period}
+          statusDotColor="accent"
+          titleSuffix={<InfoTip text={metricTip("currency contribution") ?? ""} />}
+        >
+          {cperf.isLoading ? (
+            <Skeleton className="h-40" />
+          ) : !hu?.available ? (
+            <p className="text-sm text-text-label">{hu?.reason ?? "not available"}</p>
+          ) : (
+            <div className="space-y-2 text-sm">
+              <Row label="hedged (assets only)" value={pctStr(hu.hedged_return)} />
+              <Row label="unhedged (what you got)" value={pctStr(hu.unhedged_return)} />
+              <div className="flex justify-between gap-2 border-t border-border pt-2">
+                <span className="text-text-label">currency contribution</span>
+                <span className={`font-mono ${(hu.currency_contribution ?? 0) >= 0 ? "text-success" : "text-danger"}`}>
+                  {pctStr(hu.currency_contribution)}
+                </span>
+              </div>
+              {hu.note && <p className="text-xs text-text-label">{hu.note}</p>}
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Metric label="twr" value={cperf.data?.time_weighted_return} pct />
+        <Metric label="ann. return" value={cperf.data?.annualized_return} pct />
+        <Metric label="volatility" value={cperf.data?.volatility} pct />
+      </div>
+      <p className="text-xs text-text-label">
+        figures converted from each holding's native currency to {currency} at cached FX. the toggle
+        above is persisted across sessions.
+      </p>
+    </div>
+  )
+}
+
+function pctStr(v: number | null | undefined, d = 2): string {
+  return v == null ? "—" : `${(v * 100).toFixed(d)}%`
+}
+
+// 6. Scenarios — real quantitative tools (market shock, what-if, fx), historical
+// stress replays, + a free-form Claude scenario for anything else.
 function ScenariosTab() {
   return (
     <div className="space-y-4">
       <ScenarioTools />
+      <StressTestPanel />
       <Collapsible title="ask claude a free-form scenario" meta="deeper / qualitative">
         <ClaudeScenario />
       </Collapsible>
     </div>
+  )
+}
+
+// Historical-shock replay — how today's portfolio would fare in a past crisis.
+function StressTestPanel() {
+  const { data, isLoading } = useStressReplayAll()
+  const shocks = data ? Object.values(data).filter((s) => s.available) : []
+
+  return (
+    <Panel
+      title="historical stress tests"
+      meta="current holdings, past crises"
+      statusDotColor="warning"
+      titleSuffix={<InfoTip text="Applies each ticker's actual return over a historical crisis window to your current market value. Positions with no history in the window are estimated from their beta to the benchmark." />}
+    >
+      {isLoading ? (
+        <Skeleton className="h-32" />
+      ) : shocks.length === 0 ? (
+        <p className="text-sm text-text-label">no holdings to stress</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {shocks.map((s) => (
+            <div key={s.shock} className="rounded-sm border border-border p-3">
+              <div className="text-sm text-text">{s.label}</div>
+              <div className="font-mono text-xs text-text-label">{s.start} → {s.end}</div>
+              <div className={`mt-2 font-mono text-2xl tabular-nums ${(s.impact_pct ?? 0) < 0 ? "text-danger" : "text-success"}`}>
+                {s.impact_pct == null ? "—" : `${(s.impact_pct * 100).toFixed(1)}%`}
+              </div>
+              <div className="font-mono text-xs text-text-secondary">
+                {s.total_estimated_impact == null
+                  ? ""
+                  : formatCurrency(s.total_estimated_impact)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
   )
 }
 

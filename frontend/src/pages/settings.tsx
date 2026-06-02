@@ -14,6 +14,7 @@ import {
 import { DiagnosticRow } from "@/components/settings/diagnostic-row"
 import { useSystemStatus, useClearCache } from "@/hooks/useSystem"
 import { useDiagnostics } from "@/hooks/useDiagnostics"
+import { useFinanceDiagnostics } from "@/hooks/useFinance"
 import { toast } from "@/lib/toast-store"
 
 type BarrierMode = "auto" | "on" | "off"
@@ -55,6 +56,9 @@ export function Settings() {
 
       {/* 2. Integration diagnostics */}
       <DiagnosticsSection />
+
+      {/* 2b. Finance data-source health + cache freshness (Phase 15e) */}
+      <FinanceDataSourcesSection />
 
       {/* 3. Info-barrier mode */}
       <InfoBarrierSection />
@@ -137,6 +141,41 @@ function DiagnosticsSection() {
           ))}
         </div>
       )}
+    </Panel>
+  )
+}
+
+function FinanceDataSourcesSection() {
+  // Cache-freshness checks render immediately; the live network probe (yfinance
+  // + FX) runs only when the user asks, so the panel never blocks on the network.
+  const [probe, setProbe] = useState(false)
+  const { data, isFetching, refetch } = useFinanceDiagnostics(true, probe)
+
+  return (
+    <Panel title="finance data sources" statusDotColor="accent">
+      <div className="mb-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={isFetching}
+          onClick={() => {
+            setProbe(true)
+            refetch()
+          }}
+        >
+          {isFetching ? "probing…" : "probe live sources"}
+        </Button>
+      </div>
+      {data?.checks && (
+        <div>
+          {data.checks.map((c) => (
+            <DiagnosticRow key={c.name} check={c} />
+          ))}
+        </div>
+      )}
+      <p className="mt-2 text-xs text-text-label">
+        cache freshness shows instantly; "probe live sources" adds a yfinance + FX hit.
+      </p>
     </Panel>
   )
 }
