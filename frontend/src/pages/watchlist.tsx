@@ -26,6 +26,8 @@ import {
   useWatchlistDossiers,
   useAddWatchlist,
   type WatchlistEntry,
+  type WatchlistSection,
+  type FormSection,
 } from "@/hooks/useFinance"
 import { InfoBarrierBanner } from "@/components/ui/info-barrier-banner"
 import { cn } from "@/lib/utils"
@@ -45,6 +47,15 @@ export function Watchlist() {
   const allEntries = useMemo<WatchlistEntry[]>(
     () => Object.values(wl.data?.tiers ?? {}).flat(),
     [wl.data],
+  )
+  // Cards tab renders straight from the ordered section structure, filtered by tier.
+  const sections = useMemo<WatchlistSection[]>(() => wl.data?.sections ?? [], [wl.data])
+  const visibleSections = useMemo(
+    () =>
+      filter === "All"
+        ? sections
+        : sections.filter((s) => (s.tier ?? "").includes(filter.replace("Tier ", ""))),
+    [sections, filter],
   )
   const filtered = useMemo(
     () =>
@@ -104,7 +115,7 @@ export function Watchlist() {
           <TabsTrigger value="comps">comp tables</TabsTrigger>
         </TabsList>
 
-        {/* 1. Cards */}
+        {/* 1. Cards — grouped by tier + theme section (A–N), straight from Watchlist.md */}
         <TabsContent value="cards">
           {wl.isLoading ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -112,14 +123,14 @@ export function Watchlist() {
                 <Skeleton key={i} className="h-36" />
               ))}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : visibleSections.length === 0 ? (
             <Panel title="watchlist" meta="0 names">
               <p className="text-sm text-text-label">no names in this tier</p>
             </Panel>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {filtered.map((e) => (
-                <WatchlistCard key={e.ticker} entry={e} />
+            <div className="space-y-6">
+              {visibleSections.map((s) => (
+                <SectionBlock key={`${s.tier}-${s.key}`} section={s} />
               ))}
             </div>
           )}
@@ -218,7 +229,44 @@ export function Watchlist() {
         </TabsContent>
       </Tabs>
 
-      <AddWatchlistDialog open={addOpen} onOpenChange={setAddOpen} validStatuses={wl.data?.valid_statuses ?? []} />
+      <AddWatchlistDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        formSections={wl.data?.form_sections ?? []}
+      />
+    </div>
+  )
+}
+
+/** One tier/theme section: a header line plus a grid of ticker cards and any
+ *  non-ticker topic notes (e.g. "Tom Lee", "ByteDance" in sections M/N). */
+function SectionBlock({ section }: { section: WatchlistSection }) {
+  const tickers = section.entries.filter((e) => e.is_ticker !== false && e.ticker)
+  const notes = section.entries.filter((e) => e.is_ticker === false)
+  const heading = section.letter
+    ? `${section.letter}. ${section.title}`
+    : section.title
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline gap-2">
+        <span className="label text-accent">{section.tier}</span>
+        <span className="text-sm text-text">{heading}</span>
+        <span className="ml-auto font-mono text-xs text-text-label">
+          {tickers.length || ""}
+        </span>
+      </div>
+      {tickers.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {tickers.map((e) => (
+            <WatchlistCard key={e.ticker} entry={e} />
+          ))}
+        </div>
+      )}
+      {notes.map((n, i) => (
+        <p key={i} className="mt-1 text-xs text-text-label">
+          {n.name}
+        </p>
+      ))}
     </div>
   )
 }
@@ -261,26 +309,27 @@ function AggregatePanel({
 function AddWatchlistDialog({
   open,
   onOpenChange,
-  validStatuses,
+  formSections,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  validStatuses: string[]
+  formSections: FormSection[]
 }) {
   const add = useAddWatchlist()
   const [ticker, setTicker] = useState("")
   const [name, setName] = useState("")
-  const [status, setStatus] = useState("researching")
-  const [tier, setTier] = useState("Tier 3")
+  const [section, setSection] = useState("adhoc")
   const [notes, setNotes] = useState("")
 
-  const statuses = validStatuses.length ? validStatuses : ["researching"]
+  // Always offer the Ad-hoc default even before the API list arrives.
+  const sections = formSections.length
+    ? formSections
+    : [{ key: "adhoc", label: "Tier 3 · Ad-hoc (dashboard additions)" }]
 
   function reset() {
     setTicker("")
     setName("")
-    setStatus("researching")
-    setTier("Tier 3")
+    setSection("adhoc")
     setNotes("")
   }
 
@@ -288,10 +337,14 @@ function AddWatchlistDialog({
     const tk = ticker.trim().toUpperCase()
     if (!tk) return
     add.mutate(
-      { ticker: tk, name: name.trim(), status, tier, notes: notes.trim() },
+      { ticker: tk, name: name.trim(), section, notes: notes.trim() },
       {
-        onSuccess: () => {
-          toast.success("added to watchlist", tk)
+        onSuccess: (r) => {
+          if (r && r.ok === false) {
+            toast.show(`${tk} is already on the watchlist`, { tone: "default" })
+          } else {
+            toast.success("added to Watchlist.md", tk)
+          }
           onOpenChange(false)
           reset()
         },
@@ -323,35 +376,20 @@ function AddWatchlistDialog({
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="ASML Holding" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="label mb-1">status</div>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {statuses.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <div className="label mb-1">tier</div>
-              <Select value={tier} onValueChange={setTier}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Tier 1">tier 1 · macro</SelectItem>
-                  <SelectItem value="Tier 2">tier 2 · held</SelectItem>
-                  <SelectItem value="Tier 3">tier 3 · themed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <div className="label mb-1">section (appends to Watchlist.md)</div>
+            <Select value={section} onValueChange={setSection}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sections.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <div className="label mb-1">rationale</div>

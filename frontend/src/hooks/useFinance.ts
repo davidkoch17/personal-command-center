@@ -24,9 +24,27 @@ export interface PortfolioSnapshotResponse {
 }
 
 export interface WatchlistResponse {
+  /** Ordered tier + theme-section structure parsed from Watchlist.md. */
+  sections: WatchlistSection[]
+  /** Backward-compatible flat map by tier (used by the tier filter + macro tab). */
   tiers: Record<string, WatchlistEntry[]>
   count: number
-  valid_statuses: string[]
+  /** Append targets for the add dialog (Ad-hoc first). */
+  form_sections: FormSection[]
+  source: string
+}
+
+export interface WatchlistSection {
+  key: string
+  tier: string
+  letter: string
+  title: string
+  entries: WatchlistEntry[]
+}
+
+export interface FormSection {
+  key: string
+  label: string
 }
 
 export interface WatchlistEntry {
@@ -34,6 +52,10 @@ export interface WatchlistEntry {
   name: string
   status: string
   tier: string
+  section?: string
+  section_title?: string
+  letter?: string
+  is_ticker?: boolean
   added?: string | null
   notes?: string
   price?: {

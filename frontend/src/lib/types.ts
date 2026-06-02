@@ -165,9 +165,9 @@ export interface TaxScenarioRequest {
 export interface WatchlistAddRequest {
   ticker: string
   name?: string
-  status?: string
   notes?: string
-  tier?: string
+  /** Target section in Watchlist.md: "tier1"/"tier2", a Tier-3 letter "A".."N", or "adhoc". */
+  section?: string
 }
 
 export interface WatchlistHypothesisRequest {

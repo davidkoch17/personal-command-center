@@ -148,8 +148,13 @@ class TaxScenarioRequest(BaseModel):
 class WatchlistAddRequest(BaseModel):
     ticker: str
     name: str = ""
-    status: str = "researching"
     notes: str = ""
+    # Target section to append under in Watchlist.md: a tier key ("tier1"/"tier2"),
+    # a Tier-3 letter ("A".."N"), or "adhoc" (the default Ad-hoc section).
+    section: str = "adhoc"
+    # Deprecated (JSON-era) fields — accepted but ignored now that Watchlist.md
+    # is the source of truth. Kept so older clients don't 422.
+    status: str = "researching"
     tier: str = "Tier 3"
 
 
