@@ -8,6 +8,25 @@ Double-click `start_dashboard.bat`. It builds the React frontend, then starts
 the FastAPI backend, which serves both the API and the app at
 http://localhost:8000.
 
+## Daily use
+
+### One-time setup
+1. Double-click `install_desktop_shortcut.bat` — places "Command Center" icon on Desktop
+2. Double-click `install_autostart.bat` — backend auto-runs on every Windows login
+
+### Daily flow
+- Power on laptop → backend auto-starts in background (silent, no console)
+- Double-click Desktop "Command Center" icon → opens browser to dashboard
+- Dashboard ready immediately (no cold start)
+
+### iPad access
+- On iPad (same Wi-Fi): open Safari → `http://<your-laptop-ip>:8000`
+- Find laptop IP: PowerShell → `ipconfig` → look for "IPv4 Address" (e.g., 192.168.1.42)
+- Bookmark to home screen for one-tap access
+
+### Recovery if anything's stuck
+Double-click `smart_launch.bat` — re-runs all pre-flight checks, restarts backend if needed.
+
 ## Architecture
 
 - `backend/` — FastAPI exposing all logic as REST + WebSocket (and serving the built React app)
