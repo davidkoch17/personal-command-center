@@ -8,9 +8,12 @@ import {
   LineChart,
   ReferenceLine,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts"
 import { AXIS_PROPS, CHART_COLORS, GRID_PROPS } from "./theme"
 
@@ -97,6 +100,94 @@ export function BestWorstBars({
         <Bar dataKey="return" name="return" radius={[0, 2, 2, 0]}>
           {data.map((d, i) => (
             <Cell key={i} fill={d.return >= 0 ? CHART_COLORS.success : CHART_COLORS.danger} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+// --- Efficient frontier scatter ---------------------------------------------
+export function EfficientFrontierScatter({
+  frontier,
+  current,
+  maxSharpe,
+  minVariance,
+}: {
+  frontier: { risk: number; return: number }[]
+  current?: { risk: number; return: number } | null
+  maxSharpe?: { risk: number; return: number } | null
+  minVariance?: { risk: number; return: number } | null
+}) {
+  const tip = {
+    contentStyle: {
+      background: "#0A0E13",
+      border: `1px solid ${CHART_COLORS.grid}`,
+      fontFamily: "JetBrains Mono, monospace",
+      fontSize: 11,
+    },
+    formatter: (v: number) => `${(v * 100).toFixed(1)}%`,
+    labelStyle: { color: CHART_COLORS.axis },
+  }
+  return (
+    <ResponsiveContainer width="100%" height={340}>
+      <ScatterChart margin={{ top: 8, right: 16, bottom: 16, left: 8 }}>
+        <CartesianGrid {...GRID_PROPS} vertical />
+        <XAxis
+          type="number"
+          dataKey="risk"
+          name="risk"
+          {...AXIS_PROPS}
+          tickFormatter={pctTick}
+          label={{ value: "risk (vol)", position: "insideBottom", offset: -8, fill: CHART_COLORS.axis, fontSize: 11 }}
+        />
+        <YAxis
+          type="number"
+          dataKey="return"
+          name="return"
+          {...AXIS_PROPS}
+          width={48}
+          tickFormatter={pctTick}
+        />
+        <ZAxis range={[40, 40]} />
+        <Tooltip {...tip} cursor={{ strokeDasharray: "3 3", stroke: CHART_COLORS.grid }} />
+        <Legend wrapperStyle={LEGEND_STYLE} />
+        <Scatter name="frontier" data={frontier} fill={CHART_COLORS.axis} line={{ stroke: CHART_COLORS.accent, strokeWidth: 2 }} shape="circle" />
+        {minVariance && (
+          <Scatter name="min variance" data={[minVariance]} fill={CHART_COLORS.success} shape="diamond" />
+        )}
+        {maxSharpe && (
+          <Scatter name="max sharpe" data={[maxSharpe]} fill={CHART_COLORS.warning} shape="star" />
+        )}
+        {current && (
+          <Scatter name="current" data={[current]} fill={CHART_COLORS.danger} shape="cross" />
+        )}
+      </ScatterChart>
+    </ResponsiveContainer>
+  )
+}
+
+// --- Factor beta bars (FF3 exposures) ---------------------------------------
+export function FactorBetaBars({
+  data,
+}: {
+  data: { factor: string; beta: number }[]
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+        <CartesianGrid {...GRID_PROPS} />
+        <XAxis dataKey="factor" {...AXIS_PROPS} />
+        <YAxis {...AXIS_PROPS} width={40} />
+        <Tooltip
+          contentStyle={{ background: "#0A0E13", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+          formatter={(v: number) => v.toFixed(2)}
+          cursor={{ fill: "#161C25" }}
+        />
+        <ReferenceLine y={0} stroke={CHART_COLORS.axis} />
+        <Bar dataKey="beta" name="beta" radius={[2, 2, 0, 0]}>
+          {data.map((d, i) => (
+            <Cell key={i} fill={d.beta >= 0 ? CHART_COLORS.accent : CHART_COLORS.danger} />
           ))}
         </Bar>
       </BarChart>

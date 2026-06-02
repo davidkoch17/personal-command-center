@@ -9,6 +9,9 @@ data/cache/
 data/positions.json
 data/transactions.jsonl
 data/price_cache/
+
+# Phase 15b — Fama-French factor data cache (downloaded from Ken French library).
+data/ff_cache/
 .venv/
 venv/
 .DS_Store

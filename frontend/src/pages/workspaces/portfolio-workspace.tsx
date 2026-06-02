@@ -17,6 +17,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FinanceHoldingsTable } from "@/components/finance/finance-holdings-table"
 import { TransactionForm } from "@/components/finance/transaction-form"
 import { BucketAllocation } from "@/components/finance/bucket-allocation"
+import { OptimizationTab } from "@/components/finance/optimization-panel"
+import { FactorsTab } from "@/components/finance/factors-panel"
 import {
   AllocationBar,
   CategoryDonut,
@@ -94,6 +96,8 @@ export function PortfolioWorkspace() {
           <TabsList>
             <TabsTrigger value="holdings">holdings</TabsTrigger>
             <TabsTrigger value="allocations">allocations</TabsTrigger>
+            <TabsTrigger value="optimization">optimization</TabsTrigger>
+            <TabsTrigger value="factors">factors</TabsTrigger>
             <TabsTrigger value="performance">performance</TabsTrigger>
             <TabsTrigger value="attribution">attribution</TabsTrigger>
             <TabsTrigger value="risk">risk</TabsTrigger>
@@ -141,6 +145,16 @@ export function PortfolioWorkspace() {
                 )}
               </Panel>
             </div>
+          </TabsContent>
+
+          {/* Optimization — efficient frontier, optimal portfolios, BL. */}
+          <TabsContent value="optimization">
+            <OptimizationTab />
+          </TabsContent>
+
+          {/* Factors — Fama-French 3-factor regression + decomposition. */}
+          <TabsContent value="factors">
+            <FactorsTab />
           </TabsContent>
 
           {/* 3. Performance — real cumulative + rolling sharpe + best/worst. */}

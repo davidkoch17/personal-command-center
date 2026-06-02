@@ -23,3 +23,14 @@ quantstats>=0.0.62
 scipy>=1.11
 numpy-financial>=1.0.0
 # (yfinance, pandas, pyarrow already present in the project-root requirements.txt)
+
+# Phase 15b — portfolio theory (optimization) + factor analytics.
+PyPortfolioOpt>=1.5.5
+cvxpy>=1.4
+riskfolio-lib>=4.4   # optional, used for CVaR optimization in 15e
+statsmodels>=0.14    # Fama-French OLS regression
+# IMPORTANT: do NOT add `pandas-datareader`. Under this project's pandas 3.0 it
+# crashes on import (deprecate_kwarg signature change) AND — because `empyrical`
+# imports it lazily — that crash takes down the entire 15a performance/risk layer.
+# Fama-French data is fetched directly from the Ken French library instead
+# (see modules/finance/factors.py).

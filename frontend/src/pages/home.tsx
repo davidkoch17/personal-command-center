@@ -13,6 +13,7 @@ import { StatusDot } from "@/components/ui/status-dot"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { ProjectCard } from "@/components/cards/project-card"
 import { BucketAllocation } from "@/components/finance/bucket-allocation"
+import { OptimizationSignals } from "@/components/finance/optimization-signals"
 import { TransactionForm } from "@/components/finance/transaction-form"
 import {
   Dialog,
@@ -597,6 +598,7 @@ function FinancesRow() {
     <div className="space-y-2">
       <h2 className="text-lg font-semibold tracking-tight">finances</h2>
       <BucketAllocation compact />
+      <OptimizationSignals />
       <div className="grid gap-4 md:grid-cols-3">
         <Panel title="portfolio" statusDotColor="accent">
           {portfolio.isLoading ? (

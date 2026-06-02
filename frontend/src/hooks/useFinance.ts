@@ -390,3 +390,152 @@ export function useAddHypothesis(ticker: string | undefined) {
       qc.invalidateQueries({ queryKey: ["watchlist", "dossier", ticker] }),
   })
 }
+
+// --- Phase 15b: optimization + factor analytics -----------------------------
+
+type Weights = Record<string, number>
+
+export interface OptPerformance {
+  expected_return: number
+  volatility: number
+  sharpe: number
+}
+
+export interface OptPortfolio {
+  weights: Weights
+  performance: OptPerformance | null
+}
+
+export interface FrontierPoint {
+  target_return: number
+  risk: number
+  return: number
+  sharpe: number
+  weights: Weights
+}
+
+export interface FrontierResponse {
+  tickers: string[]
+  points: FrontierPoint[]
+  max_sharpe: OptPortfolio
+  min_variance: OptPortfolio
+  current: { return: number; risk: number; sharpe: number | null; weights: Weights } | null
+}
+
+export interface BLView {
+  ticker: string
+  expected_return: number
+  confidence: number
+  derived: boolean
+  label: string
+}
+
+export interface BlackLittermanResponse {
+  tickers: string[]
+  auto_views: boolean
+  weights: Weights
+  performance: OptPerformance | null
+  posterior_returns?: Weights
+  market_equilibrium?: Weights
+  views_used: BLView[]
+}
+
+export interface OptSignalsResponse {
+  available: boolean
+  reason?: string
+  current_sharpe?: number | null
+  max_sharpe?: number | null
+  sharpe_gap?: number | null
+  current_effective_bets?: number | null
+  min_variance_effective_bets?: number | null
+  max_sharpe_weights?: Weights
+}
+
+export interface FF3Response {
+  available: boolean
+  reason?: string
+  region?: string
+  alpha_monthly?: number
+  alpha_annual?: number
+  beta_mkt?: number
+  beta_smb?: number
+  beta_hml?: number
+  t_alpha?: number
+  t_mkt?: number
+  t_smb?: number
+  t_hml?: number
+  r_squared?: number
+  n_observations?: number
+}
+
+export interface DecompositionResponse {
+  available: boolean
+  reason?: string
+  region?: string
+  regression?: FF3Response
+  variance_decomposition?: {
+    market: number
+    size_smb: number
+    value_hml: number
+    idiosyncratic: number
+  }
+}
+
+export function useOptFrontier(nPoints = 50) {
+  return useQuery({
+    queryKey: ["finance", "frontier", nPoints],
+    queryFn: () =>
+      api.get<FrontierResponse>(`/api/finance/optimization/frontier?n_points=${nPoints}`),
+  })
+}
+
+export function useOptMaxSharpe() {
+  return useQuery({
+    queryKey: ["finance", "max-sharpe"],
+    queryFn: () => api.get<OptPortfolio & { tickers: string[] }>("/api/finance/optimization/max-sharpe"),
+  })
+}
+
+export function useOptMinVariance() {
+  return useQuery({
+    queryKey: ["finance", "min-variance"],
+    queryFn: () => api.get<OptPortfolio & { tickers: string[] }>("/api/finance/optimization/min-variance"),
+  })
+}
+
+export function useOptRiskParity() {
+  return useQuery({
+    queryKey: ["finance", "risk-parity"],
+    queryFn: () => api.get<{ tickers: string[]; weights: Weights }>("/api/finance/optimization/risk-parity"),
+  })
+}
+
+export function useBlackLitterman() {
+  return useQuery({
+    queryKey: ["finance", "black-litterman"],
+    queryFn: () =>
+      api.post<BlackLittermanResponse>("/api/finance/optimization/black-litterman", {}),
+  })
+}
+
+export function useOptSignals() {
+  return useQuery({
+    queryKey: ["finance", "opt-signals"],
+    queryFn: () => api.get<OptSignalsResponse>("/api/finance/optimization/signals"),
+  })
+}
+
+export function useFF3(region = "US") {
+  return useQuery({
+    queryKey: ["finance", "ff3", region],
+    queryFn: () => api.get<FF3Response>(`/api/finance/factors/ff3?region=${region}`),
+  })
+}
+
+export function useFactorDecomposition(region = "US") {
+  return useQuery({
+    queryKey: ["finance", "factor-decomposition", region],
+    queryFn: () =>
+      api.get<DecompositionResponse>(`/api/finance/factors/decomposition?region=${region}`),
+  })
+}
