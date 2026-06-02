@@ -1,5 +1,6 @@
 import { useState, useRef } from "react"
 import { api, API_BASE } from "@/lib/api"
+import { toast } from "@/lib/toast-store"
 
 export type JarvisState = "idle" | "thinking" | "speaking" | "listening" | "routing"
 
@@ -234,61 +235,96 @@ export function useJarvisBriefing() {
    * Perform the side-effect for a routed command (everything except the
    * multi-turn ``ambiguous`` dance, which the callers own). Shared by the voice
    * flow and the typed-input flow so both behave identically.
+   *
+   * Every branch logs verbosely to the console and returns ``{ok, error}`` so
+   * the caller can surface a failure (subtitle + spoken line + toast) instead of
+   * silently doing nothing — the core Phase 13.9 "disconnect" fix. A thrown
+   * ``ApiError`` (non-2xx) is caught and converted to ``{ok: false}``; the
+   * toggle-task endpoint returns HTTP 200 with ``{ok: false}`` on a miss, so it
+   * is inspected explicitly.
    */
-  async function executeRoute(route: RouteResponse): Promise<void> {
-    switch (route.action) {
-      case "navigate":
-        if (route.navigate_to) window.open(route.navigate_to, "_blank")
-        break
+  async function executeRouteAction(
+    route: RouteResponse,
+  ): Promise<{ ok: boolean; error?: string }> {
+    try {
+      switch (route.action) {
+        case "navigate": {
+          if (!route.navigate_to) {
+            return { ok: false, error: "No navigation target was returned." }
+          }
+          console.log("[Jarvis] Opening:", route.navigate_to)
+          const newWindow = window.open(route.navigate_to, "_blank")
+          if (!newWindow) {
+            return { ok: false, error: "Popup blocked. Allow popups for this site." }
+          }
+          return { ok: true }
+        }
 
-      case "data_query":
-        // The answer rides in route.answer / spoken_response — nothing to do.
-        break
+        case "data_query":
+          // The answer rides in route.answer / spoken_response — nothing to do.
+          return { ok: true }
 
-      case "run_skill":
-        if (route.skill_name) {
-          await api.post(`/api/skills/${route.skill_name}/run`, {
+        case "run_skill": {
+          if (!route.skill_name) return { ok: false, error: "No skill name was returned." }
+          console.log("[Jarvis] Running skill:", route.skill_name, route.skill_args)
+          const res = await api.post(`/api/skills/${route.skill_name}/run`, {
             args: route.skill_args || {},
           })
+          console.log("[Jarvis] Skill response:", res)
+          return { ok: true }
         }
-        break
 
-      case "capture_inbox":
-        if (route.capture_text) {
+        case "capture_inbox": {
+          if (!route.capture_text) return { ok: false, error: "Nothing to capture." }
+          console.log("[Jarvis] Capturing to inbox:", route.capture_text)
           await api.post("/api/inbox/capture", {
             content: route.capture_text,
             source: "jarvis",
           })
+          return { ok: true }
         }
-        break
 
-      case "add_task":
-        if (route.task_text) {
+        case "add_task": {
+          if (!route.task_text) return { ok: false, error: "No task text was returned." }
+          console.log("[Jarvis] Adding task:", route.task_text, "to section:", route.task_section)
           await api.post("/api/tasks/add", {
             section: route.task_section || "Bigger items",
             text: route.task_text,
           })
+          return { ok: true }
         }
-        break
 
-      case "toggle_task":
-        if (route.toggle_match) {
-          await api.post("/api/tasks/toggle-by-text", { match: route.toggle_match })
+        case "toggle_task": {
+          if (!route.toggle_match) return { ok: false, error: "No task to toggle was returned." }
+          console.log("[Jarvis] Toggling task matching:", route.toggle_match)
+          const res = await api.post<{ ok: boolean; error?: string }>(
+            "/api/tasks/toggle-by-text",
+            { match: route.toggle_match },
+          )
+          if (!res.ok) {
+            return { ok: false, error: res.error || `No task matched "${route.toggle_match}".` }
+          }
+          return { ok: true }
         }
-        break
 
-      case "add_hypothesis":
-        if (route.hypothesis_ticker && route.hypothesis_text) {
+        case "add_hypothesis": {
+          if (!route.hypothesis_ticker || !route.hypothesis_text) {
+            return { ok: false, error: "Hypothesis needs both a ticker and text." }
+          }
+          console.log("[Jarvis] Adding hypothesis on:", route.hypothesis_ticker, route.hypothesis_text)
           await api.post(
             `/api/watchlist/${encodeURIComponent(route.hypothesis_ticker)}/hypothesis`,
             { text: route.hypothesis_text },
           )
+          return { ok: true }
         }
-        break
 
-      case "add_transaction":
-        if (route.transaction?.ticker) {
+        case "add_transaction": {
+          if (!route.transaction?.ticker) {
+            return { ok: false, error: "Transaction is missing a ticker." }
+          }
           const t = route.transaction
+          console.log("[Jarvis] Logging transaction:", t)
           await api.post("/api/finance/transactions", {
             date: new Date().toISOString().slice(0, 10),
             ticker: t.ticker.toUpperCase(),
@@ -299,12 +335,43 @@ export function useJarvisBriefing() {
             fees: t.fees ?? 0,
             notes: t.notes ?? "Logged via Jarvis voice command",
           })
+          return { ok: true }
         }
-        break
 
-      case "unclear":
-      default:
-        break
+        case "ambiguous":
+          // Multi-turn clarification is handled by the callers.
+          return { ok: true }
+
+        case "unclear":
+          return { ok: true }
+
+        default:
+          return { ok: false, error: `Unknown action type: ${route.action}` }
+      }
+    } catch (e) {
+      const msg = (e as Error).message
+      console.error("[Jarvis] Action execution failed:", msg, e)
+      return { ok: false, error: msg }
+    }
+  }
+
+  /**
+   * Run a routed action and surface any failure everywhere at once: console
+   * (already done inside ``executeRouteAction``), subtitle, a spoken apology, and
+   * a toast. On success, speak the butler-style confirmation. Returns nothing —
+   * the side effects are the point.
+   */
+  async function executeAndReport(route: RouteResponse): Promise<void> {
+    const result = await executeRouteAction(route)
+    if (cancelledRef.current) return
+    if (!result.ok) {
+      setSubtitle(`error: ${result.error}`)
+      toast.error("Jarvis action failed", result.error)
+      await playSpoken(`Sorry, that didn't work. ${result.error ?? ""}`.trim())
+      return
+    }
+    if (route.spoken_response) {
+      await playSpoken(route.spoken_response)
     }
   }
 
@@ -368,12 +435,8 @@ export function useJarvisBriefing() {
       return
     }
 
-    // 5. Execute the action, then speak the confirmation.
-    await executeRoute(route)
-    if (cancelledRef.current) return
-    if (route.spoken_response) {
-      await playSpoken(route.spoken_response)
-    }
+    // 5. Execute the action, then speak the confirmation (or report a failure).
+    await executeAndReport(route)
   }
 
   /**
@@ -403,11 +466,7 @@ export function useJarvisBriefing() {
           route.spoken_response || route.clarification_question || "Could you clarify?",
         )
       } else {
-        await executeRoute(route)
-        if (cancelledRef.current) return
-        if (route.spoken_response) {
-          await playSpoken(route.spoken_response)
-        }
+        await executeAndReport(route)
       }
     } catch (e) {
       if (!cancelledRef.current) {

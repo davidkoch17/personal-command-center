@@ -20,6 +20,7 @@ import { Reading } from "@/pages/reading"
 import { BackgroundRuns } from "@/pages/background-runs"
 import { Settings } from "@/pages/settings"
 import { Calendar } from "@/pages/calendar"
+import { DebugJarvis } from "@/pages/debug-jarvis"
 
 // Workspaces are heavy (charts, dossiers) and opened on demand in a new tab —
 // lazy-load them so they never weigh down the main shell bundle.
@@ -78,6 +79,8 @@ const router = createBrowserRouter([
       { path: "/background-runs", element: <BackgroundRuns /> },
       { path: "/settings", element: <Settings /> },
       { path: "/calendar", element: <Calendar /> },
+      // Hidden dev tool — reachable via direct URL or the Settings link, not the sidebar.
+      { path: "/debug-jarvis", element: <DebugJarvis /> },
     ],
   },
   // Hidden workspace routes — standalone full-page, no AppShell / sidebar

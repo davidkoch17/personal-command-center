@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import { Panel } from "@/components/ui/panel"
@@ -257,6 +258,14 @@ function VoiceSection() {
             })
           }}
         />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+        <p className="text-sm text-text-secondary">
+          test jarvis routing with typed commands (no mic).
+        </p>
+        <Button variant="secondary" size="sm" asChild>
+          <Link to="/debug-jarvis">debug jarvis</Link>
+        </Button>
       </div>
     </Panel>
   )

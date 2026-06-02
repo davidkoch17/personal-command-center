@@ -19,9 +19,15 @@ _BULLET_RE = re.compile(r"^(\s*)-\s+(\[[ xX]\]\s*)?(.*\S)\s*$")
 
 
 def project_root(project_id: str) -> Path:
-    """Return the project folder by ID prefix (e.g. '01' -> 1_Projects/01_Thesis...)"""
+    """Return the project folder by numeric ID prefix or full folder name.
+
+    Accepts both ``'01'`` (the numeric prefix used everywhere internally) and the
+    full folder name ``'03_Project_Ulli_Acebuche'`` (which Jarvis nav URLs use),
+    so both ``/workspace/project/03`` and ``/workspace/project/03_Project_Ulli_Acebuche``
+    resolve to the same place.
+    """
     for d in sorted(PROJECTS_PATH.iterdir()):
-        if d.is_dir() and d.name.startswith(project_id + "_"):
+        if d.is_dir() and (d.name == project_id or d.name.startswith(project_id + "_")):
             return d
     raise FileNotFoundError(f"No project with prefix {project_id}")
 

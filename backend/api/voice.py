@@ -126,14 +126,6 @@ class RouteRequest(BaseModel):
     context: dict | None = None
 
 
-# Sidebar pages Jarvis may navigate to (kept in sync with the React router).
-_VALID_PAGES = [
-    "/", "/tasks", "/projects", "/ideas", "/inbox",
-    "/portfolio", "/money", "/watchlist",
-    "/career", "/brand", "/reading",
-    "/background-runs", "/settings", "/calendar",
-]
-
 # Skills Jarvis may trigger by voice (a curated subset of the skills registry).
 _VOICE_SKILLS = [
     "market_researcher", "earnings_reviewer", "valuation_reviewer",
@@ -144,21 +136,125 @@ _VOICE_SKILLS = [
 
 _UNCLEAR = {"action": "unclear", "spoken_response": "I didn't catch that. Could you repeat?"}
 
+# Injected into both the briefing and (implicitly) the router prompt so spoken
+# output names concrete entities instead of generic placeholders.
+SPECIFICITY_RULES = """
+CRITICAL — be specific:
+- Use PROJECT NAMES not generic terms ("Ulli Acebuche deck" not "the deck")
+- Use TICKERS not "your portfolio" ("BABA was -2.3% this week" not "your portfolio moved")
+- Use EXACT DATES not relative ("by Friday June 6th" not "by end of week")
+- Use TASK TEXT not "your todo" ("Verify Miami flights and ESTA" not "your travel task")
+- Suggestions must be ACTIONABLE with named items, e.g.:
+  - "Open the Ulli Acebuche workspace and finalize Section 3 of the deck"
+  - NOT "work on your project"
+- When mentioning a project, ALSO include its ID/path: "Ulli (03_Project_Ulli_Acebuche)"
+- When mentioning a watchlist name, include the ticker: "Nike (NKE)"
+"""
+
+
+def _build_nav_map() -> dict:
+    """Comprehensive navigation target map handed to the router prompt.
+
+    Every URL here is one the React router actually resolves, so Jarvis can
+    never navigate to a 404:
+
+    - **pages** mirror the sidebar/router exactly (``journal`` -> the
+      decision-journal route, not a non-existent ``/journal``).
+    - **projects** are discovered from the vault as full-folder-name workspace
+      URLs (the projects API resolves both the folder name and the numeric
+      prefix), each with friendly aliases ("ulli", "thesis", "k&e", ...).
+    - **ideas** come from the idea-validator's active list — the only ideas
+      whose ``/workspace/idea/<name>`` route resolves.
+    - **watchlist_tickers** are scraped from the agent's Watchlist.md universe.
+    """
+    from core import vault
+    from core.config import PROJECTS_PATH, WATCHLIST_UNIVERSE_FILE
+
+    nav_map: dict = {
+        "pages": {
+            "home": "/",
+            "tasks": "/tasks",
+            "projects": "/projects",
+            "ideas": "/ideas",
+            "inbox": "/inbox",
+            "portfolio": "/portfolio",
+            "money": "/money",
+            "watchlist": "/watchlist",
+            "career": "/career",
+            "brand": "/brand",
+            "reading": "/reading",
+            "background runs": "/background-runs",
+            "settings": "/settings",
+            "calendar": "/calendar",
+            "journal": "/decision-journal",
+            "decision journal": "/decision-journal",
+        },
+        "projects": {},  # name/alias → workspace URL
+        "ideas": [],
+        "watchlist_tickers": [],
+    }
+
+    # Discover projects → full-folder-name workspace URLs, with aliases.
+    if PROJECTS_PATH.exists():
+        for d in sorted(PROJECTS_PATH.iterdir()):
+            if not d.is_dir() or d.name.startswith(("_", ".")) or d.name == "98_Ideen":
+                continue
+            url = f"/workspace/project/{d.name}"
+            nav_map["projects"][d.name.lower()] = url
+            # "Short" alias without the numeric prefix.
+            short = d.name.split("_", 1)[1] if "_" in d.name else d.name
+            nav_map["projects"][short.lower()] = url
+            # Spoken nicknames David actually uses.
+            if "Thesis" in d.name:
+                nav_map["projects"]["thesis"] = url
+                nav_map["projects"]["defense"] = url
+            if "K&E" in d.name or "KE" in d.name:
+                nav_map["projects"]["k&e"] = url
+                nav_map["projects"]["ke"] = url
+            if "Ulli" in d.name or "Acebuche" in d.name:
+                nav_map["projects"]["ulli"] = url
+                nav_map["projects"]["acebuche"] = url
+            if "Brand" in d.name:
+                nav_map["projects"]["brand project"] = url
+                nav_map["projects"]["personal brand"] = url
+            if "Immos" in d.name:
+                nav_map["projects"]["immos"] = url
+                nav_map["projects"]["real estate"] = url
+
+    # Active ideas — build straight from the idea-validator so every URL resolves.
+    try:
+        from modules.agents.skills.idea_validator import runner as iv
+
+        for idea in iv.list_ideas():
+            nav_map["ideas"].append({
+                "name": idea["name"].replace("_", " "),
+                "url": f"/workspace/idea/{idea['name']}",
+            })
+    except Exception:  # noqa: BLE001 - ideas are best-effort context
+        logger.debug("nav_map: ideas unavailable", exc_info=True)
+
+    # Watchlist tickers (e.g. "(NKE)", "(^GSPC)", "(BTC-USD)", "(EURUSD=X)").
+    watchlist_md = vault.read_md(WATCHLIST_UNIVERSE_FILE)
+    nav_map["watchlist_tickers"] = sorted(
+        set(re.findall(r"\(([A-Z0-9.\-^]+(?:=[A-Z]+)?)\)", watchlist_md))
+    )
+    return nav_map
+
 
 @router.post("/route")
 def route(req: RouteRequest) -> dict:
-    """Interpret a spoken command across 8 categories and decide the action.
+    """Interpret a spoken command across 9 categories and decide the action.
 
     Sync handler on purpose: ``run_claude`` blocks ~60s, so FastAPI runs this in
     a worker thread rather than stalling the event loop. Returns a JSON-safe
     dict the Jarvis hook executes (navigate / data_query / run_skill /
-    capture_inbox / add_task / toggle_task / add_hypothesis / ambiguous /
-    unclear). Malformed model output degrades to an ``unclear`` fallback.
+    capture_inbox / add_task / toggle_task / add_hypothesis / add_transaction /
+    ambiguous / unclear). Malformed model output degrades to an ``unclear``
+    fallback, and any failure is logged verbosely so the disconnect is debuggable.
     """
+    logger.info("Route request: text=%r page=%r", req.text, req.current_page)
     if not req.text.strip():
         return dict(_UNCLEAR)
-
-    logger.info("Routing command: %r (page=%s)", req.text, req.current_page)
 
     # Contextual data Claude needs to classify and to answer data queries.
     from core import vault
@@ -166,9 +262,7 @@ def route(req: RouteRequest) -> dict:
 
     tasks_md = vault.read_md(SYSTEM_PATH / "Task_Command_Center.md")
     projects_md = vault.read_md(SYSTEM_PATH / "Project_Index.md")
-
-    # Project ids/names for matching navigation + deep-link targets.
-    available_projects = ["01_Thesis", "02_K&E", "03_Ulli_Acebuche", "05_Personal_Brand", "06_Immos"]
+    nav_map = _build_nav_map()
 
     prompt = f"""You are Jarvis, David's command center voice assistant. Interpret his spoken command and return JSON.
 
@@ -176,12 +270,28 @@ David said: "{req.text}"
 Current page: {req.current_page or "/"}
 Context: {req.context or {}}
 
-You handle 8 command categories. Classify and respond:
+AVAILABLE NAVIGATION TARGETS (use these EXACT URLs — never invent a path):
 
-1. NAVIGATION — opens a page in a new tab
-   Valid pages: {_VALID_PAGES}
-   Workspaces: /workspace/project/<id>, /workspace/idea/<name>, /workspace/watchlist/<ticker>, /workspace/brand-video/<name>
-   Project ids: {available_projects}
+Pages:
+{json.dumps(nav_map['pages'], indent=2)}
+
+Projects (workspace URLs — try multiple aliases when matching):
+{json.dumps(nav_map['projects'], indent=2)}
+
+Ideas:
+{json.dumps(nav_map['ideas'], indent=2)}
+
+Watchlist tickers (open a ticker dossier via /workspace/watchlist/<TICKER>):
+{nav_map['watchlist_tickers']}
+
+When David says ambiguous things, ALWAYS prefer the specific target:
+- "open Ulli" -> the Ulli project workspace URL above, NOT generic /projects
+- "show me Nike" -> /workspace/watchlist/NKE, NOT /watchlist
+- "open the deck" -> ambiguous, ASK which deck (Ulli's or the thesis defense?)
+
+You handle 9 command categories. Classify and respond:
+
+1. NAVIGATION — opens a page/workspace in a new tab. Use ONLY a URL listed above.
 
 2. DATA_QUERY — asks for a specific number / fact David wants spoken aloud
    Examples: "what's my net worth", "how many tasks today", "when is the defense"
@@ -232,6 +342,8 @@ OUTPUT — JSON only, no other text:
 
 Examples:
 - "show me my portfolio" -> action: navigate, navigate_to: "/portfolio", spoken_response: "Opening your portfolio."
+- "open Ulli" -> action: navigate, navigate_to: "/workspace/project/03_Project_Ulli_Acebuche", spoken_response: "Opening the Ulli Acebuche workspace."
+- "show me Nike" -> action: navigate, navigate_to: "/workspace/watchlist/NKE", spoken_response: "Pulling up Nike."
 - "what's my net worth" -> action: data_query, answer: "Your current net worth is EUR 4,807 as of May 26th.", spoken_response: "Your net worth is 4,807 euros."
 - "note: had an idea about coffee subscriptions" -> action: capture_inbox, capture_text: "Had an idea about coffee subscriptions", spoken_response: "Captured to your inbox."
 - "open the deck" -> action: ambiguous, clarification_question: "Which deck — Ulli's or the defense slides?", spoken_response: "Which deck — Ulli's or the defense slides?"
@@ -246,8 +358,11 @@ Tone in spoken_response: crisp British butler. Short. Direct. No filler.
     try:
         result = run_claude(prompt, timeout=60)
     except Exception as exc:  # noqa: BLE001 - surface any CLI failure to the caller
-        logger.warning("Voice route failed: %s", exc)
-        return {"action": "unclear", "spoken_response": "Something went wrong, try again."}
+        logger.exception("Route: run_claude failed: %s", exc)
+        return {"action": "unclear", "spoken_response": f"Something went wrong: {str(exc)[:100]}"}
+
+    # Verbose trace of the raw model output so a disconnect is debuggable.
+    logger.info("Route: Claude raw response: %s", result[:500])
 
     # Parse JSON from the response (Claude may wrap it in a code block / prose).
     match = re.search(r"\{.*\}", result, re.DOTALL)
@@ -257,9 +372,9 @@ Tone in spoken_response: crisp British butler. Short. Direct. No filler.
     try:
         parsed = json.loads(match.group(0))
     except json.JSONDecodeError:
-        logger.warning("Route: malformed JSON in model output, falling back to unclear")
+        logger.warning("Route: malformed JSON in model output: %r", match.group(0)[:300])
         return dict(_UNCLEAR)
-    logger.info("Routed to action=%s", parsed.get("action"))
+    logger.info("Route: parsed action=%s -> %s", parsed.get("action"), parsed)
     return parsed
 
 
@@ -320,42 +435,75 @@ def _assemble_briefing_context() -> str:
     today = date.today()
     parts.append(f"Today is {today.strftime('%A, %B %d, %Y')}.")
 
-    # Open tasks for the near term.
+    # Open tasks for the near term — full task text, so the briefing can quote it.
     try:
         tasks_md = vault.read_md(TASKS_FILE)
         bullets = (
             markdown.parse_section_bullets(tasks_md, "This weekend")
             or markdown.parse_section_bullets(tasks_md, "Today")
+            or markdown.parse_section_bullets(tasks_md, "This week")
             or []
         )
         unchecked = [b["text"] for b in bullets if not b["checked"]]
         if unchecked:
-            parts.append("Open tasks for today: " + "; ".join(unchecked[:6]))
+            parts.append("Open tasks (quote the exact text): " + "; ".join(unchecked[:6]))
+
+        # Immovable real-world deadlines — exact dates, never "end of week".
+        hard = [h for h in markdown.parse_hard_dates(tasks_md) if h.get("date")]
+        if hard:
+            dated = "; ".join(
+                f"{h['date'].strftime('%a %b %d')}: {h['label']}" for h in hard[:5]
+            )
+            parts.append("Hard dates (use the exact date): " + dated)
     except Exception:  # noqa: BLE001 - briefing context is best-effort
         logger.debug("briefing: tasks unavailable", exc_info=True)
 
-    # Portfolio snapshot.
+    # Portfolio snapshot — name the held tickers, not just a count.
     try:
-        from modules.finance.portfolio import summary_metrics
+        from modules.finance.portfolio import combined_holdings, summary_metrics
 
         m = summary_metrics()
         parts.append(
             f"Portfolio value: EUR {m['total_value']:.0f}, {m['position_count']} "
             f"positions, latest snapshot {m.get('latest_snapshot')}."
         )
+        try:
+            df = combined_holdings()
+            names = [str(n) for n in df.get("Name", []) if str(n).strip()][:8]
+            if names:
+                parts.append("Held positions: " + ", ".join(names))
+        except Exception:  # noqa: BLE001
+            logger.debug("briefing: holdings unavailable", exc_info=True)
     except Exception:  # noqa: BLE001
         logger.debug("briefing: portfolio unavailable", exc_info=True)
 
-    # Active project statuses + next steps.
+    # Active project statuses + next steps — include the literal folder names so
+    # the briefing can say "Ulli (03_Project_Ulli_Acebuche)" not "your project".
     try:
         proj_md = vault.read_md(PROJECT_INDEX_FILE)
         projects = markdown.parse_projects(proj_md)
         active = [p for p in projects if "done" not in (p.get("status_text") or "").lower()]
         if active:
-            steps = "; ".join(p["next_step"] for p in active[:3] if p.get("next_step"))
-            parts.append(f"Active projects: {len(active)}. Next steps: {steps}")
+            named = "; ".join(
+                f"{p['folder']} — next: {p.get('next_step') or '(no next step)'}"
+                for p in active[:4]
+            )
+            parts.append(
+                f"Active projects ({len(active)}) — use these literal folder names: {named}"
+            )
     except Exception:  # noqa: BLE001
         logger.debug("briefing: projects unavailable", exc_info=True)
+
+    # Watchlist universe tickers — so the briefing names tickers, not "the market".
+    try:
+        from core.config import WATCHLIST_UNIVERSE_FILE
+
+        watchlist_md = vault.read_md(WATCHLIST_UNIVERSE_FILE)
+        tickers = sorted(set(re.findall(r"\(([A-Z0-9.\-^]+(?:=[A-Z]+)?)\)", watchlist_md)))
+        if tickers:
+            parts.append("Watchlist tickers (name tickers, not 'the market'): " + ", ".join(tickers[:20]))
+    except Exception:  # noqa: BLE001
+        logger.debug("briefing: watchlist unavailable", exc_info=True)
 
     # Most recent market brief.
     try:
@@ -383,15 +531,15 @@ def briefing() -> dict:
 
 Context:
 {context_text}
-
+{SPECIFICITY_RULES}
 Generate output as JSON only, no other text:
 {{
-  "text": "The full briefing text - 4-6 sentences. Warm but efficient. Mentions key facts about today, portfolio, projects.",
+  "text": "The full briefing text - 4-6 sentences. Warm but efficient. Names specific projects (with folder IDs), tickers, exact dates, and the literal text of tasks — never generic placeholders.",
   "suggestions": ["Action 1", "Action 2", "Action 3"],
   "spoken": "Shorter spoken version of the briefing - same info but optimized for speaking aloud, ~30-45 seconds when read at normal pace. End with: 'What would you like to start with?'"
 }}
 
-The "suggestions" array must hold exactly 3 specific things David could tackle today, derived from the context.
+The "suggestions" array must hold exactly 3 specific, actionable things David could tackle today, each naming a concrete project / ticker / task drawn from the context (e.g. "Finalize Section 3 of the Ulli Acebuche deck"), never "work on your project".
 Tone: like a competent chief of staff giving a morning update. Direct, no fluff, no emojis.
 """
     fallback = {

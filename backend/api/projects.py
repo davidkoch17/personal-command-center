@@ -96,18 +96,28 @@ def list_projects() -> list[ProjectCard]:
 
 @router.get("/{project_id}")
 def project_workspace(project_id: str) -> dict:
-    """Full workspace state: milestones, next steps, key files, subfolders, drafts, README."""
+    """Full workspace state: milestones, next steps, key files, subfolders, drafts, README.
+
+    ``project_id`` may be the numeric id (``"03"``) or the full folder name
+    (``"03_Project_Ulli_Acebuche"``) that Jarvis navigation URLs use — the latter
+    is matched back to its project by the numeric prefix.
+    """
     by_id = {p["id"]: p for p in _projects()}
-    if project_id not in by_id:
+    proj = by_id.get(project_id)
+    if proj is None:
+        # Full folder name like "03_Project_Ulli_Acebuche" → match by prefix.
+        prefix = project_id.split("_", 1)[0]
+        proj = by_id.get(prefix)
+    if proj is None:
         raise HTTPException(status_code=404, detail=f"Unknown project id: {project_id}")
-    proj = by_id[project_id]
     try:
-        root = workspace.project_root(project_id)
+        root = workspace.project_root(proj["id"])
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    pid = proj["id"]
     readme = vault.read_md(root / "README.md")
     return {
-        "id": project_id,
+        "id": pid,
         "name": proj["name"].replace("_", " "),
         "status": _status_key(proj),
         "status_text": proj.get("status_text") or "",
@@ -115,10 +125,10 @@ def project_workspace(project_id: str) -> dict:
         "milestones": workspace.parse_milestones(readme),
         "next_steps": workspace.parse_next_steps(readme),
         "key_files": [_file_info(p) for p in workspace.parse_key_files(readme, root)],
-        "subfolders": [d.name for d in workspace.list_subfolders(project_id)],
+        "subfolders": [d.name for d in workspace.list_subfolders(pid)],
         "drafts": [
             {**d, "modified": d["modified"].isoformat() if hasattr(d.get("modified"), "isoformat") else d.get("modified")}
-            for d in workspace.list_drafts(project_id)
+            for d in workspace.list_drafts(pid)
         ],
         "readme_md": readme,
     }
