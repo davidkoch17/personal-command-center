@@ -1,9 +1,17 @@
 """Tasks API — wraps Task_Command_Center.md."""
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, HTTPException
 
-from backend.models.schemas import Task, TaskToggleRequest, TaskAddRequest, HardDate
+from backend.models.schemas import (
+    Task,
+    TaskToggleRequest,
+    TaskAddRequest,
+    HardDate,
+    ToggleByTextRequest,
+)
 from core import vault, markdown
 from core.config import TASKS_FILE
 
@@ -82,3 +90,37 @@ def add_task(req: TaskAddRequest) -> dict:
         raise HTTPException(status_code=404, detail=f"Section '{req.section}' not found.")
     vault.write_md(TASKS_FILE, new_md)
     return {"ok": True}
+
+
+# Checkbox bullet, e.g. "- [ ] text" / "  - [x] text" / "- [X] text".
+_CHECKBOX_RE = re.compile(r"^\s*-\s*\[[ xX]\]")
+_CHECKBOX_PREFIX_RE = re.compile(r"^\s*-\s*\[[ xX]\]\s*")
+
+
+@router.post("/toggle-by-text")
+def toggle_by_text(req: ToggleByTextRequest) -> dict:
+    """Find the first checkbox task fuzzily matching ``match`` and toggle it.
+
+    Used by the Jarvis voice flow ("mark FFM apartment done"). Matching is
+    case-insensitive and ignores markdown bold/italic markers, so a spoken
+    phrase matches a bolded task. Returns ``{ok: False}`` (not an error) when
+    nothing matches, so the assistant can speak a graceful miss.
+    """
+    md = vault.read_md(TASKS_FILE)
+    if not md:
+        raise HTTPException(status_code=404, detail="Task file not found or empty.")
+    match_lower = req.match.strip().lower()
+    if not match_lower:
+        raise HTTPException(status_code=400, detail="Match text is required.")
+
+    lines = md.split("\n")
+    for i, line in enumerate(lines):
+        if not _CHECKBOX_RE.match(line):
+            continue
+        text_part = _CHECKBOX_PREFIX_RE.sub("", line).lower()
+        text_clean = re.sub(r"\*+", "", text_part)  # strip markdown bold/italic
+        if match_lower in text_clean or text_clean.startswith(match_lower):
+            new_md, new_state = markdown.toggle_task(md, i)
+            vault.write_md(TASKS_FILE, new_md)
+            return {"ok": True, "matched": text_part.strip(), "new_state": new_state}
+    return {"ok": False, "error": f"No task matched '{req.match}'"}

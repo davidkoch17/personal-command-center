@@ -43,7 +43,9 @@ def _find_piper_exe() -> Path:
 
 
 _PIPER_EXE = _find_piper_exe()
-_PIPER_MODEL = _VOICE_DIR / "en_US-lessac-medium.onnx"
+# Phase 13.7: male British voice (Alan). Model + config live in ``backend/voice/piper/``.
+_PIPER_MODEL_NAME = "en_GB-alan-medium"
+_PIPER_MODEL = _VOICE_DIR / f"{_PIPER_MODEL_NAME}.onnx"
 
 # Lazy-load Whisper — the model download (~150 MB) happens on first use.
 _whisper_model = None
@@ -104,37 +106,114 @@ class RouteRequest(BaseModel):
     context: dict | None = None
 
 
+# Sidebar pages Jarvis may navigate to (kept in sync with the React router).
+_VALID_PAGES = [
+    "/", "/tasks", "/projects", "/ideas", "/inbox",
+    "/portfolio", "/money", "/watchlist",
+    "/career", "/brand", "/reading",
+    "/background-runs", "/settings", "/calendar",
+]
+
+# Skills Jarvis may trigger by voice (a curated subset of the skills registry).
+_VOICE_SKILLS = [
+    "market_researcher", "earnings_reviewer", "valuation_reviewer",
+    "model_builder", "tax_scenario", "scenario_analyzer",
+    "ask_about_project", "draft_first_pass_script", "generate_hook_variants",
+    "generate_title_variants", "quiz_technicals", "mock_interview",
+]
+
+_UNCLEAR = {"action": "unclear", "spoken_response": "I didn't catch that. Could you repeat?"}
+
+
 @router.post("/route")
 def route(req: RouteRequest) -> dict:
-    """Interpret a voice command and decide what action to take."""
+    """Interpret a spoken command across 8 categories and decide the action.
+
+    Sync handler on purpose: ``run_claude`` blocks ~60s, so FastAPI runs this in
+    a worker thread rather than stalling the event loop. Returns a JSON-safe
+    dict the Jarvis hook executes (navigate / data_query / run_skill /
+    capture_inbox / add_task / toggle_task / add_hypothesis / ambiguous /
+    unclear). Malformed model output degrades to an ``unclear`` fallback.
+    """
     if not req.text.strip():
-        return {"action": "unclear", "spoken_response": "I didn't catch that, could you repeat?"}
+        return dict(_UNCLEAR)
 
-    prompt = f"""You are a voice command router for David's personal command center dashboard.
+    # Contextual data Claude needs to classify and to answer data queries.
+    from core import vault
+    from core.config import SYSTEM_PATH
 
-User said: "{req.text}"
-Current page: {req.current_page or "unknown"}
+    tasks_md = vault.read_md(SYSTEM_PATH / "Task_Command_Center.md")
+    projects_md = vault.read_md(SYSTEM_PATH / "Project_Index.md")
 
-Classify the intent. Respond with JSON only (no other text):
+    # Project ids/names for matching navigation + deep-link targets.
+    available_projects = ["01_Thesis", "02_K&E", "03_Ulli_Acebuche", "05_Personal_Brand", "06_Immos"]
+
+    prompt = f"""You are Jarvis, David's command center voice assistant. Interpret his spoken command and return JSON.
+
+David said: "{req.text}"
+Current page: {req.current_page or "/"}
+Context: {req.context or {}}
+
+You handle 8 command categories. Classify and respond:
+
+1. NAVIGATION — opens a page in a new tab
+   Valid pages: {_VALID_PAGES}
+   Workspaces: /workspace/project/<id>, /workspace/idea/<name>, /workspace/watchlist/<ticker>, /workspace/brand-video/<name>
+   Project ids: {available_projects}
+
+2. DATA_QUERY — asks for a specific number / fact David wants spoken aloud
+   Examples: "what's my net worth", "how many tasks today", "when is the defense"
+   You should provide the answer in spoken_response based on context below.
+
+3. RUN_SKILL — triggers a background skill
+   Available skills: {_VOICE_SKILLS}
+
+4. CAPTURE_INBOX — saves a thought/note to inbox
+   Examples: "note: ...", "remember to ...", "save this idea ..."
+
+5. ADD_TASK — adds a new task to Task_Command_Center.md
+   Examples: "add task: ...", "remind me to ...", "I need to ..."
+
+6. TOGGLE_TASK — marks a task done
+   Examples: "mark X done", "I finished Y"
+
+7. ADD_HYPOTHESIS — adds an investment hypothesis to Hypothesis_Tracker for a specific ticker
+   Examples: "add hypothesis: BABA is undervalued", "hypothesis on Nike: ..."
+
+8. CONFIRMATION_NEEDED — when the command is ambiguous, ask back for clarification before acting.
+
+CONTEXT FOR DATA QUERIES (use this to answer):
+Task file: {tasks_md[:2000]}
+Projects: {projects_md[:1500]}
+
+OUTPUT — JSON only, no other text:
 {{
-  "action": "navigate" | "run_skill" | "capture_inbox" | "answer" | "unclear",
-  "navigate_to": "/portfolio" | "/tasks" | etc.  (only if action = navigate),
-  "skill_name": "market_researcher" | "tax_scenario" | etc.  (only if action = run_skill),
-  "skill_args": {{ "key": "value" }}  (only if action = run_skill),
-  "capture_text": "..."  (only if action = capture_inbox),
-  "answer_text": "..."  (only if action = answer, brief 1-2 sentence spoken response),
-  "spoken_response": "Acknowledgment David hears — keep short, like a butler"
+  "action": "navigate" | "data_query" | "run_skill" | "capture_inbox" | "add_task" | "toggle_task" | "add_hypothesis" | "ambiguous" | "unclear",
+  "navigate_to": "/path",  (if navigate)
+  "skill_name": "...", (if run_skill)
+  "skill_args": {{...}},  (if run_skill)
+  "capture_text": "...",  (if capture_inbox)
+  "task_text": "...",  (if add_task — the task wording)
+  "task_section": "This week" | "Bigger items" | etc.,  (if add_task)
+  "toggle_match": "search string for the task to toggle",  (if toggle_task)
+  "hypothesis_ticker": "NKE",  (if add_hypothesis)
+  "hypothesis_text": "...",  (if add_hypothesis)
+  "clarification_question": "Which deck?",  (if ambiguous — Jarvis will speak this and listen again)
+  "answer": "...",  (if data_query — the answer text)
+  "spoken_response": "Brief acknowledgment David hears, butler-style, 5-15 words"
 }}
 
-Valid navigate targets: /, /tasks, /projects, /ideas, /inbox, /portfolio, /money,
-/watchlist, /brand, /career, /reading, /background-runs, /settings, /calendar.
-
 Examples:
-- "Show me my portfolio" -> action: navigate, navigate_to: "/portfolio", spoken_response: "Opening your portfolio."
-- "Run market research" -> action: run_skill, skill_name: "market_researcher", spoken_response: "Running market research now."
-- "Note: I had an idea about a coffee subscription service" -> action: capture_inbox, capture_text: "...", spoken_response: "Captured to your inbox."
-- "What's my net worth?" -> action: answer, answer_text: "(query data and respond)", spoken_response: "Your current net worth is X euros."
-- Anything ambiguous -> action: unclear, spoken_response: "I didn't catch that, could you repeat?"
+- "show me my portfolio" -> action: navigate, navigate_to: "/portfolio", spoken_response: "Opening your portfolio."
+- "what's my net worth" -> action: data_query, answer: "Your current net worth is EUR 4,807 as of May 26th.", spoken_response: "Your net worth is 4,807 euros."
+- "note: had an idea about coffee subscriptions" -> action: capture_inbox, capture_text: "Had an idea about coffee subscriptions", spoken_response: "Captured to your inbox."
+- "open the deck" -> action: ambiguous, clarification_question: "Which deck — Ulli's or the defense slides?", spoken_response: "Which deck — Ulli's or the defense slides?"
+- "run market research" -> action: run_skill, skill_name: "market_researcher", spoken_response: "Running market research now."
+- "mark FFM apartment done" -> action: toggle_task, toggle_match: "FFM apartment decision", spoken_response: "Marked FFM apartment done."
+- "add hypothesis: Nike margins are recovering" -> action: add_hypothesis, hypothesis_ticker: "NKE", hypothesis_text: "Margins are recovering", spoken_response: "Added Nike hypothesis."
+- "what??" / mumbling -> action: unclear, spoken_response: "I didn't catch that. Could you repeat?"
+
+Tone in spoken_response: crisp British butler. Short. Direct. No filler.
 """
     try:
         result = run_claude(prompt, timeout=60)
@@ -145,11 +224,11 @@ Examples:
     # Parse JSON from the response (Claude may wrap it in a code block / prose).
     match = re.search(r"\{.*\}", result, re.DOTALL)
     if not match:
-        return {"action": "unclear", "spoken_response": "I didn't understand."}
+        return dict(_UNCLEAR)
     try:
         return json.loads(match.group(0))
     except json.JSONDecodeError:
-        return {"action": "unclear", "spoken_response": "I didn't understand."}
+        return dict(_UNCLEAR)
 
 
 class SpeakRequest(BaseModel):

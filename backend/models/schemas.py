@@ -38,6 +38,10 @@ class TaskAddRequest(BaseModel):
     text: str
 
 
+class ToggleByTextRequest(BaseModel):
+    match: str  # fuzzy search string for the task to toggle (used by Jarvis voice)
+
+
 # --- Projects ---------------------------------------------------------------
 class ProjectCard(BaseModel):
     id: str  # "01", "02", ...
@@ -150,7 +154,10 @@ class WatchlistAddRequest(BaseModel):
 
 
 class WatchlistHypothesisRequest(BaseModel):
-    hypothesis: str
+    # The watchlist UI sends ``hypothesis``; the Jarvis voice hook sends ``text``.
+    # Either is accepted — the endpoint resolves whichever is present.
+    hypothesis: str = ""
+    text: str = ""
 
 
 # --- Brand ------------------------------------------------------------------

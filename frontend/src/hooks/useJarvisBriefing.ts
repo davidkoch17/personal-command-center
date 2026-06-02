@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef } from "react"
 import { api, API_BASE } from "@/lib/api"
 
 export type JarvisState = "idle" | "thinking" | "speaking" | "listening" | "routing"
@@ -9,132 +9,390 @@ interface BriefingResponse {
   spoken: string
 }
 
+/** Shape of `/api/voice/route` — the 8-category router output. */
 interface RouteResponse {
   action?: string
   navigate_to?: string
   skill_name?: string
   skill_args?: Record<string, unknown>
   capture_text?: string
+  task_text?: string
+  task_section?: string
+  toggle_match?: string
+  hypothesis_ticker?: string
+  hypothesis_text?: string
+  clarification_question?: string
+  answer?: string
   spoken_response?: string
 }
 
 /**
- * Drives the whole Jarvis briefing flow with no overlay — the ball IS the UX.
- * Returns the current `state` (for the ball's visual), a short `subtitle`
- * (rendered under the ball), and a `trigger` to start the flow on click.
+ * Drives the entire Jarvis flow with no overlay — the ball IS the UX.
  *
- * Flow: assemble briefing → speak it (Piper) → listen 5s (mic) → transcribe +
- * route → open the target page in a NEW TAB / run a skill / capture to inbox,
- * with a brief spoken confirmation. Every step degrades gracefully — failures
- * surface a subtitle and return the ball to idle.
+ * Flow: assemble briefing → speak it (Piper, male British) → listen with
+ * silence detection (stops after 1.5s of quiet, max 15s) → transcribe (Whisper)
+ * → route (Claude, 8 categories) → execute the action (navigate / data_query /
+ * run_skill / capture_inbox / add_task / toggle_task / add_hypothesis /
+ * ambiguous / unclear) → speak a confirmation. Ambiguous commands are
+ * multi-turn: Jarvis asks back and listens again (up to two follow-ups).
+ *
+ * Returns the ball `state`, a short `subtitle` (echoes what was heard), and a
+ * `trigger`: clicking while idle starts the flow; clicking while busy CANCELS
+ * (stops audio, aborts fetches, returns to idle, says "Cancelled.").
  */
 export function useJarvisBriefing() {
   const [state, setState] = useState<JarvisState>("idle")
   const [subtitle, setSubtitle] = useState<string>("")
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+
+  // Playback + capture handles, kept in refs so cancel can tear them all down.
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioResolveRef = useRef<(() => void) | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const cancelledRef = useRef(false)
+  const runningRef = useRef(false)
+  const suggestionsRef = useRef<string[]>([])
 
-  const trigger = useCallback(async () => {
-    if (state !== "idle") return
+  // ---- low-level helpers (only touch refs + stable setters) ----
 
+  function teardownMic() {
     try {
+      if (recorderRef.current && recorderRef.current.state !== "inactive") {
+        recorderRef.current.stop()
+      }
+    } catch {
+      /* noop */
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      void audioContextRef.current.close()
+    }
+    recorderRef.current = null
+    streamRef.current = null
+    audioContextRef.current = null
+  }
+
+  function stopAudio() {
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause()
+      } catch {
+        /* noop */
+      }
+      audioRef.current = null
+    }
+    // Unblock any awaiter parked on a play() promise.
+    if (audioResolveRef.current) {
+      const resolve = audioResolveRef.current
+      audioResolveRef.current = null
+      resolve()
+    }
+  }
+
+  /** Synthesize `text` via Piper and play it to completion (no state change). */
+  async function synthAndPlay(text: string, signal?: AbortSignal): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/voice/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal,
+    })
+    const url = URL.createObjectURL(await res.blob())
+    await new Promise<void>((resolve) => {
+      const audio = new Audio(url)
+      audioRef.current = audio
+      const done = () => {
+        audioResolveRef.current = null
+        URL.revokeObjectURL(url)
+        resolve()
+      }
+      audioResolveRef.current = done
+      audio.onended = done
+      audio.onerror = done
+      void audio.play().catch(done)
+    })
+  }
+
+  /** Speak a butler-style line: switch the ball to speaking + show it as subtitle. */
+  async function playSpoken(text: string): Promise<void> {
+    if (cancelledRef.current || !text) return
+    setState("speaking")
+    setSubtitle(text)
+    await synthAndPlay(text, abortRef.current?.signal)
+  }
+
+  /** POST JSON to a voice endpoint, abortable via the active controller. */
+  async function voiceJson<T>(path: string, body: unknown): Promise<T> {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: abortRef.current?.signal,
+    })
+    return (await res.json()) as T
+  }
+
+  /**
+   * Record from the mic, stopping on silence. Stops after `silenceMs` of quiet
+   * (once at least 1s has elapsed) or at `maxDurationMs`, whichever comes first.
+   * Resolves with the recorded webm Blob.
+   */
+  function recordWithSilenceDetection(
+    maxDurationMs = 15000,
+    silenceMs = 1500,
+    silenceThreshold = -45,
+  ): Promise<Blob> {
+    return new Promise<Blob>((resolve, reject) => {
+      navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then((stream) => {
+          streamRef.current = stream
+          const audioContext = new AudioContext()
+          audioContextRef.current = audioContext
+          const source = audioContext.createMediaStreamSource(stream)
+          const analyser = audioContext.createAnalyser()
+          analyser.fftSize = 2048
+          source.connect(analyser)
+
+          const mediaRecorder = new MediaRecorder(stream)
+          recorderRef.current = mediaRecorder
+          const chunks: Blob[] = []
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunks.push(e.data)
+          }
+          mediaRecorder.start()
+
+          const startTime = Date.now()
+          let lastSoundTime = startTime
+          const dataArray = new Float32Array(analyser.fftSize)
+
+          const finish = () => {
+            mediaRecorder.onstop = () => resolve(new Blob(chunks, { type: "audio/webm" }))
+            try {
+              if (mediaRecorder.state !== "inactive") mediaRecorder.stop()
+              else resolve(new Blob(chunks, { type: "audio/webm" }))
+            } catch {
+              resolve(new Blob(chunks, { type: "audio/webm" }))
+            }
+            stream.getTracks().forEach((t) => t.stop())
+            if (audioContext.state !== "closed") void audioContext.close()
+          }
+
+          const check = () => {
+            if (cancelledRef.current) {
+              finish()
+              return
+            }
+            analyser.getFloatTimeDomainData(dataArray)
+            // RMS volume in dB.
+            let sum = 0
+            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i] * dataArray[i]
+            const rms = Math.sqrt(sum / dataArray.length)
+            const db = 20 * Math.log10(rms || 0.0001)
+
+            const now = Date.now()
+            if (db > silenceThreshold) lastSoundTime = now
+
+            const totalElapsed = now - startTime
+            const silenceElapsed = now - lastSoundTime
+
+            // Stop on max duration, or after sound-then-silence (min 1s total).
+            if (totalElapsed > maxDurationMs || (totalElapsed > 1000 && silenceElapsed > silenceMs)) {
+              finish()
+            } else {
+              requestAnimationFrame(check)
+            }
+          }
+          requestAnimationFrame(check)
+        })
+        .catch(reject)
+    })
+  }
+
+  /**
+   * Listen → transcribe → route → execute. Recurses for ambiguous commands
+   * (Jarvis asks a clarifying question and listens again), capped at 2 follow-ups.
+   */
+  async function recordAndRoute(depth: number): Promise<void> {
+    if (cancelledRef.current) return
+
+    // 1. Listen (silence-detected).
+    setState("listening")
+    setSubtitle("listening…")
+    const audioBlob = await recordWithSilenceDetection()
+    if (cancelledRef.current) return
+
+    // 2. Transcribe.
+    setState("routing")
+    setSubtitle("thinking…")
+    const formData = new FormData()
+    formData.append("audio", audioBlob, "rec.webm")
+    const transcribeRes = await fetch(`${API_BASE}/api/voice/transcribe`, {
+      method: "POST",
+      body: formData,
+      signal: abortRef.current?.signal,
+    })
+    const { text: transcript } = (await transcribeRes.json()) as { text: string }
+    if (cancelledRef.current) return
+
+    const heard = (transcript || "").trim()
+    if (!heard) {
+      await playSpoken("I didn't catch that. Could you repeat?")
+      return
+    }
+    // Echo what Jarvis heard so David can correct course immediately.
+    setSubtitle(`heard: "${heard}"`)
+
+    // 3. Route.
+    const route = await voiceJson<RouteResponse>("/api/voice/route", {
+      text: heard,
+      current_page: window.location.pathname,
+      context: { briefing_suggestions: suggestionsRef.current },
+    })
+    if (cancelledRef.current) return
+
+    // 4. Execute the action.
+    switch (route.action) {
+      case "navigate":
+        if (route.navigate_to) window.open(route.navigate_to, "_blank")
+        break
+
+      case "data_query":
+        // The answer rides in route.answer / spoken_response — nothing to do.
+        break
+
+      case "run_skill":
+        if (route.skill_name) {
+          await api.post(`/api/skills/${route.skill_name}/run`, {
+            args: route.skill_args || {},
+          })
+        }
+        break
+
+      case "capture_inbox":
+        if (route.capture_text) {
+          await api.post("/api/inbox/capture", {
+            content: route.capture_text,
+            source: "jarvis",
+          })
+        }
+        break
+
+      case "add_task":
+        if (route.task_text) {
+          await api.post("/api/tasks/add", {
+            section: route.task_section || "Bigger items",
+            text: route.task_text,
+          })
+        }
+        break
+
+      case "toggle_task":
+        if (route.toggle_match) {
+          await api.post("/api/tasks/toggle-by-text", { match: route.toggle_match })
+        }
+        break
+
+      case "add_hypothesis":
+        if (route.hypothesis_ticker && route.hypothesis_text) {
+          await api.post(
+            `/api/watchlist/${encodeURIComponent(route.hypothesis_ticker)}/hypothesis`,
+            { text: route.hypothesis_text },
+          )
+        }
+        break
+
+      case "ambiguous": {
+        // Multi-turn: speak the clarification, then listen again (≤2 follow-ups).
+        await playSpoken(route.spoken_response || route.clarification_question || "Could you clarify?")
+        if (cancelledRef.current) return
+        if (depth < 2) {
+          setSubtitle(route.clarification_question || "…")
+          return recordAndRoute(depth + 1)
+        }
+        return
+      }
+
+      case "unclear":
+      default:
+        break
+    }
+    if (cancelledRef.current) return
+
+    // 5. Always speak the confirmation (ambiguous already spoke + re-listened).
+    if (route.spoken_response && route.action !== "ambiguous") {
+      await playSpoken(route.spoken_response)
+    }
+  }
+
+  async function runFlow() {
+    runningRef.current = true
+    cancelledRef.current = false
+    abortRef.current = new AbortController()
+    try {
+      // 1. Assemble the briefing.
       setState("thinking")
       setSubtitle("assembling briefing")
+      const briefing = await voiceJson<BriefingResponse>("/api/voice/briefing", {})
+      if (cancelledRef.current) return
+      suggestionsRef.current = briefing.suggestions ?? []
 
-      // 1. Get briefing
-      const briefing = await api.post<BriefingResponse>("/api/voice/briefing", {})
-
-      // 2. Speak it (Piper)
+      // 2. Speak the briefing.
       setState("speaking")
       setSubtitle("briefing")
-      const speakRes = await fetch(`${API_BASE}/api/voice/speak`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: briefing.spoken }),
-      })
-      const audioBlob = await speakRes.blob()
+      await synthAndPlay(briefing.spoken, abortRef.current.signal)
+      if (cancelledRef.current) return
 
-      audioRef.current = new Audio(URL.createObjectURL(audioBlob))
-      await new Promise<void>((resolve, reject) => {
-        if (!audioRef.current) return reject()
-        audioRef.current.onended = () => resolve()
-        audioRef.current.onerror = () => reject()
-        void audioRef.current.play()
-      })
-
-      // 3. Listen for response (5 sec)
-      setState("listening")
-      setSubtitle("listening...")
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      mediaRecorderRef.current = new MediaRecorder(stream)
-      const chunks: Blob[] = []
-      mediaRecorderRef.current.ondataavailable = (e) => chunks.push(e.data)
-      mediaRecorderRef.current.start()
-
-      await new Promise((resolve) => setTimeout(resolve, 5000))
-      mediaRecorderRef.current.stop()
-      stream.getTracks().forEach((t) => t.stop())
-
-      await new Promise((resolve) => {
-        mediaRecorderRef.current!.onstop = resolve
-      })
-
-      // 4. Transcribe + route
-      setState("routing")
-      setSubtitle("thinking...")
-
-      const blob = new Blob(chunks, { type: "audio/webm" })
-      const formData = new FormData()
-      formData.append("audio", blob, "rec.webm")
-      const transcribeRes = await fetch(`${API_BASE}/api/voice/transcribe`, {
-        method: "POST",
-        body: formData,
-      })
-      const { text: transcript } = (await transcribeRes.json()) as { text: string }
-
-      if (transcript) {
-        setSubtitle(`"${transcript}"`)
-        const route = await api.post<RouteResponse>("/api/voice/route", {
-          text: transcript,
-          current_page: window.location.pathname,
-          context: { briefing_suggestions: briefing.suggestions },
-        })
-
-        // 5. Open target page in NEW TAB
-        if (route.action === "navigate" && route.navigate_to) {
-          window.open(route.navigate_to, "_blank")
-        } else if (route.action === "run_skill" && route.skill_name) {
-          await api.post(`/api/skills/${route.skill_name}/run`, { args: route.skill_args })
-        } else if (route.action === "capture_inbox" && route.capture_text) {
-          await api.post("/api/inbox/capture", { text: route.capture_text })
-        }
-
-        // Brief audio confirmation
-        if (route.spoken_response) {
-          setState("speaking")
-          setSubtitle(route.spoken_response)
-          const confirmRes = await fetch(`${API_BASE}/api/voice/speak`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: route.spoken_response }),
-          })
-          const confirmAudio = new Audio(URL.createObjectURL(await confirmRes.blob()))
-          await new Promise((resolve) => {
-            confirmAudio.onended = resolve
-            void confirmAudio.play()
-          })
-        }
-      }
+      // 3. Listen, route, execute (multi-turn aware).
+      await recordAndRoute(0)
     } catch (e) {
-      console.error("Jarvis error:", e)
-      setSubtitle("something went wrong")
+      if (!cancelledRef.current) {
+        console.error("Jarvis error:", e)
+        setSubtitle("something went wrong")
+      }
     } finally {
-      setTimeout(() => {
-        setState("idle")
-        setSubtitle("")
-      }, 1500)
+      teardownMic()
+      runningRef.current = false
+      if (!cancelledRef.current) {
+        window.setTimeout(() => {
+          if (!runningRef.current) {
+            setState("idle")
+            setSubtitle("")
+          }
+        }, 1500)
+      }
     }
-  }, [state])
+  }
+
+  async function cancelFlow() {
+    cancelledRef.current = true
+    abortRef.current?.abort()
+    stopAudio()
+    teardownMic()
+    runningRef.current = false
+    setState("idle")
+    setSubtitle("cancelled")
+    // Spoken confirmation on a fresh request (the active controller is aborted).
+    try {
+      await synthAndPlay("Cancelled.")
+    } catch {
+      /* noop */
+    }
+    window.setTimeout(() => {
+      if (!runningRef.current) setSubtitle("")
+    }, 1500)
+  }
+
+  /** Click handler: start when idle, otherwise cancel the in-flight operation. */
+  function trigger() {
+    if (runningRef.current) {
+      void cancelFlow()
+    } else {
+      void runFlow()
+    }
+  }
 
   return { state, subtitle, trigger }
 }

@@ -83,9 +83,13 @@ def dossier(ticker: str) -> dict:
 
 @router.post("/{ticker}/hypothesis")
 def add_hypothesis(ticker: str, req: WatchlistHypothesisRequest) -> dict:
-    """Append a hypothesis for this ticker to the Hypothesis_Tracker (fast, synchronous)."""
+    """Append a hypothesis for this ticker to the Hypothesis_Tracker (fast, synchronous).
+
+    Accepts either ``hypothesis`` (watchlist UI) or ``text`` (Jarvis voice hook).
+    """
     tk = ticker.strip().upper()
-    if not req.hypothesis.strip():
+    statement = (req.hypothesis or req.text).strip()
+    if not statement:
         raise HTTPException(status_code=400, detail="Hypothesis text is required.")
-    message = portfolio_skills.add_hypothesis(tk, req.hypothesis.strip())
+    message = portfolio_skills.add_hypothesis(tk, statement)
     return {"ok": True, "message": message}
