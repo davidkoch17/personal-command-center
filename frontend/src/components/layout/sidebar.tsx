@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom"
 import {
   Home,
+  CalendarRange,
   ListChecks,
   FolderKanban,
   Lightbulb,
@@ -35,6 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "main",
     links: [
       { to: "/", label: "home", icon: Home },
+      { to: "/planner", label: "planner", icon: CalendarRange },
       { to: "/tasks", label: "tasks", icon: ListChecks },
       { to: "/projects", label: "projects", icon: FolderKanban },
       { to: "/ideas", label: "ideas", icon: Lightbulb },

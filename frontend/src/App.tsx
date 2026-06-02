@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppShell } from "@/components/layout/app-shell"
 
 import { Home } from "@/pages/home"
+import { Planner } from "@/pages/planner"
 import { Tasks } from "@/pages/tasks"
 import { Projects } from "@/pages/projects"
 import { Ideas } from "@/pages/ideas"
@@ -65,6 +66,7 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { path: "/", element: <Home /> },
+      { path: "/planner", element: <Planner /> },
       { path: "/tasks", element: <Tasks /> },
       { path: "/projects", element: <Projects /> },
       { path: "/ideas", element: <Ideas /> },

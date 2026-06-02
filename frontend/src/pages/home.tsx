@@ -1,7 +1,6 @@
 import { useState } from "react"
 import { JarvisBall } from "@/components/jarvis/jarvis-ball"
 import { useJarvisBriefing } from "@/hooks/useJarvisBriefing"
-import { DailyPrioritiesPanel } from "@/components/home/DailyPrioritiesPanel"
 import { Panel } from "@/components/ui/panel"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -58,8 +57,8 @@ export function Home() {
     <div className="space-y-6">
       <HomeHeader />
 
-      {/* Morning anchor: Claude-suggested priorities → curated daily todo list. */}
-      <DailyPrioritiesPanel />
+      {/* Morning anchor moved to the Week Planner (Phase 16) — today's column
+          auto-fills with Claude's suggestions there. Daily Priorities deprecated. */}
 
       {/* Actionable finance signals: rebalance / concentration / harvest counts. */}
       <DecisionAlerts />
