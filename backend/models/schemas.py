@@ -17,8 +17,15 @@ from pydantic import BaseModel
 class Task(BaseModel):
     text: str
     checked: bool
-    section: str  # "This weekend" / "This week" / etc.
+    section: str  # "This week" / "Next week" / "Bigger items" / etc.
     line_index: int
+    is_task: bool = True  # False for plain dated preview bullets (e.g. Next week)
+
+
+class HardDate(BaseModel):
+    date: date
+    label: str
+    raw: str
 
 
 class TaskToggleRequest(BaseModel):

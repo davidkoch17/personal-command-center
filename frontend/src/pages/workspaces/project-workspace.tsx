@@ -12,7 +12,8 @@ import { useProjectWorkspace, useToggleNextStep } from "@/hooks/useProjects"
 import { useRunSkill } from "@/hooks/useSkills"
 import { useTasks } from "@/hooks/useTasks"
 import type { ProjectStatus } from "@/lib/types"
-import { projectStatusMeta, countdownLabel } from "@/lib/status"
+import { projectStatusMeta } from "@/lib/status"
+import { formatBoth } from "@/lib/dates"
 import { openInOs } from "@/lib/open-in-os"
 import { toast } from "@/lib/toast-store"
 
@@ -138,25 +139,22 @@ function MilestonesSection({ milestones }: { milestones: Milestone[] }) {
         <p className="text-sm text-text-label">no milestones</p>
       ) : (
         <ol className="space-y-2">
-          {milestones.map((m, i) => {
-            const cd = countdownLabel(m.date)
-            return (
-              <li key={i} className="flex items-start gap-3">
-                <div className="mt-1.5 flex flex-col items-center">
-                  <StatusDot color="accent" />
-                  {milestones.length >= 3 && i < milestones.length - 1 && (
-                    <div className="mt-1 h-6 w-px bg-border" />
-                  )}
-                </div>
-                <div className="flex flex-1 items-baseline justify-between gap-2">
-                  <span className="text-sm text-text">{m.text}</span>
-                  <span className="shrink-0 font-mono text-xs text-text-secondary">
-                    {m.date ?? ""}{cd ? ` · ${cd}` : ""}
-                  </span>
-                </div>
-              </li>
-            )
-          })}
+          {milestones.map((m, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <div className="mt-1.5 flex flex-col items-center">
+                <StatusDot color="accent" />
+                {milestones.length >= 3 && i < milestones.length - 1 && (
+                  <div className="mt-1 h-6 w-px bg-border" />
+                )}
+              </div>
+              <div className="flex flex-1 items-baseline justify-between gap-2">
+                <span className="text-sm text-text">{m.text}</span>
+                <span className="shrink-0 font-mono text-xs text-text-secondary tabular-nums">
+                  {m.date ? formatBoth(m.date) : ""}
+                </span>
+              </div>
+            </li>
+          ))}
         </ol>
       )}
     </Panel>

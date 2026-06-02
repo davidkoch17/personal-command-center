@@ -3,27 +3,59 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from backend.models.schemas import Task, TaskToggleRequest, TaskAddRequest
+from backend.models.schemas import Task, TaskToggleRequest, TaskAddRequest, HardDate
 from core import vault, markdown
 from core.config import TASKS_FILE
 
 router = APIRouter()
 
-SECTIONS = ["Today", "This weekend", "This week", "This month", "Waiting for"]
+# Display order of the task sections (matched by case-insensitive heading prefix,
+# so "Bigger items" finds "## Bigger items, no specific weekly deadline").
+SECTIONS = ["This week", "Next week", "Bigger items", "This month", "Waiting for"]
+# Sections whose bullets are dated previews (plain bullets, not checkbox tasks).
+# Parsed with parse_section_lines so they still surface even without a checkbox.
+PREVIEW_SECTIONS = {"Next week"}
 
 
 @router.get("")
 def list_tasks() -> dict[str, list[Task]]:
-    """List checkbox bullets grouped by section."""
+    """List bullets grouped by section.
+
+    Checkbox sections (This week / Bigger items / This month / Waiting for) are
+    parsed as toggleable tasks. Preview sections (Next week) keep their plain
+    dated bullets and come back with ``is_task=False`` so the UI renders them
+    read-only.
+    """
     md = vault.read_md(TASKS_FILE)
     out: dict[str, list[Task]] = {}
     for section in SECTIONS:
-        bullets = markdown.parse_section_bullets(md, section)
+        if section in PREVIEW_SECTIONS:
+            bullets = markdown.parse_section_lines(md, section)
+        else:
+            bullets = markdown.parse_section_bullets(md, section)
         out[section] = [
-            Task(text=b["text"], checked=b["checked"], section=section, line_index=b["line_index"])
+            Task(
+                text=b["text"],
+                checked=b["checked"],
+                section=section,
+                line_index=b["line_index"],
+                is_task=b.get("is_task", True),
+            )
             for b in bullets
         ]
     return out
+
+
+@router.get("/hard-dates")
+def hard_dates() -> list[HardDate]:
+    """Immovable real-world deadlines parsed from the task file's hard-dates block."""
+    md = vault.read_md(TASKS_FILE)
+    items = markdown.parse_hard_dates(md)
+    return [
+        HardDate(date=i["date"], label=i["label"], raw=i["raw"])
+        for i in items
+        if i["date"]
+    ]
 
 
 @router.post("/toggle")

@@ -1,7 +1,8 @@
 import { ArrowUpRight } from "lucide-react"
 import type { ProjectCard as ProjectCardData } from "@/lib/types"
 import { StatusDot } from "@/components/ui/status-dot"
-import { countdownLabel, projectStatusMeta } from "@/lib/status"
+import { projectStatusMeta } from "@/lib/status"
+import { formatBoth } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
 interface ProjectCardProps {
@@ -15,7 +16,9 @@ interface ProjectCardProps {
  */
 export function ProjectCard({ project, className }: ProjectCardProps) {
   const { color, label } = projectStatusMeta(project.status)
-  const countdown = countdownLabel(project.big_milestone_date)
+  const deadline = project.big_milestone_date
+    ? formatBoth(project.big_milestone_date)
+    : null
 
   return (
     <a
@@ -46,9 +49,9 @@ export function ProjectCard({ project, className }: ProjectCardProps) {
           {project.big_milestone ? (
             <div className="flex items-baseline justify-between gap-2">
               <span className="truncate text-text">{project.big_milestone}</span>
-              {countdown && (
-                <span className="shrink-0 font-mono text-xs text-accent">
-                  {countdown}
+              {deadline && (
+                <span className="shrink-0 font-mono text-xs text-accent tabular-nums">
+                  {deadline}
                 </span>
               )}
             </div>

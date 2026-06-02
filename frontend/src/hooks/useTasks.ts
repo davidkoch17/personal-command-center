@@ -1,12 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
-import type { Task, TaskAddRequest, TaskToggleRequest } from "@/lib/types"
+import type {
+  HardDate,
+  PrioritySuggestion,
+  Task,
+  TaskAddRequest,
+  TaskToggleRequest,
+} from "@/lib/types"
 
 /** Section order as returned by the backend (`/api/tasks`). */
 export const TASK_SECTIONS = [
-  "Today",
-  "This weekend",
   "This week",
+  "Next week",
+  "Bigger items",
   "This month",
   "Waiting for",
 ] as const
@@ -35,5 +41,25 @@ export function useAddTask() {
     mutationFn: (req: TaskAddRequest) =>
       api.post<{ ok: boolean }>("/api/tasks/add", req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  })
+}
+
+/** Immovable real-world deadlines, parsed live from the vault task file. */
+export function useHardDates() {
+  return useQuery({
+    queryKey: ["hard-dates"],
+    queryFn: () => api.get<HardDate[]>("/api/tasks/hard-dates"),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** Priority Suggestor — ranked order for deadlines clustering in `days` days. */
+export function usePrioritySuggestion(days = 14) {
+  return useQuery({
+    queryKey: ["priorities", days],
+    queryFn: () =>
+      api.get<PrioritySuggestion>(`/api/priorities/suggest?days=${days}`),
+    staleTime: 60 * 60 * 1000, // refresh hourly; recompute button forces it
+    refetchOnWindowFocus: false,
   })
 }

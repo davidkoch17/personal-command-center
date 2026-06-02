@@ -8,8 +8,29 @@
 export interface Task {
   text: string
   checked: boolean
-  section: string // "This weekend" / "This week" / etc.
+  section: string // "This week" / "Next week" / "Bigger items" / etc.
   line_index: number
+  is_task?: boolean // false for plain dated preview bullets (e.g. Next week)
+}
+
+// --- Hard dates -------------------------------------------------------------
+export interface HardDate {
+  date: string // ISO YYYY-MM-DD
+  label: string
+  raw: string
+}
+
+// --- Priorities -------------------------------------------------------------
+export interface PriorityItem {
+  rank: number
+  task: string
+  deadline?: string | null
+  rationale?: string
+}
+
+export interface PrioritySuggestion {
+  recommendation: string
+  ordered: PriorityItem[]
 }
 
 export interface TaskToggleRequest {

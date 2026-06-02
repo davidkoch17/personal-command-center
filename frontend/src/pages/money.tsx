@@ -6,8 +6,8 @@ import { MetricPanel } from "@/components/finance/metric-panel"
 import { IncomeExpenseBar, CategoryDonut } from "@/components/charts/finance-charts"
 import { useMoneySnapshot, useMoneyCashflow, useMoneyCategories } from "@/hooks/useFinance"
 import { useTravel } from "@/hooks/useCalendar"
-import { HARD_DATES } from "@/lib/hard-dates"
-import { countdownLabel } from "@/lib/status"
+import { useHardDates } from "@/hooks/useTasks"
+import { formatBoth } from "@/lib/dates"
 import { lastCategoryBreakdown } from "@/lib/money"
 
 export function Money() {
@@ -15,6 +15,7 @@ export function Money() {
   const cashflow = useMoneyCashflow(6)
   const categories = useMoneyCategories(6)
   const travel = useTravel()
+  const hardDates = useHardDates()
 
   const breakdown = lastCategoryBreakdown(categories.data?.categories ?? [])
 
@@ -94,10 +95,12 @@ export function Money() {
       {/* Big upcoming */}
       <Panel title="big upcoming" statusDotColor="warning">
         <ul className="space-y-1.5 text-sm">
-          {HARD_DATES.map((d) => (
-            <li key={d.label} className="flex items-center justify-between gap-2">
+          {(hardDates.data ?? []).map((d) => (
+            <li key={`${d.date}-${d.label}`} className="flex items-center justify-between gap-2">
               <span className="text-text">{d.label}</span>
-              <span className="font-mono text-xs text-accent">{countdownLabel(d.date)}</span>
+              <span className="font-mono text-xs text-accent tabular-nums">
+                {formatBoth(d.date)}
+              </span>
             </li>
           ))}
           {(travel.data?.trips ?? []).map((t, i) => (

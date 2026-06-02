@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { TaskCheck } from "@/components/ui/task-check"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Collapsible } from "@/components/ui/collapsible"
+import { StatusDot } from "@/components/ui/status-dot"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { ProjectCard } from "@/components/cards/project-card"
 import {
@@ -16,7 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { useTasks, useToggleTask, type TasksBySection } from "@/hooks/useTasks"
+import {
+  useTasks,
+  useToggleTask,
+  useHardDates,
+  usePrioritySuggestion,
+  type TasksBySection,
+} from "@/hooks/useTasks"
 import { useInbox, useInboxCapture } from "@/hooks/useInbox"
 import { useProjects } from "@/hooks/useProjects"
 import { usePortfolioSnapshot, useMoneySnapshot, useWatchlist } from "@/hooks/useFinance"
@@ -24,8 +32,7 @@ import { useCalendar } from "@/hooks/useCalendar"
 import { useRunSkill, useTaxScenario } from "@/hooks/useSkills"
 import { useSearchVault } from "@/hooks/useSearch"
 import { useDebounce } from "@/hooks/useDebounce"
-import { HARD_DATES } from "@/lib/hard-dates"
-import { countdownLabel } from "@/lib/status"
+import { formatBoth } from "@/lib/dates"
 import { openInOs } from "@/lib/open-in-os"
 import { isoDate } from "@/lib/utils"
 import { toast } from "@/lib/toast-store"
@@ -58,6 +65,11 @@ export function Home() {
         <TodayPanel />
         <QuickCapture />
       </div>
+      <PriorityPanel />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <NextWeekPanel />
+        <BiggerItemsPanel />
+      </div>
       <ProjectsRow />
       <FinancesRow />
       <SignalsRow />
@@ -69,26 +81,29 @@ export function Home() {
 
 // --- Header + hard dates ----------------------------------------------------
 function HomeHeader() {
+  const { data: hardDates } = useHardDates()
+
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-4">
         <h1 className="text-3xl font-semibold tracking-tight">{greeting()}</h1>
         <span className="font-mono text-sm text-text-secondary">{isoDate()}</span>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {HARD_DATES.map((d) => {
-          const cd = countdownLabel(d.date)
-          return (
+      {hardDates && hardDates.length > 0 && (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          {hardDates.map((d) => (
             <div
-              key={d.label}
-              className="flex items-center gap-2 rounded-sm border border-border bg-bg-panel px-2.5 py-1"
+              key={`${d.date}-${d.label}`}
+              className="flex shrink-0 items-center gap-2 rounded-sm border border-border bg-bg-panel px-2.5 py-1"
             >
               <span className="text-xs text-text-secondary">{d.label}</span>
-              <span className="font-mono text-xs text-accent">{cd}</span>
+              <span className="font-mono text-xs text-accent tabular-nums">
+                {formatBoth(d.date)}
+              </span>
             </div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -308,41 +323,28 @@ function PromptDialog({
 }
 
 // --- Today + quick capture --------------------------------------------------
-function pickTodaySection(data: TasksBySection): string | null {
-  for (const s of ["Today", "This weekend"]) {
-    if (data[s]?.length) return s
-  }
-  const first = Object.keys(data).find((k) => data[k]?.length)
-  return first ?? null
-}
+const THIS_WEEK = "This week"
 
 function TodayPanel() {
   const { data, isLoading } = useTasks()
   const toggle = useToggleTask()
 
   if (isLoading) return <Skeleton className="h-48" />
-  const tasks = data ? (() => {
-    const section = pickTodaySection(data)
-    return section ? { section, items: data[section] } : null
-  })() : null
+  const items = (data as TasksBySection | undefined)?.[THIS_WEEK] ?? []
 
   return (
-    <Panel
-      title="today"
-      meta={tasks ? tasks.section.toLowerCase() : undefined}
-      statusDotColor="accent"
-    >
-      {!tasks || tasks.items.length === 0 ? (
+    <Panel title="today" meta="this week" statusDotColor="accent">
+      {items.length === 0 ? (
         <p className="text-sm text-text-label">no tasks queued</p>
       ) : (
         <div className="space-y-0.5">
-          {tasks.items.map((t) => (
+          {items.map((t) => (
             <TaskCheck
               key={t.line_index}
               checked={t.checked}
               disabled={toggle.isPending}
               onToggle={() =>
-                toggle.mutate({ section: tasks.section, line_index: t.line_index })
+                toggle.mutate({ section: THIS_WEEK, line_index: t.line_index })
               }
             >
               {t.text}
@@ -387,6 +389,116 @@ function QuickCapture() {
         </Button>
       </div>
     </Panel>
+  )
+}
+
+// --- Priority recommendation ------------------------------------------------
+function PriorityPanel() {
+  const { data, isLoading, isError, isFetching, refetch } = usePrioritySuggestion(14)
+  const ordered = (data?.ordered ?? []).slice(0, 5)
+
+  return (
+    <Panel title="priority recommendation" meta="next 14d" statusDotColor="accent">
+      {isLoading ? (
+        <Skeleton className="h-24" />
+      ) : isError ? (
+        <p className="text-sm text-text-label">could not compute a recommendation.</p>
+      ) : (
+        <>
+          {data?.recommendation && (
+            <p className="mb-3 text-sm text-text">{data.recommendation}</p>
+          )}
+          {ordered.length > 0 && (
+            <ol className="space-y-2 text-sm">
+              {ordered.map((item) => (
+                <li key={item.rank} className="flex gap-2">
+                  <span className="font-mono text-accent tabular-nums">{item.rank}.</span>
+                  <span className="flex-1">
+                    <span className="text-text">{item.task}</span>
+                    {item.deadline && (
+                      <span className="ml-2 font-mono text-xs text-text-secondary tabular-nums">
+                        {formatBoth(item.deadline)}
+                      </span>
+                    )}
+                    {item.rationale && (
+                      <span className="ml-2 text-xs text-text-label">— {item.rationale}</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+          <div className="mt-3 flex justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              {isFetching ? "computing…" : "recompute"}
+            </Button>
+          </div>
+        </>
+      )}
+    </Panel>
+  )
+}
+
+// --- Next week preview + bigger items ---------------------------------------
+function NextWeekPanel() {
+  const { data, isLoading } = useTasks()
+  const items = (data as TasksBySection | undefined)?.["Next week"] ?? []
+
+  return (
+    <Panel title="next week" meta={`${items.length} ahead`} statusDotColor="muted">
+      {isLoading ? (
+        <Skeleton className="h-24" />
+      ) : items.length === 0 ? (
+        <p className="text-sm text-text-label">nothing scheduled yet</p>
+      ) : (
+        <ul className="space-y-1.5 text-sm">
+          {items.map((t) => (
+            <li key={t.line_index} className="flex items-start gap-2">
+              <StatusDot color="muted" />
+              <span className="text-text-secondary">{t.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  )
+}
+
+function BiggerItemsPanel() {
+  const { data } = useTasks()
+  const toggle = useToggleTask()
+  const items = (data as TasksBySection | undefined)?.["Bigger items"] ?? []
+  const open = items.filter((t) => !t.checked).length
+
+  return (
+    <Collapsible title="bigger items" meta={`${open} open · no weekly deadline`}>
+      {items.length === 0 ? (
+        <p className="text-sm text-text-label">nothing here</p>
+      ) : (
+        <div className="space-y-0.5">
+          {items.map((t) => (
+            <TaskCheck
+              key={t.line_index}
+              checked={t.checked}
+              disabled={toggle.isPending}
+              onToggle={() =>
+                toggle.mutate(
+                  { section: "Bigger items", line_index: t.line_index },
+                  { onError: (e) => toast.error("could not toggle task", String(e)) },
+                )
+              }
+            >
+              {t.text}
+            </TaskCheck>
+          ))}
+        </div>
+      )}
+    </Collapsible>
   )
 }
 

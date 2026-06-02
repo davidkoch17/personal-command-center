@@ -7,6 +7,7 @@ that :func:`toggle_task` can target the exact same lines a parser reported.
 from __future__ import annotations
 
 import re
+from datetime import date
 
 # Checkbox bullet, e.g. "- [ ] text" or "  - [x] text".
 _TASK_RE = re.compile(r"^(\s*)-\s\[([ xX])\]\s?(.*)$")
@@ -85,6 +86,153 @@ def parse_section_bullets(md: str, header: str) -> list[dict]:
                 }
             )
     return bullets
+
+
+# Any list bullet with an OPTIONAL checkbox. Group 2 is the checkbox state
+# (" "/"x"/"X") or None for a plain bullet; group 3 is the bullet text.
+_ANY_BULLET_RE = re.compile(r"^(\s*)-\s+(?:\[([ xX])\]\s*)?(.*)$")
+# A bold-led "hard date" bullet: "- **Wed 3 June (evening):** Dinner in FFM".
+# The em-dash (—) and hyphen are accepted as separators after the bold.
+_HARD_DATE_BULLET_RE = re.compile(r"^\s*-\s*\*\*([^*]+?)\*\*[:\s—-]+(.+)$")
+
+
+def _section_start(lines: list[str], header: str) -> int | None:
+    """Index of the ``## {header}`` heading: exact match wins, else first prefix.
+
+    Mirrors the matching rules documented on :func:`parse_section_bullets` so
+    every section-scoped parser locates the same heading.
+    """
+    target = header.strip().lower()
+    prefix_start: int | None = None
+    for i, line in enumerate(lines):
+        heading = _heading_text(line)
+        if heading is None:
+            continue
+        hl = heading.lower()
+        if hl == target:
+            return i
+        if prefix_start is None and hl.startswith(target):
+            prefix_start = i
+    return prefix_start
+
+
+def parse_section_lines(md: str, header: str) -> list[dict]:
+    """Return *all* bullet lines under ``## {header}`` — checkbox or plain.
+
+    Unlike :func:`parse_section_bullets` (which only returns ``- [ ]``/``- [x]``
+    items), this also captures plain bullets such as
+    ``- **Mon 8 June:** Defense``. That is how the "Next week" preview section is
+    written: dated notes rather than actionable checkboxes. Each item carries an
+    ``is_task`` flag — True when the bullet had a checkbox, False for a plain
+    note — so the UI can render previews read-only.
+
+    Section matching mirrors :func:`parse_section_bullets`. Each item is
+    ``{"text", "checked", "is_task", "raw", "line_index"}``. Empty bullets are
+    skipped; returns an empty list if the section is absent.
+    """
+    if not md or not header:
+        return []
+    lines = md.split("\n")
+    start = _section_start(lines, header)
+    if start is None:
+        return []
+    out: list[dict] = []
+    for i in range(start + 1, len(lines)):
+        line = lines[i]
+        if _SECTION_BREAK_RE.match(line):
+            break
+        m = _ANY_BULLET_RE.match(line)
+        if not m:
+            continue
+        text = m.group(3).strip()
+        if not text:
+            continue
+        state = m.group(2)
+        out.append(
+            {
+                "text": text,
+                "checked": (state or "").lower() == "x",
+                "is_task": state is not None,
+                "raw": line,
+                "line_index": i,
+            }
+        )
+    return out
+
+
+def parse_hard_dates(md: str) -> list[dict]:
+    """Find a "Hard dates" subsection in a task file and parse its bullets.
+
+    Scans for the first line containing "hard dates" (case-insensitive), then
+    reads the following bold-led bullets until the next ``## `` heading::
+
+        - **Wed 3 June (evening):** Dinner in FFM — book train tickets
+        - **2026-06-05:** Credit cards due
+
+    Returns ``[{"date": date | None, "label": str, "raw": str}, ...]`` sorted by
+    date ascending (undated items last). Defensive: missing/garbled input yields
+    an empty list.
+    """
+    out: list[dict] = []
+    if not md:
+        return out
+    in_section = False
+    for line in md.split("\n"):
+        if not in_section:
+            if re.search(r"hard dates", line, re.IGNORECASE):
+                in_section = True
+            continue
+        if line.startswith("## "):  # next section ends the hard-dates block
+            break
+        m = _HARD_DATE_BULLET_RE.match(line)
+        if not m:
+            continue
+        date_str = m.group(1).strip().rstrip(":").strip()
+        out.append(
+            {
+                "date": _parse_date_loose(date_str),
+                "label": m.group(2).strip(),
+                "raw": date_str,
+            }
+        )
+    out.sort(key=lambda d: d["date"] or date.max)
+    return out
+
+
+# Month names: English + German, keyed by the lowercased first few letters.
+_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "june": 6,
+    "jul": 7, "july": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
+    "janu": 1, "febr": 2, "märz": 3, "marz": 3, "mai": 5, "juni": 6, "juli": 7,
+    "okto": 10, "deze": 12,
+}
+
+
+def _parse_date_loose(s: str) -> date | None:
+    """Parse a loose date string: ISO first, then "Day Month [Year]" patterns.
+
+    Handles ``2026-06-05``, ``Wed 3 June``, ``3 June 2026``, ``Mon 8 June`` and
+    German month names. Parenthetical qualifiers (e.g. ``(evening)``) are
+    stripped. Returns None if no date can be recovered.
+    """
+    s = re.sub(r"\s*\(.+?\)\s*", "", s).strip()
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        pass
+    m = re.search(r"(\d{1,2})\s+([A-Za-zäöü]+)(?:\s+(\d{4}))?", s)
+    if not m:
+        return None
+    day = int(m.group(1))
+    name = m.group(2).lower()
+    month = _MONTHS.get(name) or _MONTHS.get(name[:4]) or _MONTHS.get(name[:3])
+    if not month:
+        return None
+    year = int(m.group(3)) if m.group(3) else date.today().year
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
 
 
 def _bullet_value(lines: list[str], label: str) -> str:
