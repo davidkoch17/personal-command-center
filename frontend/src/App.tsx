@@ -22,6 +22,7 @@ import { BackgroundRuns } from "@/pages/background-runs"
 import { Settings } from "@/pages/settings"
 import { Calendar } from "@/pages/calendar"
 import { DebugJarvis } from "@/pages/debug-jarvis"
+import { Chat } from "@/pages/chat"
 
 // Workspaces are heavy (charts, dossiers) and opened on demand in a new tab —
 // lazy-load them so they never weigh down the main shell bundle.
@@ -85,6 +86,9 @@ const router = createBrowserRouter([
       { path: "/debug-jarvis", element: <DebugJarvis /> },
     ],
   },
+  // Standalone chat window — opened in its own browser window (often on a
+  // second monitor). No AppShell so it reads as a normal full chat surface.
+  { path: "/chat", element: <Chat /> },
   // Hidden workspace routes — standalone full-page, no AppShell / sidebar
   // (Cockpit "deep-dive new tab" pattern).
   {

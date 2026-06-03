@@ -6,6 +6,12 @@ uvicorn[standard]>=0.27
 pydantic>=2.5
 websockets>=12
 
+# Phase 17 — in-app chat ("talk to Claude Code directly"). Drives the local
+# `claude` CLI as a persistent, streaming, multi-turn session on David's Max
+# subscription (no API key, no per-call cost), surfaced over the
+# /api/chat/stream WebSocket. Requires the Claude Code CLI on PATH.
+claude-agent-sdk>=0.2.88
+
 # Phase 13 — Jarvis voice layer (local STT + wake word).
 # Whisper also needs FFmpeg on PATH (winget install ffmpeg) and, on first use,
 # downloads its ~150 MB "base" model. Piper (TTS) is a standalone binary placed

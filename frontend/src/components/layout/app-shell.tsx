@@ -6,6 +6,7 @@ import { Sidebar, MobileNav } from "./sidebar"
 import { Header } from "./header"
 import { SearchPalette } from "./search-palette"
 import { PageTransition } from "./page-transition"
+import { JarvisDock } from "@/components/jarvis/jarvis-dock"
 
 /**
  * Overall layout container: fixed header (with the small Jarvis ball), responsive
@@ -36,6 +37,7 @@ export function AppShell() {
         </div>
         <Toaster />
         <SearchPalette />
+        <JarvisDock />
       </div>
     </TooltipProvider>
   )
