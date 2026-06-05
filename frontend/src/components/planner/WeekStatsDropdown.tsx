@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { InlineMd } from "@/components/ui/inline-markdown"
 import type { WeekStats } from "@/lib/planner"
 
 /**
@@ -49,7 +50,9 @@ export function WeekStatsDropdown({ stats }: { stats?: WeekStats }) {
                   <span className="w-20 shrink-0 font-mono text-[10px] uppercase tracking-wider text-text-label">
                     {t.day}
                   </span>
-                  <span className="text-text-secondary line-through">{t.text}</span>
+                  <span className="text-text-secondary line-through">
+                    <InlineMd text={t.text} />
+                  </span>
                 </li>
               ))}
             </ul>

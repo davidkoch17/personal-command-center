@@ -118,7 +118,7 @@ function WorkspaceHeader({ ws }: { ws: ProjectWorkspaceData }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{ws.name}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight normal-case">{ws.name}</h1>
         {ws.status_text && (
           <p className="mt-1 text-sm text-text-secondary">{ws.status_text}</p>
         )}

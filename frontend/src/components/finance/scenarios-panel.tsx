@@ -217,7 +217,7 @@ function FxShockPanel() {
   }, [currency, debounced, mutate])
 
   return (
-    <Panel title="fx shock" meta={`${currency} ${shock > 0 ? "+" : ""}${shock}%`} statusDotColor="warning">
+    <Panel title="FX shock" meta={`${currency} ${shock > 0 ? "+" : ""}${shock}%`} statusDotColor="warning">
       <div className="mb-3 w-32">
         <Select value={currency} onValueChange={setCurrency}>
           <SelectTrigger>

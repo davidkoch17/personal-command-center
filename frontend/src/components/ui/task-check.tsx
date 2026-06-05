@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils"
+import { InlineMd } from "@/components/ui/inline-markdown"
 
 interface TaskCheckProps {
   checked: boolean
@@ -39,7 +40,7 @@ export function TaskCheck({
         )}
       />
       <span className={cn(checked ? "text-text-secondary line-through" : "text-text")}>
-        {children}
+        {typeof children === "string" ? <InlineMd text={children} /> : children}
       </span>
     </button>
   )

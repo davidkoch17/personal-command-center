@@ -1,6 +1,7 @@
 import { useDroppable, useDraggable } from "@dnd-kit/core"
 import { GripVertical, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { InlineMd } from "@/components/ui/inline-markdown"
 import {
   DAY_KEYS,
   dayLabel,
@@ -205,7 +206,7 @@ function DayTaskCard({
             orphaned && "italic text-warning",
           )}
         >
-          {text ?? "(removed from source)"}
+          {text ? <InlineMd text={text} /> : "(removed from source)"}
         </span>
         {entry.source_label && (
           <span className="mt-0.5 block truncate font-mono text-[10px] text-text-label">

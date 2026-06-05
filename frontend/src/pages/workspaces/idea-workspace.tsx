@@ -67,7 +67,7 @@ export function IdeaWorkspace() {
             {/* 1. Header */}
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight">{ws.name}</h1>
+                <h1 className="text-2xl font-semibold tracking-tight normal-case">{ws.name}</h1>
                 <div className="mt-1 flex items-center gap-4 text-sm text-text-secondary">
                   <span>score: {parseField(ws.master, "score") ?? "—"}</span>
                   <span>

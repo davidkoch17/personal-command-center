@@ -4,6 +4,7 @@ import { X, AlertTriangle, Sparkles } from "lucide-react"
 import { api } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { InlineMd } from "@/components/ui/inline-markdown"
 import {
   DAY_KEYS,
   dayLabel,
@@ -69,7 +70,7 @@ export function AIAssistantPanel({
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <span className="flex items-center gap-2 text-sm font-medium text-text">
           <Sparkles className="h-4 w-4 text-accent" />
-          ai assistant — recommendations for this week
+          AI Assistant — recommendations for this week
         </span>
         <button
           type="button"
@@ -171,7 +172,9 @@ function RecCard({
   const isLater = selectedDay === "later"
   return (
     <div className="rounded-md border border-border bg-bg p-2">
-      <p className="text-xs leading-snug text-text">{rec.task_text}</p>
+      <p className="text-xs leading-snug text-text">
+        <InlineMd text={rec.task_text} />
+      </p>
       <div className="mt-1.5 flex items-center gap-2">
         <span
           className={cn(

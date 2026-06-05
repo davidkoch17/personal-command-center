@@ -105,7 +105,7 @@ function NavList({
                     }
                   >
                     <Icon className="h-4 w-4 shrink-0" />
-                    <span className={cn("truncate", !showLabels && "hidden min-[1100px]:inline")}>
+                    <span className={cn("truncate capitalize", !showLabels && "hidden min-[1100px]:inline")}>
                       {link.label}
                     </span>
                   </NavLink>

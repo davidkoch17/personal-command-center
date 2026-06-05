@@ -77,7 +77,7 @@ export function WatchlistTicker() {
             {/* Header */}
             <div className="flex items-end justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight">{data.name || ticker}</h1>
+                <h1 className="text-2xl font-semibold tracking-tight normal-case">{data.name || ticker}</h1>
                 <span className="font-mono text-sm text-text-secondary">{ticker}</span>
               </div>
               <div className="flex gap-5 text-right">

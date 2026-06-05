@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { useDroppable, useDraggable } from "@dnd-kit/core"
 import { GripVertical, Search, CornerDownLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { InlineMd } from "@/components/ui/inline-markdown"
 import type { PoolTask } from "@/lib/planner"
 
 interface TaskPoolProps {
@@ -146,7 +147,9 @@ function PoolTaskCard({
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-1.5">
-          <span className="block text-xs leading-snug text-text">{task.text}</span>
+          <span className="block text-xs leading-snug text-text">
+            <InlineMd text={task.text} />
+          </span>
           {task.is_carry_forward && (
             <span
               title="carried over from last week"

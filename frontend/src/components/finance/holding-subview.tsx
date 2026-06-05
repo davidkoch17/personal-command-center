@@ -65,7 +65,7 @@ export function HoldingSubview({
       {/* Header */}
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">{name}</h2>
+          <h2 className="text-xl font-semibold tracking-tight normal-case">{name}</h2>
           <span className="font-mono text-sm text-text-secondary">{ticker}</span>
         </div>
         <div className="text-right">

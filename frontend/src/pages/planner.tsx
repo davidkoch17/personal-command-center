@@ -278,7 +278,7 @@ export function Planner() {
               onClick={() => setAiOpen((o) => !o)}
               className="text-sm text-text-secondary hover:text-text"
             >
-              ai assistant
+              AI Assistant
             </button>
           )}
           {isDirty && !readOnly && (

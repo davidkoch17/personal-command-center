@@ -55,7 +55,7 @@ export function BrandVideo() {
           <>
             {/* 1. Header */}
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <h1 className="text-2xl font-semibold tracking-tight">{data.status.title}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight normal-case">{data.status.title}</h1>
               <div className="flex flex-wrap items-center gap-2">
                 <Tag variant="accent">{data.status.stage?.toLowerCase() || "ideas"}</Tag>
                 <Tag variant="muted">{data.status.platform || "—"}</Tag>

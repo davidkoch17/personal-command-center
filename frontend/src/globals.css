@@ -17,11 +17,15 @@
 
   h1, h2, h3, h4 {
     @apply tracking-tight;
-    text-transform: lowercase;
+    text-transform: capitalize;
   }
 
+  /* Dynamic, vault-derived headings (company / project / idea names) must keep
+     their true casing — e.g. "iShares MSCI World", not "Ishares Msci World".
+     Mark those headings with `normal-case` to opt out of the capitalize above. */
+
   .label {
-    @apply uppercase tracking-wider text-text-label text-[11px] font-medium;
+    @apply capitalize tracking-wider text-text-label text-[11px] font-medium;
   }
 
   .data {

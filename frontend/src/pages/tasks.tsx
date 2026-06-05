@@ -3,6 +3,7 @@ import { Panel } from "@/components/ui/panel"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { TaskCheck } from "@/components/ui/task-check"
+import { InlineMd } from "@/components/ui/inline-markdown"
 import { StatusDot } from "@/components/ui/status-dot"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
@@ -107,7 +108,7 @@ function TaskSection({ section, tasks }: { section: string; tasks: Task[] }) {
             t.is_task === false ? (
               <div key={t.line_index} className="flex items-start gap-2 px-1.5 py-1 text-sm">
                 <StatusDot color="muted" />
-                <span className="text-text-secondary">{t.text}</span>
+                <span className="text-text-secondary"><InlineMd text={t.text} /></span>
               </div>
             ) : (
               <TaskCheck
