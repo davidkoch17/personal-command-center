@@ -17,6 +17,8 @@ to HTTP.
 """
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -28,15 +30,29 @@ from backend.api import (
     tasks, projects, ideas, inbox, portfolio, money,
     watchlist, brand, career, integrations, runs,
     search, skills, reading, system, voice, priorities, daily,
-    planner, chat,
+    planner, chat, home,
 )
 from backend.api import finance
+from modules.briefings import weekly
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Start background schedulers for the lifetime of the server.
+
+    Weekly briefing (Item #16): fires Sunday 18:00; if the laptop was off at
+    trigger time, the next backend start catches up (see modules/briefings/weekly).
+    """
+    briefing_task = asyncio.create_task(weekly.scheduler_loop())
+    yield
+    briefing_task.cancel()
 
 
 app = FastAPI(
     title="Personal Command Center API",
     description="Backend for David's command center dashboard",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS — only needed for the Vite dev server (5173); in production the app is
@@ -77,6 +93,7 @@ app.include_router(voice.router, prefix="/api/voice", tags=["voice"])
 app.include_router(daily.router, prefix="/api/daily", tags=["daily"])
 app.include_router(planner.router, prefix="/api/planner", tags=["planner"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
+app.include_router(home.router, prefix="/api/home", tags=["home"])
 
 
 @app.get("/health")

@@ -6,10 +6,14 @@ or subscribe to the run's WebSocket for progress.
 """
 from __future__ import annotations
 
+import json
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException
 
 from backend.models.schemas import SkillRunRequest
 from modules.agents import background
+from modules.agents.background import BG_LOG_DIR
 
 router = APIRouter()
 
@@ -89,6 +93,129 @@ SKILL_REGISTRY: dict[str, tuple[str, str, list[tuple[str, object]]]] = {
         [("question", _REQUIRED)],
     ),
 }
+
+
+# --- Home Skills & Agents directory (Item #4, Home_Redesign_Spec.md §3c) -----
+# Curated directory entries. ``run_skill``: the SKILL_REGISTRY name to launch
+# from the [run] button (None = not directly launchable here — ``run_target``
+# routes to the page that owns the workflow, ``note`` explains a disabled row).
+# ``patterns``: lowercase substrings matched against background run_ids
+# ("<timestamp>_<label-with-underscores>") to find the latest run.
+# ``cadence_days``: how often the skill should run; older than that = "due".
+SKILL_DIRECTORY: list[dict] = [
+    {
+        "key": "market_researcher", "label": "Market Researcher",
+        "run_skill": "market_researcher", "patterns": ("market_research",),
+        "cadence_days": 7, "prompt_arg": None, "run_target": None, "note": None,
+    },
+    {
+        "key": "earnings_reviewer", "label": "Earnings Reviewer",
+        "run_skill": "earnings_reviewer", "patterns": ("earnings",),
+        "cadence_days": None, "prompt_arg": "ticker", "run_target": None, "note": None,
+    },
+    {
+        "key": "valuation_reviewer", "label": "Valuation Reviewer",
+        "run_skill": None, "patterns": ("valuation",),
+        "cadence_days": None, "prompt_arg": None,
+        "run_target": "/workspace/portfolio", "note": "needs inputs — run from Portfolio workspace",
+    },
+    {
+        "key": "idea_validator", "label": "Idea Validator",
+        "run_skill": None, "patterns": ("stage_", "validate_"),
+        "cadence_days": None, "prompt_arg": None,
+        "run_target": "/ideas", "note": "run per-idea from the Ideas page",
+    },
+    {
+        "key": "scenario_analyzer", "label": "Scenario Analyzer",
+        "run_skill": "portfolio_scenario", "patterns": ("scenario",),
+        "cadence_days": None, "prompt_arg": "scenario_description", "run_target": None, "note": None,
+    },
+    {
+        "key": "monthly_wealth_check", "label": "Monthly Wealth Check",
+        "run_skill": None, "patterns": ("wealth_check",),
+        "cadence_days": 30, "prompt_arg": None,
+        "run_target": None, "note": "skill not built yet (#77)",
+    },
+    {
+        "key": "quarterly_portfolio_review", "label": "Quarterly Portfolio Review",
+        "run_skill": "quarterly_portfolio_review", "patterns": ("quarterly_portfolio",),
+        "cadence_days": 90, "prompt_arg": None, "run_target": None, "note": None,
+    },
+]
+
+
+def _latest_runs_by_pattern() -> dict[str, dict]:
+    """Newest background run per directory entry, matched by run_id substring."""
+    latest: dict[str, dict] = {}
+    if not BG_LOG_DIR.exists():
+        return latest
+    for f in sorted(BG_LOG_DIR.glob("*.status.json"), key=lambda p: p.name):
+        run_id = f.name.removesuffix(".status.json")
+        run_lower = run_id.lower()
+        for entry in SKILL_DIRECTORY:
+            if any(pat in run_lower for pat in entry["patterns"]):
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+                data["run_id"] = run_id
+                # Filenames sort chronologically (timestamp prefix), so the
+                # last assignment per key wins = the newest run.
+                latest[entry["key"]] = data
+    return latest
+
+
+def _run_timestamp(run: dict) -> datetime | None:
+    for field in ("completed_at", "failed_at", "started_at"):
+        raw = run.get(field)
+        if raw:
+            try:
+                return datetime.fromisoformat(raw)
+            except ValueError:
+                continue
+    try:
+        # Fall back to the run_id timestamp prefix: YYYYmmdd_HHMMSS.
+        return datetime.strptime(run["run_id"][:15], "%Y%m%d_%H%M%S")
+    except (KeyError, ValueError):
+        return None
+
+
+@router.get("/status")
+def skills_status() -> dict:
+    """The Skills & Agents directory with last-run + health per entry.
+
+    Status legend (mirrors the Home spec): ``ok`` run recently / ``due`` cadence
+    exceeded / ``failed`` last run errored / ``never`` no run on record.
+    """
+    runs = _latest_runs_by_pattern()
+    now = datetime.now()
+    out = []
+    for entry in SKILL_DIRECTORY:
+        run = runs.get(entry["key"])
+        ts = _run_timestamp(run) if run else None
+        if run is None:
+            status = "never"
+        elif run.get("status") == "failed":
+            status = "failed"
+        elif run.get("status") == "running":
+            status = "ok"
+        elif entry["cadence_days"] and ts and (now - ts).days > entry["cadence_days"]:
+            status = "due"
+        else:
+            status = "ok"
+        out.append({
+            "key": entry["key"],
+            "label": entry["label"],
+            "status": status,
+            "last_run_at": ts.isoformat() if ts else None,
+            "last_run_id": run.get("run_id") if run else None,
+            "last_run_status": run.get("status") if run else None,
+            "run_skill": entry["run_skill"],
+            "prompt_arg": entry["prompt_arg"],
+            "run_target": entry["run_target"],
+            "note": entry["note"],
+        })
+    return {"skills": out}
 
 
 @router.get("")
