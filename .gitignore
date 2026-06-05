@@ -12,6 +12,9 @@ data/price_cache/
 
 # Phase 15b — Fama-French factor data cache (downloaded from Ken French library).
 data/ff_cache/
+
+# Item #16 weekly briefing — per-machine scheduler state (last trigger fired).
+data/weekly_briefing_state.json
 .venv/
 venv/
 .DS_Store
