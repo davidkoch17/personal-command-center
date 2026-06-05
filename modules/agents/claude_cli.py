@@ -34,12 +34,28 @@ def _resolve_claude() -> str:
     return exe
 
 
-def run_claude(prompt: str, timeout: int = 600) -> str:
-    """Run a prompt via Claude Code headless mode. Returns stdout."""
+def run_claude(
+    prompt: str, timeout: int = 600, allowed_tools: list[str] | None = None
+) -> str:
+    """Run a prompt via Claude Code headless mode. Returns stdout.
+
+    ``allowed_tools`` pre-authorizes tools via ``--allowed-tools`` (Item #78):
+    headless runs can't answer permission prompts, so a tool that isn't
+    pre-allowed is silently denied — which is how validator stages ended up
+    producing training-knowledge-only output. Callers that need web research
+    must pass the tools explicitly; the default (None) keeps the conservative
+    no-extra-tools behavior for briefings/voice.
+    """
     exe = _resolve_claude()
-    logger.info("Running claude -p (prompt %d chars, timeout %ds)", len(prompt), timeout)
+    cmd = [exe, "-p"]
+    if allowed_tools:
+        cmd += ["--allowed-tools", ",".join(allowed_tools)]
+    logger.info(
+        "Running claude -p (prompt %d chars, timeout %ds, allowed_tools=%s)",
+        len(prompt), timeout, ",".join(allowed_tools) if allowed_tools else "-",
+    )
     result = subprocess.run(
-        [exe, "-p"],
+        cmd,
         input=prompt,
         capture_output=True,
         text=True,

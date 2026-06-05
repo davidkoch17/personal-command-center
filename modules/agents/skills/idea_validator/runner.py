@@ -10,6 +10,14 @@ TEMPLATES_DIR = VAULT_PATH / "99_System" / "Templates" / "idea_validation"
 IDEAS_DIR = VAULT_PATH / "1_Projects" / "98_Ideen"
 CRITERIA_FILE = VAULT_PATH / "99_System" / "Idea_Decision_Criteria.md"
 
+# Item #78: headless `claude -p` can't answer permission prompts, so every tool
+# a stage needs must be pre-allowed — otherwise WebSearch is silently denied and
+# the stage degrades to caveated training-knowledge output (see the quarantined
+# 2026-06-05 Parking market study).
+STAGE_ALLOWED_TOOLS = [
+    "Read", "Write", "Edit", "Bash", "WebSearch", "WebFetch", "Glob", "Grep",
+]
+
 
 STAGES = [
     ("02", "market_study", "02_Market_Study.md"),
@@ -86,6 +94,128 @@ def _stage_template(stage_key: str) -> str:
     return p.read_text(encoding="utf-8") if p.exists() else f"# Stage {stage_key}\n\n(Template missing — using default.)\n"
 
 
+def _substitute(template: str, idea_name: str, stage_key: str) -> str:
+    """Fill `{idea_name}` / `{STAGE_NAME}` placeholders in a stage template.
+
+    Uses .replace(), NOT .format() — templates contain literal braces
+    (EXCEL_SPEC blocks, the pitch deck's "[TBD — from {stage}]" instruction)
+    that .format() would choke on.
+    """
+    slug = next((s for sk, s, _ in STAGES if sk == stage_key), None)
+    stage_name = slug.replace("_", " ").title() if slug else f"Stage {stage_key}"
+    return template.replace("{idea_name}", idea_name).replace("{STAGE_NAME}", stage_name)
+
+
+def _require_brief(folder: Path) -> None:
+    """Gate: refuse to run a stage unless a substantive idea brief exists.
+
+    Without this, stages fire on empty context and Claude (correctly) refuses
+    to fabricate — but the refusal text used to get written as the stage output.
+    """
+    brief = folder / "01_Idea_Brief.md"
+    if not brief.exists():
+        raise FileNotFoundError(
+            f"01_Idea_Brief.md missing in {folder.name} — write the idea brief before running stages."
+        )
+    body = "\n".join(
+        line for line in brief.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    ).strip()
+    if len(body) < 80:
+        raise ValueError(
+            f"01_Idea_Brief.md in {folder.name} is too thin ({len(body)} chars body, need 80+) — "
+            "flesh out the brief before running stages."
+        )
+
+
+# Flag at ANY length — after _substitute these can never appear in a real output.
+_HARD_REFUSAL_MARKERS = (
+    "{idea_name}", "{stage_name}",   # echoed unsubstituted placeholders
+    "unsubstituted",
+    "i won't fabricate", "won't fabricate", "i can't fabricate", "cannot fabricate",
+    "would just be fabrication",
+)
+
+# Flag only in short outputs (real stage docs are 1500+ words; refusals are brief).
+_SOFT_REFUSAL_MARKERS = (
+    "i can't help", "i cannot help",
+    "what i won't do", "i won't do",
+    "i need two things from you", "which idea do you",
+    "missing `01_idea_brief", "missing 01_idea_brief",
+    "stage template",
+)
+
+
+def _looks_like_refusal(output: str) -> bool:
+    """Heuristic: detect a Claude refusal / clarification reply.
+
+    Real stage outputs are long, structured Markdown (H2 sections, 1500+ words).
+    Refusals are conversational replies addressed to David — usually short, but
+    sometimes long enough to need the placeholder/fabrication hard markers.
+    Guard before any write_text / state stamping / xlsx-docx-pptx generation.
+    """
+    text = output.strip()
+    if not text:
+        return True
+    low = text.lower()
+    if any(m in low for m in _HARD_REFUSAL_MARKERS):
+        return True
+    is_short = len(text) < 4000
+    if is_short and any(m in low for m in _SOFT_REFUSAL_MARKERS):
+        return True
+    # No H2 structure at all in a short output → chat reply, not a stage doc.
+    if is_short and "\n## " not in text and not text.startswith("## "):
+        return True
+    return False
+
+
+# Phrases a stage output uses to confess it worked WITHOUT live web research.
+# Lowercase substrings; matched anywhere in the output (these caveats appear in
+# the preamble or a methodology block, not necessarily the first lines).
+_NO_WEBSEARCH_MARKERS = (
+    "no web search",
+    "web search was unavailable",
+    "web search unavailable",
+    "websearch` permission denied",
+    "websearch permission denied",
+    "training data only",
+    "training knowledge",
+    "medium-low confidence",
+    "without access to current",
+    "model cutoff",
+)
+
+
+def _stage_requires_research(stage_key: str) -> bool:
+    """True if the stage template asks for web search / cited sources."""
+    template = _stage_template(stage_key).lower()
+    return any(
+        marker in template
+        for marker in ("web search", "websearch", "source", "citation", "cite")
+    )
+
+
+def _require_websearch_quality(output: str, stage_key: str) -> None:
+    """Gate (Item #78): refuse training-knowledge-only output on research stages.
+
+    When WebSearch is denied (or skipped), Claude produces a caveated
+    reconstruction from training data — structurally a valid stage doc, so
+    ``_looks_like_refusal`` passes it, but every figure is estimate-grade. If
+    the output confesses to that AND the stage template demands web research /
+    citations, raise instead of writing — same contract as the refusal guard:
+    no write_text, no completed stamp, no xlsx/docx/pptx generation.
+    """
+    low = output.lower()
+    hit = next((m for m in _NO_WEBSEARCH_MARKERS if m in low), None)
+    if hit and _stage_requires_research(stage_key):
+        raise RuntimeError(
+            f"Stage {stage_key} output looks like training-knowledge-only work "
+            f"(marker: '{hit}') but the stage requires web research. Nothing was "
+            "written. Check that WebSearch is available (STAGE_ALLOWED_TOOLS / "
+            "network), then re-run."
+        )
+
+
 def _all_prior_outputs(folder: Path, up_to_stage_key: str) -> str:
     """Concatenate all prior stage output files for inclusion in prompt context."""
     parts = []
@@ -106,7 +236,8 @@ def _all_prior_outputs(folder: Path, up_to_stage_key: str) -> str:
 
 def run_stage(idea_name: str, stage_key: str) -> Path:
     folder = idea_folder(idea_name)
-    template = _stage_template(stage_key)
+    _require_brief(folder)
+    template = _substitute(_stage_template(stage_key), idea_name, stage_key)
     prior = _all_prior_outputs(folder, stage_key)
     # Add criteria file if scorecard stage
     extra = ""
@@ -129,7 +260,15 @@ def run_stage(idea_name: str, stage_key: str) -> Path:
 
 Produce the stage output now, following the template's structure exactly. Use web search heavily. Cite every claim.
 """
-    output = run_claude(prompt, timeout=900)
+    output = run_claude(prompt, timeout=900, allowed_tools=STAGE_ALLOWED_TOOLS)
+
+    if _looks_like_refusal(output):
+        raise RuntimeError(
+            f"Stage {stage_key} for '{idea_name}' returned a refusal/clarification reply, "
+            f"not a stage output ({len(output.strip())} chars). Nothing was written. "
+            "Check 01_Idea_Brief.md has real content, then re-run."
+        )
+    _require_websearch_quality(output, stage_key)
 
     # Find output filename from STAGES table
     output_filename = next((fn for sk, _, fn in STAGES if sk == stage_key), f"stage_{stage_key}.md")
