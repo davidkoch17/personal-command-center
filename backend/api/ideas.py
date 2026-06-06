@@ -22,7 +22,14 @@ RUNNER_MODULE = "modules.agents.skills.idea_validator.runner"
 _STAGE_KEYS = {k for k, _, _ in iv.STAGES}
 
 
+def _running_stage(state: dict) -> str | None:
+    """Stage key currently in flight, from the runner's `_running` marker."""
+    return (state.get("_running") or {}).get("stage_key")
+
+
 def _stage_status(state: dict, stage_key: str) -> str:
+    if _running_stage(state) == stage_key:
+        return "running"
     s = state.get(stage_key)
     if not s:
         return "pending"
@@ -98,6 +105,7 @@ def idea_workspace(name: str) -> dict:
         "name": name,
         "stages_complete": done,
         "total_stages": len(iv.STAGES),
+        "running_stage": _running_stage(state),
         "stages": stages,
         "brief": _read("01_Idea_Brief.md"),
         "overrides": _read("_overrides.md"),
@@ -125,6 +133,21 @@ def run_all(name: str) -> dict:
     info = background.launch(
         module_path=RUNNER_MODULE, callable_name="run_all",
         args=[name], label=f"Validate {name}",
+    )
+    return {"ok": True, "run_id": info["run_id"]}
+
+
+@router.post("/{name}/run-remaining")
+def run_remaining(name: str) -> dict:
+    """Trigger only the missing/stale stages in the background.
+
+    Resumes a half-finished pipeline without re-paying for completed stages
+    (unlike ``run-all``, which re-runs everything).
+    """
+    _resolve(name)
+    info = background.launch(
+        module_path=RUNNER_MODULE, callable_name="run_remaining",
+        args=[name], label=f"Validate {name} remaining",
     )
     return {"ok": True, "run_id": info["run_id"]}
 

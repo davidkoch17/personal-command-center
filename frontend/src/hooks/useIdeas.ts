@@ -11,7 +11,7 @@ export interface IdeaStage {
   slug: string
   title: string
   filename: string
-  status: "pending" | "done" | "stale"
+  status: "pending" | "done" | "stale" | "running"
   exists: boolean
   mtime: string | null
   content: string
@@ -21,6 +21,8 @@ export interface IdeaWorkspaceState {
   name: string
   stages_complete: number
   total_stages: number
+  /** Stage key currently in flight (runner's `_running` marker), or null. */
+  running_stage: string | null
   stages: IdeaStage[]
   brief: string
   overrides: string
@@ -31,6 +33,11 @@ export function useIdeas() {
   return useQuery({
     queryKey: ["ideas"],
     queryFn: () => api.get<IdeaCard[]>("/api/ideas"),
+    // Keep the cards' live "running" badge fresh while a validation is active.
+    refetchInterval: (query) =>
+      query.state.data?.some((i) => i.state?.["_running"] != null)
+        ? 5_000
+        : 20_000,
   })
 }
 
@@ -40,6 +47,11 @@ export function useIdeaWorkspace(name: string | undefined) {
     queryFn: () =>
       api.get<IdeaWorkspaceState>(`/api/ideas/${encodeURIComponent(name!)}`),
     enabled: !!name,
+    // Poll fast while a stage is in flight so dots/content update live;
+    // slow idle poll still catches runs started from elsewhere (run-stage
+    // launches a detached process, so there is no push channel).
+    refetchInterval: (query) =>
+      query.state.data?.running_stage ? 4_000 : 15_000,
   })
 }
 
@@ -67,6 +79,16 @@ export function useRunAllStages(name: string | undefined) {
     mutationFn: () =>
       api.post<{ ok: boolean; run_id: string }>(
         `/api/ideas/${encodeURIComponent(name!)}/run-all`,
+        {},
+      ),
+  })
+}
+
+export function useRunRemainingStages(name: string | undefined) {
+  return useMutation({
+    mutationFn: () =>
+      api.post<{ ok: boolean; run_id: string }>(
+        `/api/ideas/${encodeURIComponent(name!)}/run-remaining`,
         {},
       ),
   })

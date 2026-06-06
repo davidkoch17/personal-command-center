@@ -1,6 +1,7 @@
 import { ArrowUpRight } from "lucide-react"
 import type { IdeaCard as IdeaCardData } from "@/lib/types"
 import { StageStrip } from "@/components/cards/stage-strip"
+import { StatusDot } from "@/components/ui/status-dot"
 import { cn } from "@/lib/utils"
 
 const TOTAL_STAGES = 12
@@ -26,6 +27,8 @@ function stateField(state: Record<string, unknown>, ...keys: string[]): string |
 export function IdeaCard({ idea, className }: IdeaCardProps) {
   const score = stateField(idea.state, "score", "total_score")
   const recommendation = stateField(idea.state, "recommendation", "verdict")
+  // Runner's live marker — present in _state.json while a stage is in flight.
+  const running = idea.state?.["_running"] != null
 
   return (
     <a
@@ -47,7 +50,13 @@ export function IdeaCard({ idea, className }: IdeaCardProps) {
       <div>
         <div className="mb-1.5 flex items-center justify-between">
           <span className="label">validation</span>
-          <span className="font-mono text-xs text-text-secondary">
+          <span className="flex items-center gap-1.5 font-mono text-xs text-text-secondary">
+            {running && (
+              <>
+                <StatusDot color="accent" pulse />
+                <span className="text-accent">running</span>
+              </>
+            )}
             {Math.min(idea.stages_complete, TOTAL_STAGES)}/{TOTAL_STAGES}
           </span>
         </div>

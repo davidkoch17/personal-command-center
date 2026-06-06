@@ -169,6 +169,31 @@ def _looks_like_refusal(output: str) -> bool:
     return False
 
 
+# A real stage doc reaches its first heading almost immediately; a chat lead-in
+# ("I have enough triangulated data. Writing the study now." + a `---` rule)
+# is short. Anything longer than this before the first heading is treated as
+# legitimate prose and left alone.
+_PREAMBLE_MAX_CHARS = 400
+
+
+def _strip_preamble(output: str) -> str:
+    """Drop a short conversational lead-in before the first Markdown heading.
+
+    ``claude -p`` sometimes prefixes a stage doc with a chat line addressed to
+    David plus a horizontal rule (seen in the 2026-06-05 Parking market study).
+    Strip anything before the first heading, but only when that lead-in is
+    short and heading-free — a doc that legitimately opens with prose stays
+    untouched.
+    """
+    text = output.lstrip()
+    if text.startswith("#"):
+        return text
+    idx = text.find("\n#")
+    if idx == -1 or idx > _PREAMBLE_MAX_CHARS:
+        return text
+    return text[idx + 1:].lstrip()
+
+
 # Phrases a stage output uses to confess it worked WITHOUT live web research.
 # Lowercase substrings; matched anywhere in the output (these caveats appear in
 # the preamble or a methodology block, not necessarily the first lines).
@@ -260,55 +285,86 @@ def run_stage(idea_name: str, stage_key: str) -> Path:
 
 Produce the stage output now, following the template's structure exactly. Use web search heavily. Cite every claim.
 """
-    output = run_claude(prompt, timeout=900, allowed_tools=STAGE_ALLOWED_TOOLS)
-
-    if _looks_like_refusal(output):
-        raise RuntimeError(
-            f"Stage {stage_key} for '{idea_name}' returned a refusal/clarification reply, "
-            f"not a stage output ({len(output.strip())} chars). Nothing was written. "
-            "Check 01_Idea_Brief.md has real content, then re-run."
-        )
-    _require_websearch_quality(output, stage_key)
-
-    # Find output filename from STAGES table
-    output_filename = next((fn for sk, _, fn in STAGES if sk == stage_key), f"stage_{stage_key}.md")
-    output_path = folder / output_filename
-
-    # Archive prior version if exists
-    if output_path.exists():
-        archive_path = folder / "_archive" / f"{output_filename.replace('.md', '')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
-        archive_path.parent.mkdir(exist_ok=True)
-        archive_path.write_text(output_path.read_text(encoding="utf-8"), encoding="utf-8")
-
-    output_path.write_text(output, encoding="utf-8")
-
-    # Update state
+    # Live-progress marker: lets the workspace UI show which stage is in
+    # flight. Underscore-prefixed so stage lookups skip it; cleared in the
+    # finally whether the stage succeeds or raises.
     state = _read_state(folder)
-    state[stage_key] = {"completed_at": datetime.now().isoformat(), "filename": output_filename}
-    # Mark downstream stages as stale
-    stage_keys_in_order = [sk for sk, _, _ in STAGES]
-    if stage_key in stage_keys_in_order:
-        idx = stage_keys_in_order.index(stage_key)
-        for downstream in stage_keys_in_order[idx+1:]:
-            if downstream in state:
-                state[downstream]["stale"] = True
+    state["_running"] = {"stage_key": stage_key, "started_at": datetime.now().isoformat()}
     _write_state(folder, state)
+    try:
+        output = run_claude(prompt, timeout=900, allowed_tools=STAGE_ALLOWED_TOOLS)
 
-    # Special handling for Excel/Word/PPT outputs
-    if stage_key == "05":
-        _generate_excel_from_spec(folder, output)
-    elif stage_key == "06":
-        _generate_docx_from_md(folder, output)
-    elif stage_key == "07":
-        _generate_pptx_from_spec(folder, output)
+        if _looks_like_refusal(output):
+            raise RuntimeError(
+                f"Stage {stage_key} for '{idea_name}' returned a refusal/clarification reply, "
+                f"not a stage output ({len(output.strip())} chars). Nothing was written. "
+                "Check 01_Idea_Brief.md has real content, then re-run."
+            )
+        _require_websearch_quality(output, stage_key)
+        output = _strip_preamble(output)
 
-    return output_path
+        # Find output filename from STAGES table
+        output_filename = next((fn for sk, _, fn in STAGES if sk == stage_key), f"stage_{stage_key}.md")
+        output_path = folder / output_filename
+
+        # Archive prior version if exists
+        if output_path.exists():
+            archive_path = folder / "_archive" / f"{output_filename.replace('.md', '')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            archive_path.parent.mkdir(exist_ok=True)
+            archive_path.write_text(output_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+        output_path.write_text(output, encoding="utf-8")
+
+        # Update state
+        state = _read_state(folder)
+        state[stage_key] = {"completed_at": datetime.now().isoformat(), "filename": output_filename}
+        # Mark downstream stages as stale
+        stage_keys_in_order = [sk for sk, _, _ in STAGES]
+        if stage_key in stage_keys_in_order:
+            idx = stage_keys_in_order.index(stage_key)
+            for downstream in stage_keys_in_order[idx+1:]:
+                if downstream in state:
+                    state[downstream]["stale"] = True
+        _write_state(folder, state)
+
+        # Special handling for Excel/Word/PPT outputs
+        if stage_key == "05":
+            _generate_excel_from_spec(folder, output)
+        elif stage_key == "06":
+            _generate_docx_from_md(folder, output)
+        elif stage_key == "07":
+            _generate_pptx_from_spec(folder, output)
+
+        return output_path
+    finally:
+        state = _read_state(folder)
+        if state.pop("_running", None) is not None:
+            _write_state(folder, state)
 
 
 def run_all(idea_name: str) -> dict:
     """Run all stages sequentially. Returns dict of completed paths."""
     results = {}
     for stage_key, _, _ in STAGES:
+        results[stage_key] = str(run_stage(idea_name, stage_key))
+    _update_master_after_full_run(idea_name)
+    return results
+
+
+def run_remaining(idea_name: str) -> dict:
+    """Run only the stages that are missing or stale, in pipeline order.
+
+    Unlike :func:`run_all`, completed up-to-date stages are skipped — so a
+    pipeline that died (or was fixed) mid-run resumes where it left off
+    instead of re-paying for every prior Claude call.
+    """
+    folder = idea_folder(idea_name)
+    results = {}
+    for stage_key, _, filename in STAGES:
+        state = _read_state(folder)  # re-read: run_stage flags downstream stale
+        entry = state.get(stage_key)
+        if entry and not entry.get("stale") and (folder / filename).exists():
+            continue
         results[stage_key] = str(run_stage(idea_name, stage_key))
     _update_master_after_full_run(idea_name)
     return results
@@ -448,7 +504,8 @@ def list_ideas() -> list[dict]:
         out.append({
             "name": d.name,
             "path": d,
-            "stages_complete": len(state),
+            # Underscore keys (e.g. the _running marker) are not stages.
+            "stages_complete": sum(1 for k in state if not k.startswith("_")),
             "state": state,
         })
     return sorted(out, key=lambda x: x["name"])
