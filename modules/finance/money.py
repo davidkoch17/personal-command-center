@@ -21,10 +21,16 @@ def monthly_spending_by_category() -> pd.DataFrame:
 
 
 def current_cash_balance() -> float | None:
-    """Latest non-zero Ending Balance from Bank sheet."""
+    """Latest non-zero Ending Balance from Bank sheet.
+
+    Only real ``YYYY-MM`` month rows count — the sheet's trailing summary row
+    (e.g. "12-mo Total") would otherwise be picked up as the "latest" balance.
+    """
     b = bank()
     if b.empty or "Ending Balance (€)" not in b.columns:
         return None
+    if "Month" in b.columns:
+        b = b[b["Month"].astype(str).str.match(r"^\d{4}-\d{2}$")]
     valid = b.dropna(subset=["Ending Balance (€)"])
     valid = valid[valid["Ending Balance (€)"] != 0]
     if valid.empty:
