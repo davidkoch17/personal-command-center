@@ -172,8 +172,9 @@ def _looks_like_refusal(output: str) -> bool:
 # A real stage doc reaches its first heading almost immediately; a chat lead-in
 # ("I have enough triangulated data. Writing the study now." + a `---` rule)
 # is short. Anything longer than this before the first heading is treated as
-# legitimate prose and left alone.
-_PREAMBLE_MAX_CHARS = 400
+# legitimate prose and left alone. (800, not 400: the 2026-06-06 Parking
+# scorecard opened with a 472-char methodology aside addressed to David.)
+_PREAMBLE_MAX_CHARS = 800
 
 
 def _strip_preamble(output: str) -> str:
@@ -377,10 +378,12 @@ def _check_overlaps(idea_name: str, brief_text: str, folder: Path) -> None:
 
 
 def _generate_excel_from_spec(folder: Path, financial_model_md: str) -> None:
-    """Parse the ## EXCEL_SPEC block from financial model output and generate .xlsx."""
-    # Extract spec block
+    """Parse the EXCEL_SPEC block from financial model output and generate .xlsx."""
+    # Extract spec block. Heading level is tolerant: the 2026-06-06 Parking run
+    # wrote a bare "EXCEL_SPEC" line instead of "## EXCEL_SPEC" and the strict
+    # pattern silently skipped xlsx generation.
     import re
-    m = re.search(r"## EXCEL_SPEC\s*\n(.*?)(?=\n##|\Z)", financial_model_md, re.DOTALL)
+    m = re.search(r"^#{0,6}\s*EXCEL_SPEC\s*\n(.*?)(?=\n##|\Z)", financial_model_md, re.DOTALL | re.MULTILINE)
     if not m:
         return
     spec = m.group(1)
@@ -418,7 +421,8 @@ def _generate_pptx_from_spec(folder: Path, pitch_deck_md: str) -> None:
     import re
     from pptx import Presentation
     from pptx.util import Inches, Pt
-    m = re.search(r"## PPTX_SPEC\s*\n(.*?)(?=\n##|\Z)", pitch_deck_md, re.DOTALL)
+    # Heading level tolerant — same reasoning as the EXCEL_SPEC pattern.
+    m = re.search(r"^#{0,6}\s*PPTX_SPEC\s*\n(.*?)(?=\n##|\Z)", pitch_deck_md, re.DOTALL | re.MULTILINE)
     if not m:
         return
     spec = m.group(1)
@@ -449,16 +453,26 @@ def _update_master_after_full_run(idea_name: str) -> None:
     scorecard = folder / "11_Decision_Scorecard.md"
     if scorecard.exists():
         text = scorecard.read_text(encoding="utf-8")
-        # Naive extraction — find a "Recommendation:" line
+        # Naive extraction — find a "Recommendation:" line; strip md bold and
+        # keep only the verdict sentence, not the whole justification.
         import re
         m = re.search(r"Recommendation:\s*(.+)", text)
-        recommendation = m.group(1) if m else "(see scorecard)"
+        recommendation = m.group(1).replace("*", "").strip() if m else "(see scorecard)"
+        recommendation = recommendation.split(". ")[0].rstrip(".") + "."
+        section = (
+            f"## Final recommendation\n{recommendation} "
+            f"(scorecard {datetime.now():%Y-%m-%d} — see 11_Decision_Scorecard.md)\n"
+        )
         master = folder / "MASTER.md"
         if master.exists():
             content = master.read_text(encoding="utf-8")
-            content = re.sub(r"## Final recommendation\n.*?(?=\n##|\Z)",
-                            f"## Final recommendation\n{recommendation}\n",
-                            content, flags=re.DOTALL)
+            if "## Final recommendation" in content:
+                content = re.sub(r"## Final recommendation\n.*?(?=\n##|\Z)",
+                                section, content, flags=re.DOTALL)
+            else:
+                # MASTER files written outside create_idea (e.g. by Cowork)
+                # may lack the section — append instead of silently no-opping.
+                content = content.rstrip() + "\n\n" + section
             master.write_text(content, encoding="utf-8")
 
 
