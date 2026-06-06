@@ -86,6 +86,8 @@ export interface ManualTask {
   why: string
   estimated_time: string
   priority: "low" | "medium" | "high"
+  /** Pre-fill for the in-app editor when the target file doesn't exist yet. */
+  template?: string | null
 }
 
 export interface ManualTasksResponse {

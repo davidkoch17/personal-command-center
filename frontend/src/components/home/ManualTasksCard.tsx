@@ -1,20 +1,30 @@
 import { useState } from "react"
-import { FileText, Square, X } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
+import { Check, FileText, Square, X } from "lucide-react"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import type { StatusColor } from "@/components/ui/status-dot"
 import { useManualTasks, type ManualTask } from "@/hooks/useHome"
-import { openInOs } from "@/lib/open-in-os"
+import { api } from "@/lib/api"
+import { toast } from "@/lib/toast-store"
 
 const SHOW_MAX = 5
 const DISMISS_KEY = "cc.manual-tasks.dismissed"
+/** How long the "✓ updated" confirmation shows before the row refetches away. */
+const SAVED_FLASH_MS = 2000
 
 /**
  * "Awaiting your input" — bottom-of-Home checklist (Manual_Tasks_Card_Spec.md)
  * of vault files that need David's manual fill before their dashboard features
  * fully work. Auto-resolves server-side: a correctly filled file drops off the
  * list on the next fetch — no marking-done.
+ *
+ * Each row expands into an in-app editor (GET/PUT /api/system/file): fill the
+ * text right here, save (backend keeps a .bak), the row flashes "✓ updated"
+ * and vanishes once the detector sees real content. Files that don't exist yet
+ * (e.g. this week's review) seed the editor from the task's template.
  *
  * The whole section hides when all_clear. Rows can be dismissed for the
  * session (sessionStorage — that's the spec's "re-appears next session if
@@ -77,7 +87,69 @@ function sectionDot(tasks: ManualTask[]): StatusColor {
   return "success"
 }
 
+interface VaultFile {
+  exists: boolean
+  path: string
+  content: string
+}
+
 function TaskRow({ task, onDismiss }: { task: ManualTask; onDismiss: () => void }) {
+  const queryClient = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [content, setContent] = useState("")
+  const [loadingFile, setLoadingFile] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  async function openEditor() {
+    if (editing) {
+      setEditing(false)
+      return
+    }
+    setLoadingFile(true)
+    try {
+      const file = await api.get<VaultFile>(
+        `/api/system/file?path=${encodeURIComponent(task.file_path)}`,
+      )
+      // Missing file (e.g. this week's review): seed from the task's template.
+      setContent(file.exists ? file.content : (task.template ?? ""))
+      setEditing(true)
+    } catch {
+      toast.error("could not load file", task.file_path)
+    } finally {
+      setLoadingFile(false)
+    }
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      await api.put(`/api/system/file`, { path: task.file_path, content })
+      // Flash "✓ updated", then refetch — a correctly filled file drops the
+      // row server-side; a still-placeholder file keeps it (honest feedback).
+      setSaved(true)
+      setEditing(false)
+      setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: ["home"] })
+        setSaved(false)
+      }, SAVED_FLASH_MS)
+    } catch (e) {
+      toast.error("could not save file", e instanceof Error ? e.message : task.file_path)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (saved) {
+    return (
+      <div className="flex items-center gap-2 rounded-sm border border-border bg-bg-panel/40 px-3 py-2.5">
+        <Check className="h-3.5 w-3.5 shrink-0 text-success" />
+        <span className="text-sm font-medium text-success">updated</span>
+        <span className="truncate font-mono text-xs text-text-secondary">{task.file_path}</span>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-sm border border-border bg-bg-panel/40 px-3 py-2.5">
       <div className="flex items-start justify-between gap-2">
@@ -104,17 +176,36 @@ function TaskRow({ task, onDismiss }: { task: ManualTask; onDismiss: () => void 
       <div className="mt-1 flex flex-wrap items-center gap-2 pl-5">
         <button
           type="button"
-          onClick={() => void openInOs(task.file_path)}
+          onClick={() => void openEditor()}
           className="flex min-w-0 items-center gap-1 font-mono text-xs text-accent hover:underline"
           title={`${task.file_path} · ${task.section}`}
         >
           <FileText className="h-3 w-3 shrink-0" />
           <span className="truncate">{task.file_path}</span>
         </button>
-        <Button variant="ghost" size="sm" onClick={() => void openInOs(task.file_path)}>
-          open file
+        <Button variant="ghost" size="sm" disabled={loadingFile} onClick={() => void openEditor()}>
+          {editing ? "close" : loadingFile ? "loading…" : "fill in"}
         </Button>
       </div>
+      {editing && (
+        <div className="mt-2 space-y-2 pl-5">
+          <Textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            spellCheck={false}
+            className="min-h-[260px] font-mono text-xs leading-relaxed"
+          />
+          <div className="flex items-center gap-2">
+            <Button size="sm" disabled={saving || !content.trim()} onClick={() => void save()}>
+              {saving ? "saving…" : "save"}
+            </Button>
+            <Button variant="ghost" size="sm" disabled={saving} onClick={() => setEditing(false)}>
+              cancel
+            </Button>
+            <span className="font-mono text-xs text-text-label">{task.section}</span>
+          </div>
+        </div>
+      )}
       <p className="mt-1 pl-5 text-xs text-text-label">{task.why}</p>
     </div>
   )

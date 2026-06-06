@@ -11,6 +11,7 @@ correctly — no manual marking-done anywhere.
 """
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from typing import Callable, Optional
 
@@ -104,7 +105,21 @@ def _detect_weekly_review_missing() -> Optional[dict]:
         "why": "Brain/System card shows days since last review + countdown",
         "estimated_time": "15 min",
         "priority": "medium",
+        # Seeds the in-app editor, since the target file doesn't exist yet.
+        "template": _weekly_review_template(sunday),
     }
+
+
+def _weekly_review_template(sunday: date) -> Optional[str]:
+    """The README's fenced template, with the Sunday date substituted in."""
+    try:
+        text = (WEEKLY_REVIEWS_DIR / "README.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r"```markdown\r?\n(.*?)```", text, re.DOTALL)
+    if m is None:
+        return None
+    return m.group(1).replace("YYYY-MM-DD", sunday.isoformat())
 
 
 def _latest_review_date() -> Optional[date]:
