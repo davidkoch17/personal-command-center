@@ -1,20 +1,23 @@
+import { api } from "@/lib/api"
 import { toast } from "@/lib/toast-store"
 
 /**
- * "Open in OS" stand-in.
+ * Open a vault file in the host OS via `POST /api/system/open` (the backend
+ * runs on David's machine, so it can do what the browser sandbox can't).
  *
- * The backend has no endpoint to open a file in the host OS yet (a browser
- * cannot open arbitrary local paths for security reasons), so as a graceful
- * fallback we copy the absolute path to the clipboard and explain. Wire this to
- * a real `POST /api/system/open` once that endpoint lands (backend phase).
+ * If the backend can't resolve or open the path, fall back to copying it to
+ * the clipboard so the user can still get to the file by hand.
  */
 export async function openInOs(path: string): Promise<void> {
   try {
-    await navigator.clipboard.writeText(path)
-    toast.show("path copied to clipboard", {
-      detail: `${path} — os-open endpoint pending`,
-    })
+    const res = await api.post<{ ok: boolean; opened: string }>("/api/system/open", { path })
+    toast.show("opened in OS", { detail: res.opened })
   } catch {
-    toast.error("could not copy path", path)
+    try {
+      await navigator.clipboard.writeText(path)
+      toast.show("could not open — path copied to clipboard", { detail: path })
+    } catch {
+      toast.error("could not open file", path)
+    }
   }
 }
