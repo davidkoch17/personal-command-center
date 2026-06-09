@@ -1,6 +1,7 @@
 """Projects API — wraps Project_Index.md + modules.projects.workspace."""
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from pathlib import Path
 
@@ -11,9 +12,18 @@ from backend.models.schemas import (
 )
 from core import vault, markdown
 from core.config import PROJECT_INDEX_FILE
-from modules.projects import workspace
+from modules.agents import background
+from modules.projects import agents, workspace
 
 router = APIRouter()
+
+_FLOW_RE = re.compile(r"\*\*Type:\*\*\s*Flow\s*([AB])", re.IGNORECASE)
+
+
+def _parse_flow(readme: str) -> str | None:
+    """Read the ``**Type:** Flow A/B`` line a created project's README carries."""
+    m = _FLOW_RE.search(readme or "")
+    return m.group(1).upper() if m else None
 
 _STATUS_MAP = {
     "ON TRACK": "on_track",
@@ -90,8 +100,18 @@ def list_projects() -> list[ProjectCard]:
             big_milestone_date=_parse_date(big.get("date")) if big else None,
             next_step=(open_steps[0]["text"] if open_steps else proj.get("next_step") or None),
             folder=proj.get("folder", ""),
+            flow=_parse_flow(readme),
+            has_agents=agents.manifest_path(proj["id"]).exists() if _root_ok(proj["id"]) else False,
         ))
     return cards
+
+
+def _root_ok(project_id: str) -> bool:
+    try:
+        workspace.project_root(project_id)
+        return True
+    except FileNotFoundError:
+        return False
 
 
 @router.get("/{project_id}")
@@ -161,3 +181,42 @@ def create_project(req: ProjectCreateRequest) -> dict:
     """Create a new project folder (Flow A or B) with a seeded README."""
     path = workspace.create_project(req.name, req.flow, req.seed)
     return {"ok": True, "path": str(path), "folder": path.name}
+
+
+# --- Venture agent roster (Page 4, Layer B — config-driven manifests) --------
+@router.get("/{project_id}/agents")
+def venture_agents(project_id: str) -> dict:
+    """The venture's agent roster (from ``_agents.json``) with last-run health."""
+    try:
+        return agents.list_agents(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/{project_id}/agents/{agent_key}/run")
+def run_venture_agent(project_id: str, agent_key: str) -> dict:
+    """Launch a venture agent on the background runner; returns its run_id.
+
+    The agent is defined entirely in the venture's manifest — no code change is
+    needed to add or edit one. The run is labelled ``venture_<id>_<key>`` so the
+    venture's run history can find it.
+    """
+    try:
+        manifest = agents.read_manifest(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    if manifest is None:
+        raise HTTPException(status_code=404, detail=f"No agent roster for {project_id}.")
+    if not any(a.get("key") == agent_key for a in manifest.get("agents", [])):
+        raise HTTPException(status_code=404, detail=f"No agent '{agent_key}' in this venture.")
+    info = background.launch(
+        module_path="modules.projects.agents", callable_name="run_agent",
+        args=[project_id, agent_key], label=agents.run_label(project_id, agent_key),
+    )
+    return {"ok": True, "run_id": info["run_id"], "agent_key": agent_key}
+
+
+@router.get("/{project_id}/runs")
+def venture_runs(project_id: str, limit: int = 30) -> dict:
+    """Run history for this venture's agents (newest first)."""
+    return {"runs": agents.run_history(project_id, limit=limit)}

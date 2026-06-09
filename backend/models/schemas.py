@@ -53,6 +53,8 @@ class ProjectCard(BaseModel):
     big_milestone_date: Optional[date] = None
     next_step: Optional[str] = None
     folder: str = ""
+    flow: Optional[str] = None  # "A" | "B" parsed from README "**Type:** Flow X"
+    has_agents: bool = False  # venture has an _agents.json roster
 
 
 class ProjectLogEntry(BaseModel):

@@ -8,12 +8,20 @@ import { Collapsible } from "@/components/ui/collapsible"
 import { Tag } from "@/components/ui/tag"
 import { TaskCheck } from "@/components/ui/task-check"
 import { StatusDot } from "@/components/ui/status-dot"
-import { useProjectWorkspace, useToggleNextStep } from "@/hooks/useProjects"
+import {
+  useProjectWorkspace,
+  useToggleNextStep,
+  useVentureAgents,
+  useRunVentureAgent,
+  useVentureRuns,
+  useAppendProjectLog,
+} from "@/hooks/useProjects"
 import { useRunSkill } from "@/hooks/useSkills"
 import { useTasks } from "@/hooks/useTasks"
-import type { ProjectStatus } from "@/lib/types"
+import type { ProjectStatus, VentureAgent } from "@/lib/types"
+import type { StatusColor } from "@/components/ui/status-dot"
 import { projectStatusMeta } from "@/lib/status"
-import { formatBoth } from "@/lib/dates"
+import { formatBoth, formatRelative } from "@/lib/dates"
 import { openInOs } from "@/lib/open-in-os"
 import { toast } from "@/lib/toast-store"
 
@@ -65,10 +73,10 @@ export function ProjectWorkspace() {
       <div className="mx-auto max-w-[1100px] space-y-5">
         <div className="flex items-center justify-between">
           <Link
-            to="/projects"
+            to="/ventures"
             className="font-mono text-xs text-text-secondary hover:text-accent"
           >
-            ← projects
+            ← ventures
           </Link>
           {id && (
             <span className="font-mono text-xs text-text-label">id: {id}</span>
@@ -92,12 +100,15 @@ export function ProjectWorkspace() {
         {ws && id && (
           <>
             <WorkspaceHeader ws={ws} />
+            <AgentRosterSection id={id} />
             <MilestonesSection milestones={ws.milestones} />
             <NextStepsSection id={id} steps={ws.next_steps} />
             <KeyFilesSection files={ws.key_files} />
             <SubfoldersSection subfolders={ws.subfolders} />
             <DraftsSection drafts={ws.drafts} />
             <AskClaudeSection id={id} />
+            <ProjectLogSection id={id} />
+            <RunHistorySection id={id} />
             <TaggedTasksSection projectName={ws.name} projectId={id} />
             <DecisionsSection readme={ws.readme_md} />
             <Collapsible title="readme" meta={`${ws.readme_md.length} chars`}>
@@ -361,6 +372,165 @@ function DecisionsSection({ readme }: { readme: string }) {
           {decisions.map((d, i) => (
             <li key={i}>{d}</li>
           ))}
+        </ul>
+      )}
+    </Panel>
+  )
+}
+
+// --- Department: dedicated agent roster (config-driven manifest) ------------
+const HEALTH_COLOR: Record<VentureAgent["health"], StatusColor> = {
+  ok: "success",
+  due: "warning",
+  failed: "danger",
+  never: "muted",
+}
+
+function AgentRosterSection({ id }: { id: string }) {
+  const { data, isLoading } = useVentureAgents(id)
+  const run = useRunVentureAgent(id)
+  const [pending, setPending] = useState<string | null>(null)
+
+  function runAgent(key: string, label: string) {
+    setPending(key)
+    run.mutate(key, {
+      onSuccess: (r) =>
+        toast.success(`${label} started in background`, r.run_id),
+      onError: (e) => toast.error("could not start agent", String(e)),
+      onSettled: () => setPending(null),
+    })
+  }
+
+  const agents = data?.agents ?? []
+
+  return (
+    <Panel
+      title="agent roster"
+      meta={data?.has_manifest ? `${agents.length}` : "no manifest"}
+      statusDotColor="accent"
+    >
+      {isLoading ? (
+        <Skeleton className="h-24" />
+      ) : !data?.has_manifest ? (
+        <p className="text-sm text-text-label">
+          this venture has no <span className="font-mono">_agents.json</span>{" "}
+          roster yet. add agents by dropping a manifest in the venture folder —
+          no code change needed (config-driven model).
+        </p>
+      ) : agents.length === 0 ? (
+        <p className="text-sm text-text-label">manifest present, but no agents defined.</p>
+      ) : (
+        <ul className="space-y-2.5">
+          {agents.map((a) => (
+            <li
+              key={a.key}
+              className="flex items-start justify-between gap-3 border-b border-border pb-2.5 last:border-0 last:pb-0"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <StatusDot color={HEALTH_COLOR[a.health]} />
+                  <span className="text-sm font-medium text-text">{a.label}</span>
+                </div>
+                <p className="mt-0.5 text-sm text-text-secondary">{a.description}</p>
+                <p className="mt-0.5 font-mono text-xs text-text-label">
+                  {a.last_run_at
+                    ? `last run ${formatRelative(a.last_run_at)} · ${a.last_run_status}`
+                    : "never run"}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                disabled={pending === a.key}
+                onClick={() => runAgent(a.key, a.label)}
+              >
+                {pending === a.key ? "starting…" : "run"}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  )
+}
+
+// --- Department: Project_Log append (WIRE D3) -------------------------------
+function ProjectLogSection({ id }: { id: string }) {
+  const append = useAppendProjectLog(id)
+  const [note, setNote] = useState("")
+
+  function submit() {
+    const n = note.trim()
+    if (!n) return
+    append.mutate(n, {
+      onSuccess: () => {
+        setNote("")
+        toast.success("logged to Project_Log.md")
+      },
+      onError: (e) => toast.error("could not append log", String(e)),
+    })
+  }
+
+  return (
+    <Panel title="project log" statusDotColor="accent">
+      <Textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="append a timestamped entry to this venture's Project_Log.md…"
+        rows={3}
+      />
+      <div className="mt-2 flex justify-end">
+        <Button onClick={submit} disabled={!note.trim() || append.isPending}>
+          append entry
+        </Button>
+      </div>
+    </Panel>
+  )
+}
+
+// --- Department: agent run history ------------------------------------------
+function runStatusColor(status?: string | null): StatusColor {
+  const s = (status ?? "").toLowerCase()
+  if (s === "completed") return "success"
+  if (s === "failed" || s === "cancelled") return "danger"
+  if (s === "running") return "accent"
+  return "muted"
+}
+
+function RunHistorySection({ id }: { id: string }) {
+  const { data, isLoading } = useVentureRuns(id)
+  const runs = data?.runs ?? []
+  return (
+    <Panel title="agent run history" meta={`${runs.length}`} statusDotColor="muted">
+      {isLoading ? (
+        <Skeleton className="h-16" />
+      ) : runs.length === 0 ? (
+        <p className="text-sm text-text-label">no agent runs yet for this venture.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {runs.map((r) => {
+            const isPath = (r.result ?? "").includes("_agent_runs")
+            return (
+              <li key={r.run_id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center gap-2 min-w-0">
+                  <StatusDot color={runStatusColor(r.status)} />
+                  <span className="truncate font-mono text-xs text-text">{r.agent_key}</span>
+                  <span className="shrink-0 text-text-label">{r.status}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  {r.at && (
+                    <span className="font-mono text-xs text-text-label tabular-nums">
+                      {formatRelative(r.at)}
+                    </span>
+                  )}
+                  {isPath && r.result && (
+                    <Button variant="ghost" size="sm" onClick={() => openInOs(r.result!)}>
+                      open output
+                    </Button>
+                  )}
+                </span>
+              </li>
+            )
+          })}
         </ul>
       )}
     </Panel>

@@ -15,6 +15,7 @@ from backend.models.schemas import (
 from core import vault
 from modules.agents.skills.idea_validator import runner as iv
 from modules.agents import background
+from modules.projects import agents as venture_agents, workspace
 
 router = APIRouter()
 
@@ -164,6 +165,29 @@ def decide(name: str, req: IdeaDecisionRequest) -> dict:
     master = folder / "MASTER.md"
     note = f"\n\n## Decision\n{req.decision} — {datetime.now():%Y-%m-%d %H:%M}\n\n{req.reason.strip()}\n"
     existing = master.read_text(encoding="utf-8") if master.exists() else ""
+
+    if req.decision == "Pursue":
+        # Flow A: spin up a real venture folder with a starter agent roster.
+        # The idea's validated artifacts stay in 98_Ideen and are referenced
+        # from the new venture's README seed.
+        seed = (
+            f"Pursued from idea `{name}` on {datetime.now():%Y-%m-%d}. "
+            f"Validation artifacts: `1_Projects/98_Ideen/{folder.name}/` "
+            f"(brief, market study, business model, financial model, scorecard, MASTER)."
+        )
+        venture = workspace.create_project(name, "Flow A", seed=seed)
+        venture_id = venture.name.split("_", 1)[0]
+        manifest_path = venture_agents.write_starter_manifest(venture_id, name)
+        vault.write_md(
+            master,
+            existing + note + f"\nSpun up Flow A venture: `1_Projects/{venture.name}/` "
+            f"(starter agent roster at `{manifest_path.name}`).\n",
+        )
+        return {
+            "ok": True, "decision": req.decision,
+            "venture_folder": venture.name, "venture_id": venture_id,
+        }
+
     vault.write_md(master, existing + note)
     return {"ok": True, "decision": req.decision}
 

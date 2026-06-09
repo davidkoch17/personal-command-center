@@ -7,6 +7,7 @@ import { AppShell } from "@/components/layout/app-shell"
 
 import { Home } from "@/pages/home"
 import { Plan } from "@/pages/plan"
+import { Ventures } from "@/pages/ventures"
 import { Projects } from "@/pages/projects"
 import { Ideas } from "@/pages/ideas"
 import { Inbox } from "@/pages/inbox"
@@ -70,6 +71,10 @@ const router = createBrowserRouter([
       // v2 Page 2 — Plan merges Planner + Tasks + Calendar + Daily Priorities.
       // The standalone Tasks + Calendar routes are removed.
       { path: "/plan", element: <Plan /> },
+      // v2 Page 4 — Ventures merges Projects + Ideas into one boardroom +
+      // per-venture "department" workspaces. The old standalone routes stay
+      // reachable by URL during the v2 transition.
+      { path: "/ventures", element: <Ventures /> },
       { path: "/projects", element: <Projects /> },
       { path: "/ideas", element: <Ideas /> },
       { path: "/inbox", element: <Inbox /> },

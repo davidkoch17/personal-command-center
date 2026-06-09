@@ -2,8 +2,7 @@ import { NavLink } from "react-router-dom"
 import {
   Home,
   CalendarRange,
-  FolderKanban,
-  Lightbulb,
+  Rocket,
   Inbox,
   Wallet,
   GraduationCap,
@@ -32,8 +31,8 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/", label: "home", icon: Home },
       // v2: Plan absorbs planner + tasks + calendar + daily priorities.
       { to: "/plan", label: "plan", icon: CalendarRange },
-      { to: "/projects", label: "projects", icon: FolderKanban },
-      { to: "/ideas", label: "ideas", icon: Lightbulb },
+      // v2: Ventures absorbs projects + ideas (company of agents).
+      { to: "/ventures", label: "ventures", icon: Rocket },
       { to: "/inbox", label: "inbox", icon: Inbox },
     ],
   },

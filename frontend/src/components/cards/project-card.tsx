@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight, Bot } from "lucide-react"
 import type { ProjectCard as ProjectCardData } from "@/lib/types"
 import { StatusDot } from "@/components/ui/status-dot"
 import { projectStatusMeta } from "@/lib/status"
@@ -68,8 +68,19 @@ export function ProjectCard({ project, className }: ProjectCardProps) {
         </div>
       </div>
 
-      <div className="mt-auto flex items-center gap-1.5 pt-1">
+      <div className="mt-auto flex items-center gap-2 pt-1">
         <span className="label">{label}</span>
+        {project.flow && (
+          <span className="font-mono text-[10px] uppercase text-text-label">
+            flow {project.flow.toLowerCase()}
+          </span>
+        )}
+        {project.has_agents && (
+          <span className="ml-auto flex items-center gap-1 font-mono text-[10px] uppercase text-accent">
+            <Bot className="h-3 w-3" />
+            agents
+          </span>
+        )}
       </div>
     </a>
   )

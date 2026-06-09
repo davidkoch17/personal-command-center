@@ -48,10 +48,39 @@ export interface ProjectCard {
   big_milestone_date?: string | null // ISO date
   next_step?: string | null
   folder: string
+  flow?: string | null // "A" | "B"
+  has_agents?: boolean
 }
 
 export interface ProjectLogEntry {
   note: string
+}
+
+// --- Venture agents (config-driven manifests, Page 4 Layer B) ---------------
+export interface VentureAgent {
+  key: string
+  label: string
+  description: string
+  cadence_days?: number | null
+  health: "ok" | "due" | "failed" | "never"
+  last_run_at?: string | null
+  last_run_id?: string | null
+  last_run_status?: string | null
+}
+
+export interface VentureAgents {
+  venture: string | null
+  has_manifest: boolean
+  agents: VentureAgent[]
+}
+
+export interface VentureRun {
+  run_id: string
+  agent_key: string
+  status?: string | null
+  at?: string | null
+  result?: string | null
+  error?: string | null
 }
 
 export interface ProjectNextStepToggleRequest {
