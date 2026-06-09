@@ -69,7 +69,6 @@ BUCKET_DRIFT_OK = 0.02   # ±2 pp
 BUCKET_DRIFT_WARN = 0.05  # 2–5 pp
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-TRADINGVIEW_API_KEY = os.getenv("TRADINGVIEW_API_KEY", "")
 
 # --- Investing / vault research paths ---------------------------------------
 INVESTING_PATH = VAULT_PATH / "4_Areas" / "Investing"

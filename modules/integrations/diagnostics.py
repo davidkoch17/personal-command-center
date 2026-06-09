@@ -41,16 +41,6 @@ def check_kraken() -> dict:
     return _generic_check("Kraken", "KRAKEN_API_KEY", "modules.integrations.kraken", "balance")
 
 
-def check_whoop() -> dict:
-    return _generic_check("Whoop", "WHOOP_REFRESH_TOKEN", "modules.integrations.whoop", "latest_recovery")
-
-
-def check_youtube() -> dict:
-    if not os.getenv("YOUTUBE_API_KEY"):
-        return {"name": "YouTube", "status": "not_configured"}
-    return {"name": "YouTube", "status": "ok", "detail": "Key present"}
-
-
 def _generic_check(name: str, env_var: str, module: str, func: str) -> dict:
     if not os.getenv(env_var):
         return {"name": name, "status": "not_configured"}
@@ -68,6 +58,4 @@ def run_all() -> list[dict]:
         check_github(),
         check_alpha_vantage(),
         check_kraken(),
-        check_whoop(),
-        check_youtube(),
     ]

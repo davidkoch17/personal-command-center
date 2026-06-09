@@ -20,19 +20,6 @@ export interface HardDate {
   raw: string
 }
 
-// --- Priorities -------------------------------------------------------------
-export interface PriorityItem {
-  rank: number
-  task: string
-  deadline?: string | null
-  rationale?: string
-}
-
-export interface PrioritySuggestion {
-  recommendation: string
-  ordered: PriorityItem[]
-}
-
 export interface TaskToggleRequest {
   section: string
   line_index: number

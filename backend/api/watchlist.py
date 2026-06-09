@@ -3,8 +3,7 @@
 GET returns the full tier + theme-section (A–N) structure parsed from
 ``Watchlist.md`` — the same file the Market Researcher agent reads — so the
 dashboard and the agent can never drift. POST appends a bullet to that markdown
-(default the Ad-hoc section). The legacy ``data/watchlist.json`` store is
-deprecated; ``POST /migrate`` lifts any old entries into the markdown once.
+(default the Ad-hoc section).
 """
 from __future__ import annotations
 
@@ -115,12 +114,6 @@ def add_ticker(req: WatchlistAddRequest) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return result
-
-
-@router.post("/migrate")
-def migrate() -> dict:
-    """One-time: import any unique ``data/watchlist.json`` names into Watchlist.md."""
-    return watchlist.migrate_json_to_md()
 
 
 @router.get("/{ticker}")

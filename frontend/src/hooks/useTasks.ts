@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import type {
   HardDate,
-  PrioritySuggestion,
   Task,
   TaskAddRequest,
   TaskToggleRequest,
@@ -50,16 +49,5 @@ export function useHardDates() {
     queryKey: ["hard-dates"],
     queryFn: () => api.get<HardDate[]>("/api/tasks/hard-dates"),
     staleTime: 5 * 60 * 1000,
-  })
-}
-
-/** Priority Suggestor — ranked order for deadlines clustering in `days` days. */
-export function usePrioritySuggestion(days = 14) {
-  return useQuery({
-    queryKey: ["priorities", days],
-    queryFn: () =>
-      api.get<PrioritySuggestion>(`/api/priorities/suggest?days=${days}`),
-    staleTime: 60 * 60 * 1000, // refresh hourly; recompute button forces it
-    refetchOnWindowFocus: false,
   })
 }

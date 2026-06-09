@@ -14,8 +14,7 @@ import { JarvisDock } from "@/components/jarvis/jarvis-dock"
  * overlay (Phase 13.6: the ball IS the entire interaction). Workspace deep-dive
  * routes render outside this shell.
  *
- * Phase 13.5 retired the bottom-center voice bar in favour of the Jarvis ball;
- * ``voice-bar.tsx`` is kept for reference but no longer mounted.
+ * Phase 13.5 retired the bottom-center voice bar in favour of the Jarvis ball.
  */
 export function AppShell() {
   const [navOpen, setNavOpen] = useState(false)

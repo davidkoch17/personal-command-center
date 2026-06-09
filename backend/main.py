@@ -29,7 +29,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.api import (
     tasks, projects, ideas, inbox, portfolio, money,
     watchlist, brand, career, integrations, runs,
-    search, skills, reading, system, voice, priorities, daily,
+    search, skills, reading, system, voice, daily,
     planner, chat, home,
 )
 from backend.api import finance
@@ -73,7 +73,6 @@ app.add_middleware(
 
 # Mount routers.
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
-app.include_router(priorities.router, prefix="/api/priorities", tags=["priorities"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(ideas.router, prefix="/api/ideas", tags=["ideas"])
 app.include_router(inbox.router, prefix="/api/inbox", tags=["inbox"])

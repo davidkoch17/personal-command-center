@@ -33,11 +33,10 @@ Double-click `smart_launch.bat` — re-runs all pre-flight checks, restarts back
 - `frontend/` — React (Vite + TS + Tailwind), Cockpit design system
 - `modules/` — Python skills, agents, integrations (unchanged from Streamlit days)
 - `core/` — shared utilities, vault helpers
-- `_legacy/` — archived Streamlit dashboard
 
 ## Stack
 
-Python 3.12 + FastAPI · React 18 + TypeScript + Vite · Tailwind CSS · TanStack Query · Claude Code (via subprocess) · Whisper local STT · Piper local TTS · yfinance · Alpha Vantage · Microsoft Graph (via iCal feed) · Whoop · Kraken · GitHub · YouTube
+Python 3.12 + FastAPI · React 18 + TypeScript + Vite · Tailwind CSS · TanStack Query · Claude Code (via subprocess) · Whisper local STT · Piper local TTS · yfinance · Alpha Vantage · Microsoft Graph (via iCal feed) · Kraken · GitHub
 
 ## Development
 
@@ -141,7 +140,6 @@ git push -u origin main
 - `modules/` — domain logic (tasks, projects, investing, habits, agents, integrations)
 - `skills/` — runnable scripts
 - `data/` — local cache (gitignored)
-- `_legacy/` — archived Streamlit dashboard (Phases 1-10)
 
 ## Build phases
 - Phase 1: empty shell with placeholder data
@@ -152,7 +150,7 @@ git push -u origin main
 - Phase 6: external integrations
 - Phase 7: operational polish (theme, search, diagnostics, caching, shortcuts, mobile access)
 - Phases 11-13: React + FastAPI rebuild (Cockpit UI, background runs, Jarvis voice)
-- Phase 14: switch over — React Cockpit becomes primary, Streamlit archived to `_legacy/`
+- Phase 14: switch over — React Cockpit becomes primary, Streamlit retired
 
 ## Agents & Skills (Phase 5)
 
@@ -185,7 +183,7 @@ double-clicking `run_market_researcher.bat`.
 
 ## Integrations (Phase 6)
 
-Eight external integrations. **Every one degrades gracefully** — if its
+Six external integrations. **Every one degrades gracefully** — if its
 credentials are missing it shows "Not configured — add KEY to .env" instead of
 crashing. Copy `.env.example` to `.env` and fill in the keys you want, then
 restart the backend. Keys can be added progressively.
@@ -193,12 +191,10 @@ restart the backend. Keys can be added progressively.
 | Integration | Keys in `.env` | Where it shows |
 |---|---|---|
 | Calendar (iCal) | `OUTLOOK_ICAL_URL` | Home + Calendar page |
-| Whoop | `WHOOP_CLIENT_ID/SECRET/REFRESH_TOKEN` | Home + Health page |
 | TradingView | _(none)_ | Portfolio + Watchlist charts |
 | GitHub | `GITHUB_PAT`, `GITHUB_USERNAME` | Settings + Home |
 | Kraken | `KRAKEN_API_KEY/SECRET` | Portfolio → Money tab |
 | Alpha Vantage | `ALPHA_VANTAGE_KEY` | Market Researcher news |
-| YouTube | `YOUTUBE_API_KEY` | Brand → Inspirations |
 | Travel | _(none — vault file)_ | Home + Settings |
 
 ### Calendar (iCal) setup
@@ -206,12 +202,6 @@ restart the backend. Keys can be added progressively.
 2. Settings → View all Outlook settings → Calendar → Shared calendars.
 3. Under "Publish a calendar": select calendar, permission "Can view all details", click Publish.
 4. Copy the **ICS** link (not the HTML one) into `.env` as `OUTLOOK_ICAL_URL`.
-
-### Whoop setup
-1. developer.whoop.com → sign in → Register an app ("Personal Command Center").
-2. Scopes: `read:recovery read:sleep read:profile read:cycles read:workout`. Redirect URI: `http://localhost:8501`.
-3. Copy Client ID + Secret into `.env`.
-4. Run once: `python -m modules.integrations.whoop_auth` — authorize in the browser, paste the printed refresh token into `.env` as `WHOOP_REFRESH_TOKEN`.
 
 ### Kraken setup
 account.kraken.com → Security → API → New key with **read-only** permissions
