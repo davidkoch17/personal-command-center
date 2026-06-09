@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import type { RunStatus } from "@/lib/types"
 
@@ -26,5 +26,27 @@ export function useRunStatus(runId: string | undefined) {
     queryKey: ["run", runId],
     queryFn: () => api.get<RunStatus>(`/api/runs/${runId}`),
     enabled: !!runId,
+  })
+}
+
+/** Kill a run's detached subprocess (POST /api/runs/{id}/cancel). */
+export function useCancelRun() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (runId: string) =>
+      api.post<{ ok: boolean; cancelled?: boolean; killed_process?: boolean; detail?: string }>(
+        `/api/runs/${runId}/cancel`,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["runs"] }),
+  })
+}
+
+/** Relaunch a finished run with its original args (POST /api/runs/{id}/restart). */
+export function useRestartRun() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (runId: string) =>
+      api.post<{ ok: boolean; run_id?: string; detail?: string }>(`/api/runs/${runId}/restart`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["runs"] }),
   })
 }

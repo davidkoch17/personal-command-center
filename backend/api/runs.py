@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from modules.agents import background
 from modules.agents.background import BG_LOG_DIR
@@ -24,6 +24,21 @@ def run_status(run_id: str) -> dict:
     status = background.get_status(run_id)
     status.setdefault("run_id", run_id)
     return status
+
+
+@router.post("/{run_id}/cancel")
+def cancel_run(run_id: str) -> dict:
+    """Kill a run's detached subprocess and mark it cancelled."""
+    return background.cancel(run_id)
+
+
+@router.post("/{run_id}/restart")
+def restart_run(run_id: str) -> dict:
+    """Relaunch a run with its original module/callable/args (new run_id)."""
+    result = background.restart(run_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("detail", "cannot restart"))
+    return result
 
 
 @router.websocket("/{run_id}/stream")

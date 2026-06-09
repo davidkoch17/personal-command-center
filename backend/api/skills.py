@@ -10,9 +10,10 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from backend.models.schemas import SkillRunRequest
-from modules.agents import background
+from modules.agents import background, registry
 from modules.agents.background import BG_LOG_DIR
 
 router = APIRouter()
@@ -231,11 +232,43 @@ def list_skills() -> dict:
     return {"skills": out}
 
 
+# --- Skills & Agents Registry (System page, N2) ------------------------------
+# The full admin list of every skill + agent, with health + soft-disable state.
+# (``/status`` above stays the curated Home quick-run directory.)
+@router.get("/registry")
+def registry_list() -> dict:
+    """All skills + agents with domain, description, last-run health, disabled flag."""
+    return {"entries": registry.list_entries()}
+
+
+class DisableRequest(BaseModel):
+    reason: str | None = None
+
+
+@router.post("/registry/{key}/disable")
+def registry_disable(key: str, req: DisableRequest | None = None) -> dict:
+    """Soft-disable (archive) a registry entry — reversible, nothing is lost."""
+    try:
+        record = registry.disable(key, reason=(req.reason if req else None))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown registry entry: {key}") from exc
+    return {"ok": True, "key": key, "disabled": True, **record}
+
+
+@router.post("/registry/{key}/enable")
+def registry_enable(key: str) -> dict:
+    """Restore a previously soft-disabled registry entry."""
+    registry.enable(key)
+    return {"ok": True, "key": key, "disabled": False}
+
+
 @router.post("/{name}/run")
 def run_skill(name: str, req: SkillRunRequest | None = None) -> dict:
     """Launch a registered skill in the background and return its run_id."""
     if name not in SKILL_REGISTRY:
         raise HTTPException(status_code=404, detail=f"Unknown skill: {name}")
+    if name in registry.disabled_skill_names():
+        raise HTTPException(status_code=403, detail=f"Skill is disabled: {name}")
     module_path, callable_name, params = SKILL_REGISTRY[name]
     supplied = (req.args if req else {}) or {}
 

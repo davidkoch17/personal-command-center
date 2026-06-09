@@ -6,21 +6,25 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: "#0A0E13",
-        "bg-panel": "#11161D",
-        "bg-panel-hover": "#161C25",
-        border: "#1F262E",
-        "border-focus": "#2563EB",
-        accent: "#2563EB",
-        "accent-dim": "#1D4ED8",
-        "accent-soft": "#1E3A8A",
-        success: "#10B981",
-        danger: "#EF4444",
-        warning: "#F59E0B",
-        text: "#E4E6EB",
-        "text-secondary": "#8A929E",
-        "text-label": "#5C6470",
-        "text-disabled": "#3F4651",
+        // Theme tokens resolve to CSS variables (space-separated RGB triplets)
+        // defined in globals.css, so the dark/light toggle swaps the whole
+        // palette by toggling a class on <html>. The `<alpha-value>` form keeps
+        // Tailwind opacity modifiers working (e.g. `bg-accent-soft/20`).
+        bg: "rgb(var(--color-bg) / <alpha-value>)",
+        "bg-panel": "rgb(var(--color-bg-panel) / <alpha-value>)",
+        "bg-panel-hover": "rgb(var(--color-bg-panel-hover) / <alpha-value>)",
+        border: "rgb(var(--color-border) / <alpha-value>)",
+        "border-focus": "rgb(var(--color-border-focus) / <alpha-value>)",
+        accent: "rgb(var(--color-accent) / <alpha-value>)",
+        "accent-dim": "rgb(var(--color-accent-dim) / <alpha-value>)",
+        "accent-soft": "rgb(var(--color-accent-soft) / <alpha-value>)",
+        success: "rgb(var(--color-success) / <alpha-value>)",
+        danger: "rgb(var(--color-danger) / <alpha-value>)",
+        warning: "rgb(var(--color-warning) / <alpha-value>)",
+        text: "rgb(var(--color-text) / <alpha-value>)",
+        "text-secondary": "rgb(var(--color-text-secondary) / <alpha-value>)",
+        "text-label": "rgb(var(--color-text-label) / <alpha-value>)",
+        "text-disabled": "rgb(var(--color-text-disabled) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

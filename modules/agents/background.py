@@ -79,7 +79,84 @@ except Exception as e:
         "status_file": str(status_file),
         "launched_at": datetime.now().isoformat(),
     }
+    # Persist a sidecar the bootstrap never touches: it holds the live pid (for
+    # cancel) and the full launch spec (for restart). The status.json is owned by
+    # the child process and would clobber any pid we wrote there.
+    meta = {**info, "module_path": module_path, "callable_name": callable_name, "args": args}
+    (BG_LOG_DIR / f"{run_id}.meta.json").write_text(
+        json.dumps(meta, indent=2, default=str), encoding="utf-8"
+    )
     return info
+
+
+def get_meta(run_id: str) -> dict | None:
+    """Launch sidecar (pid + module/callable/args) for cancel/restart, if present."""
+    meta_file = BG_LOG_DIR / f"{run_id}.meta.json"
+    if not meta_file.exists():
+        return None
+    try:
+        return json.loads(meta_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def cancel(run_id: str) -> dict:
+    """Kill a run's detached process (and any children, e.g. the claude CLI).
+
+    Returns a small result dict. Marks the run ``cancelled`` in its status file
+    so the UI and last-run health reflect it; the child process is gone, so it
+    won't write a competing status afterwards.
+    """
+    meta = get_meta(run_id)
+    status_file = BG_LOG_DIR / f"{run_id}.status.json"
+    if meta is None and not status_file.exists():
+        return {"ok": False, "detail": "unknown run"}
+    status = get_status(run_id)
+    if status.get("status") not in {"running", "unknown", None} and meta is None:
+        return {"ok": False, "detail": "run is not active", "status": status.get("status")}
+
+    killed = False
+    pid = meta.get("pid") if meta else None
+    if pid and is_alive(pid):
+        try:
+            proc = psutil.Process(pid)
+            for child in proc.children(recursive=True):
+                _safe_kill(child)
+            _safe_kill(proc)
+            killed = True
+        except psutil.NoSuchProcess:
+            pass
+
+    status_file.write_text(
+        json.dumps({
+            "status": "cancelled",
+            "cancelled_at": datetime.now().isoformat(),
+            "started_at": status.get("started_at"),
+        }, indent=2, default=str),
+        encoding="utf-8",
+    )
+    return {"ok": True, "cancelled": True, "killed_process": killed, "run_id": run_id}
+
+
+def restart(run_id: str) -> dict:
+    """Relaunch a finished run with its original module/callable/args."""
+    meta = get_meta(run_id)
+    if meta is None:
+        return {"ok": False, "detail": "no launch metadata — cannot restart this run"}
+    info = launch(
+        module_path=meta["module_path"],
+        callable_name=meta["callable_name"],
+        args=meta.get("args", []),
+        label=meta.get("label", run_id),
+    )
+    return {"ok": True, "run_id": info["run_id"], "restarted_from": run_id}
+
+
+def _safe_kill(proc: "psutil.Process") -> None:
+    try:
+        proc.kill()
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        pass
 
 
 def get_status(run_id: str) -> dict:

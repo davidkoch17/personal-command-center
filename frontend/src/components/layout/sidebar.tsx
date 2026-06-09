@@ -13,8 +13,7 @@ import {
   GraduationCap,
   Video,
   BookOpen,
-  Activity,
-  Settings,
+  Cog,
   Calendar,
   type LucideIcon,
 } from "lucide-react"
@@ -63,8 +62,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "system",
     links: [
-      { to: "/background-runs", label: "background runs", icon: Activity },
-      { to: "/settings", label: "settings", icon: Settings },
+      // v2: Background Runs + Settings + diagnostics merged into one System page.
+      { to: "/system", label: "system", icon: Cog },
       { to: "/calendar", label: "calendar", icon: Calendar },
     ],
   },

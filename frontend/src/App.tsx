@@ -20,6 +20,7 @@ import { Career } from "@/pages/career"
 import { Reading } from "@/pages/reading"
 import { BackgroundRuns } from "@/pages/background-runs"
 import { Settings } from "@/pages/settings"
+import { System } from "@/pages/system"
 import { Calendar } from "@/pages/calendar"
 import { DebugJarvis } from "@/pages/debug-jarvis"
 import { Chat } from "@/pages/chat"
@@ -79,6 +80,10 @@ const router = createBrowserRouter([
       { path: "/brand", element: <Brand /> },
       { path: "/career", element: <Career /> },
       { path: "/reading", element: <Reading /> },
+      // v2 Page 7 — System merges Background Runs + Settings + diagnostics +
+      // the new Skills & Agents Registry. The old standalone routes are kept
+      // reachable by URL during the v2 transition.
+      { path: "/system", element: <System /> },
       { path: "/background-runs", element: <BackgroundRuns /> },
       { path: "/settings", element: <Settings /> },
       { path: "/calendar", element: <Calendar /> },

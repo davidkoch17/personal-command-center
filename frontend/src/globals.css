@@ -4,6 +4,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --- Theme palettes ------------------------------------------------------- */
+/* Tokens are space-separated RGB triplets consumed via rgb(var(--x) / alpha) in
+   tailwind.config.ts. Dark is the default (`:root` + `.dark`); `.light` swaps
+   the whole palette. The toggle on the System page flips the class on <html>. */
+:root,
+.dark {
+  --color-bg: 10 14 19;
+  --color-bg-panel: 17 22 29;
+  --color-bg-panel-hover: 22 28 37;
+  --color-border: 31 38 46;
+  --color-border-focus: 37 99 235;
+  --color-accent: 37 99 235;
+  --color-accent-dim: 29 78 216;
+  --color-accent-soft: 30 58 138;
+  --color-success: 16 185 129;
+  --color-danger: 239 68 68;
+  --color-warning: 245 158 11;
+  --color-text: 228 230 235;
+  --color-text-secondary: 138 146 158;
+  --color-text-label: 92 100 112;
+  --color-text-disabled: 63 70 81;
+  --scrollbar-track: 10 14 19;
+  --scrollbar-thumb: 31 38 46;
+  --scrollbar-thumb-hover: 47 54 64;
+  color-scheme: dark;
+}
+
+.light {
+  --color-bg: 247 248 250;
+  --color-bg-panel: 255 255 255;
+  --color-bg-panel-hover: 240 242 245;
+  --color-border: 226 229 234;
+  --color-border-focus: 37 99 235;
+  --color-accent: 37 99 235;
+  --color-accent-dim: 29 78 216;
+  --color-accent-soft: 219 228 255;
+  --color-success: 5 150 105;
+  --color-danger: 220 38 38;
+  --color-warning: 217 119 6;
+  --color-text: 26 29 35;
+  --color-text-secondary: 92 100 112;
+  --color-text-label: 138 146 158;
+  --color-text-disabled: 184 189 199;
+  --scrollbar-track: 240 242 245;
+  --scrollbar-thumb: 209 213 219;
+  --scrollbar-thumb-hover: 156 163 175;
+  color-scheme: light;
+}
+
 @layer base {
   body {
     @apply bg-bg text-text font-sans;
@@ -59,20 +108,20 @@
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar — follows the active theme palette. */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0A0E13;
+  background: rgb(var(--scrollbar-track));
 }
 ::-webkit-scrollbar-thumb {
-  background: #1F262E;
+  background: rgb(var(--scrollbar-thumb));
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2F3640;
+  background: rgb(var(--scrollbar-thumb-hover));
 }
 
 /* Respect reduced-motion: disable non-essential animation. */
