@@ -36,6 +36,38 @@ export function useCareerWorkspace() {
   })
 }
 
+export interface CareerActivityItem {
+  name: string
+  rel_path: string
+  folder: string
+  modified: string
+}
+
+export function useCareerActivity(limit = 8) {
+  return useQuery({
+    queryKey: ["career", "activity", limit],
+    queryFn: () =>
+      api.get<{ items: CareerActivityItem[] }>(`/api/career/activity?limit=${limit}`),
+  })
+}
+
+export interface CareerModelStatus {
+  status: "ready" | "not_started"
+  found: boolean
+  path: string | null
+  name: string | null
+  last_modified: string | null
+  expected_path: string
+  note: string
+}
+
+export function useCareerModel() {
+  return useQuery({
+    queryKey: ["career", "model"],
+    queryFn: () => api.get<CareerModelStatus>("/api/career/model"),
+  })
+}
+
 export function useToggleChecklist() {
   const qc = useQueryClient()
   return useMutation({

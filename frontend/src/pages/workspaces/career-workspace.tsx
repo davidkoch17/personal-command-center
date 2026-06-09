@@ -18,10 +18,12 @@ import {
 } from "@/components/ui/dialog"
 import {
   useCareerWorkspace,
+  useCareerModel,
   useToggleChecklist,
   useRunCareerSkill,
   type ChecklistEntry,
 } from "@/hooks/useCareer"
+import { formatBoth } from "@/lib/dates"
 import { useRunSkill } from "@/hooks/useSkills"
 import { useInfoBarrierActive } from "@/hooks/useSystem"
 import { openInOs } from "@/lib/open-in-os"
@@ -115,11 +117,7 @@ export function CareerWorkspace() {
             <SkillsPanel />
 
             {/* 4. 3-statement model */}
-            <Panel title="3-statement model status" statusDotColor="muted">
-              <p className="text-sm text-text-label">
-                model-status source pending. use “model checker” above to review an excel summary.
-              </p>
-            </Panel>
+            <ModelStatusPanel />
 
             {/* 5. First 90 days (editable, local) */}
             <EditablePanel
@@ -279,6 +277,41 @@ function SkillsPanel() {
           )
         }
       />
+    </Panel>
+  )
+}
+
+// 3-statement model status — detects the Cowork-built workbook in 05_Current_Job.
+function ModelStatusPanel() {
+  const model = useCareerModel()
+  const ready = model.data?.status === "ready"
+  return (
+    <Panel
+      title="3-statement model status"
+      statusDotColor={model.isLoading ? "muted" : ready ? "success" : "warning"}
+    >
+      {model.isLoading ? (
+        <Skeleton className="h-10" />
+      ) : ready ? (
+        <div className="space-y-1">
+          <Button variant="secondary" size="sm" onClick={() => model.data?.path && openInOs(model.data.path)}>
+            open {model.data?.name} ↗
+          </Button>
+          <p className="text-xs text-text-label">
+            last modified {formatBoth(model.data!.last_modified!)} · {model.data?.path}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <p className="text-sm text-text-label">
+            not started — build in Cowork, then save the workbook to{" "}
+            <span className="font-mono">{model.data?.expected_path}</span> to track it here.
+          </p>
+          <p className="text-xs text-text-label">
+            use “model checker” above to review a model summary in the meantime.
+          </p>
+        </div>
+      )}
     </Panel>
   )
 }

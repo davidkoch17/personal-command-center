@@ -63,6 +63,19 @@ def workspace() -> dict:
     }
 
 
+@router.get("/activity")
+def activity(limit: int = 8) -> dict:
+    """Recent file activity in ``3_Career/`` (newest first)."""
+    limit = max(1, min(limit, 30))
+    return {"items": tracker.recent_activity(limit=limit)}
+
+
+@router.get("/model")
+def model() -> dict:
+    """Status of the Evercore 3-statement model (Cowork build → Excel file)."""
+    return tracker.model_status()
+
+
 @router.post("/checklist/toggle")
 def toggle_checklist(req: CareerChecklistToggleRequest) -> dict:
     """Toggle one onboarding or technicals checklist item by index."""
