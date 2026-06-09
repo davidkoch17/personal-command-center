@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from core.config import get_logger
 from modules.finance import positions as pos
 from modules.finance import risk
-from modules.finance.price_history import get_returns, latest_price
+from modules.finance.price_history import get_returns, latest_price_eur
 from modules.finance.positions import Position, Transaction
 
 logger = get_logger(__name__)
@@ -78,7 +78,10 @@ def get_holdings() -> dict:
         for ticker, qty in holdings.items():
             meta = pos.get_position(ticker)
             avg_cost, total_basis = pos.cost_basis(ticker)
-            price = latest_price(ticker)
+            # latest_price_eur converts the native (USD) quote to EUR so that
+            # market value and P&L line up with the EUR cost basis.
+            lp = latest_price_eur(ticker)
+            price = lp.eur_price if lp else None
             market_value = (price or 0.0) * qty
             market_values[ticker] = market_value
             rets = get_returns(ticker)
@@ -92,6 +95,11 @@ def get_holdings() -> dict:
                 "avg_cost": avg_cost,
                 "total_basis": total_basis,
                 "current_price": round(price, 4) if price is not None else None,
+                "price_currency": "EUR",
+                "native_currency": lp.native_currency if lp else None,
+                "native_price": round(lp.native_price, 4) if lp else None,
+                "fx_rate": round(lp.fx_rate, 6) if lp else None,
+                "fx_stale": lp.fx_stale if lp else None,
                 "market_value": round(market_value, 2),
                 "unrealized_pnl": round(market_value - total_basis, 2) if price is not None else None,
                 "unrealized_pnl_pct": round((market_value - total_basis) / total_basis, 4)
