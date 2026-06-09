@@ -6,8 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppShell } from "@/components/layout/app-shell"
 
 import { Home } from "@/pages/home"
-import { Planner } from "@/pages/planner"
-import { Tasks } from "@/pages/tasks"
+import { Plan } from "@/pages/plan"
 import { Projects } from "@/pages/projects"
 import { Ideas } from "@/pages/ideas"
 import { Inbox } from "@/pages/inbox"
@@ -21,7 +20,6 @@ import { Reading } from "@/pages/reading"
 import { BackgroundRuns } from "@/pages/background-runs"
 import { Settings } from "@/pages/settings"
 import { System } from "@/pages/system"
-import { Calendar } from "@/pages/calendar"
 import { DebugJarvis } from "@/pages/debug-jarvis"
 import { Chat } from "@/pages/chat"
 
@@ -68,8 +66,9 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { path: "/", element: <Home /> },
-      { path: "/planner", element: <Planner /> },
-      { path: "/tasks", element: <Tasks /> },
+      // v2 Page 2 — Plan merges Planner + Tasks + Calendar + Daily Priorities.
+      // The standalone Tasks + Calendar routes are removed.
+      { path: "/plan", element: <Plan /> },
       { path: "/projects", element: <Projects /> },
       { path: "/ideas", element: <Ideas /> },
       { path: "/inbox", element: <Inbox /> },
@@ -86,7 +85,6 @@ const router = createBrowserRouter([
       { path: "/system", element: <System /> },
       { path: "/background-runs", element: <BackgroundRuns /> },
       { path: "/settings", element: <Settings /> },
-      { path: "/calendar", element: <Calendar /> },
       // Hidden dev tool — reachable via direct URL or the Settings link, not the sidebar.
       { path: "/debug-jarvis", element: <DebugJarvis /> },
     ],

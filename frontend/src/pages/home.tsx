@@ -141,7 +141,7 @@ function WeekCalendarPanel() {
             <WeekStrip
               events={data.events}
               start="monday"
-              onSelect={() => navigate("/calendar")}
+              onSelect={() => navigate("/plan")}
             />
           </div>
         </div>

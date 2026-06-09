@@ -29,7 +29,7 @@ export function TasksOverview() {
             <button
               key={i}
               type="button"
-              onClick={() => navigate("/tasks")}
+              onClick={() => navigate("/plan")}
               className="flex w-full items-start gap-2 rounded-sm px-1 py-0.5 text-left hover:bg-bg-panel-hover"
             >
               <StatusDot color="muted" />

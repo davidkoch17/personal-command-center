@@ -29,6 +29,12 @@ const DAY_LABELS: Record<DayKey, string> = {
   sunday: "Sunday",
 }
 
+/** Plan-page task tags (mirrors the Task_Command_Center.md convention). */
+export const TASK_TAGS = ["quick", "deep-work", "busy"] as const
+export type TaskTag = (typeof TASK_TAGS)[number]
+/** Tags surfaced in the bottom busy-task bar (quick-grab, <1h work). */
+export const BUSY_TAGS: readonly TaskTag[] = ["quick", "busy"]
+
 export interface PoolTask {
   id: string
   text: string
@@ -38,6 +44,7 @@ export interface PoolTask {
   line_index: number | null
   is_completed: boolean
   is_carry_forward?: boolean
+  tags?: TaskTag[]
 }
 
 /** One assignment within a day. Text/source are cached for render-after-done. */
@@ -48,9 +55,25 @@ export interface Assignment {
   source_label?: string
 }
 
+/**
+ * A deep-work block (NEW in v2) — a project-tagged time reservation dropped on a
+ * day, distinct from a task. Stored under ``week.blocks[day]`` so the backend's
+ * task-only day arrays (pool / stats) are never touched by blocks.
+ */
+export interface DeepWorkBlock {
+  id: string
+  project: string
+  title?: string
+  duration_min: number
+  color: string
+}
+
+export type WeekBlocks = Partial<Record<DayKey, DeepWorkBlock[]>>
+
 export type WeekData = {
   iso_week: string
   last_modified: string | null
+  blocks?: WeekBlocks
 } & Record<DayKey, Assignment[]>
 
 export interface DayEvent {
@@ -191,4 +214,112 @@ export function getAllAssignedIds(week: WeekData | null): string[] {
 /** Is `isoWeek` strictly before the current week? (lexical compare is safe). */
 export function isPastWeek(isoWeek: string): boolean {
   return isoWeek < getCurrentIsoWeek()
+}
+
+// --- Task tags --------------------------------------------------------------
+
+const TAG_RE = /#(quick|deep-work|busy)\b/gi
+
+/** Recognised Plan tags found in a task line (canonical-cased, deduped). */
+export function parseTags(text: string): TaskTag[] {
+  const found = new Set<string>()
+  for (const m of text.matchAll(TAG_RE)) found.add(m[1].toLowerCase())
+  return TASK_TAGS.filter((t) => found.has(t))
+}
+
+/** Task text with recognised tag hashtags stripped, for clean display. */
+export function stripTags(text: string): string {
+  return text.replace(TAG_RE, "").replace(/\s{2,}/g, " ").trim()
+}
+
+/** A task's tags, preferring server-provided list, falling back to its text. */
+export function tagsOf(task: PoolTask): TaskTag[] {
+  return task.tags && task.tags.length ? task.tags : parseTags(task.text)
+}
+
+// --- Deep-work block color (stable, derived from the project name) ----------
+
+const BLOCK_PALETTE = [
+  "#6366F1", // indigo
+  "#10B981", // emerald
+  "#F59E0B", // amber
+  "#EC4899", // pink
+  "#06B6D4", // cyan
+  "#8B5CF6", // violet
+  "#EF4444", // red
+  "#84CC16", // lime
+]
+
+/** Deterministic palette color for a project string (same project → same hue). */
+export function blockColor(project: string): string {
+  let h = 0
+  const s = project.trim().toLowerCase()
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return BLOCK_PALETTE[h % BLOCK_PALETTE.length]
+}
+
+/** Common project tags offered in the deep-work block creator (free-typeable). */
+export const BLOCK_PROJECTS = [
+  "Evercore",
+  "Thesis",
+  "K&E",
+  "Acebuche",
+  "Investing",
+  "Brand",
+  "Admin",
+] as const
+
+/** Humanize a minute duration: 90 → "1h30", 60 → "1h", 30 → "30m". */
+export function formatDuration(min: number): string {
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, "0")}`
+}
+
+// --- Month math (for the secondary month tab) -------------------------------
+
+/** First day of the month for an ISO week's Monday (uses mid-week to be safe). */
+export function monthOfIsoWeek(isoWeek: string): Date {
+  const dates = weekDates(isoWeek)
+  const mid = dates[3] // Thursday — always in the ISO week's "owning" month-ish
+  return new Date(mid.getFullYear(), mid.getMonth(), 1)
+}
+
+/** Shift a month-anchor Date by ±n months. */
+export function addMonths(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth() + n, 1)
+}
+
+/** "June 2026" label for a month anchor. */
+export function monthLabel(d: Date): string {
+  return d.toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+}
+
+/**
+ * The calendar matrix for a month: full weeks (Mon–Sun) covering every day of
+ * the month, padded with neighbouring-month days so each row has 7 entries.
+ */
+export function monthMatrix(anchor: Date): Date[][] {
+  const year = anchor.getFullYear()
+  const month = anchor.getMonth()
+  const first = new Date(year, month, 1)
+  const startOffset = (first.getDay() + 6) % 7 // Mon=0
+  const gridStart = new Date(year, month, 1 - startOffset)
+  const weeks: Date[][] = []
+  const cursor = new Date(gridStart)
+  // 6 rows max covers any month layout; trim trailing all-next-month rows.
+  for (let w = 0; w < 6; w++) {
+    const row: Date[] = []
+    for (let d = 0; d < 7; d++) {
+      row.push(new Date(cursor))
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    weeks.push(row)
+    if (cursor.getMonth() !== month && cursor > first) {
+      // Stop once we've passed the month and filled the week containing its end.
+      if (row.some((dd) => dd.getMonth() === month) === false && w >= 4) break
+    }
+  }
+  return weeks
 }

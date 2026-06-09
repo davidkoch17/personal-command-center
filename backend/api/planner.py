@@ -11,6 +11,8 @@ from modules.planner.week_planner import (
     calendar_overlay_for_week, week_completion_stats, iso_week_key,
 )
 from modules.planner.ai_assistant import recommend_placements
+from core import vault, markdown
+from core.config import SYSTEM_PATH
 from datetime import date
 
 
@@ -78,6 +80,10 @@ def ai_recommend(iso_week: str):
     pool = aggregate_pool()
     week_data = load_week(iso_week)
     calendar = calendar_overlay_for_week(iso_week)
-    # Hard dates from Task_Command_Center.md
-    hard_dates = []  # populate via markdown.parse_hard_dates if needed
+    # Hard dates from Task_Command_Center.md so placement respects deadlines.
+    tasks_md = vault.read_md(SYSTEM_PATH / "Task_Command_Center.md")
+    hard_dates = [
+        {"date": d["date"].isoformat() if d.get("date") else None, "label": d["label"]}
+        for d in markdown.parse_hard_dates(tasks_md)
+    ]
     return recommend_placements(pool, week_data, calendar, hard_dates)

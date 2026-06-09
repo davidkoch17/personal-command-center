@@ -26,6 +26,19 @@ _DAY_KEYS = [
     "thursday", "friday", "saturday", "sunday",
 ]
 
+# Plan-page task tags (see Task_Command_Center.md "Task tags" convention).
+# Inline Obsidian hashtags appended to a task line classify it for the week
+# grid / pool filter / busy-task bar. Order matters: match "deep-work" before a
+# bare "deep" would (it can't here, but keep the canonical set explicit).
+_TASK_TAGS = ("quick", "deep-work", "busy")
+_TAG_RE = re.compile(r"#(quick|deep-work|busy)\b", re.IGNORECASE)
+
+
+def parse_task_tags(text: str) -> list[str]:
+    """Extract recognised Plan tags from a task line, deduped + canonical-cased."""
+    found = {m.group(1).lower() for m in _TAG_RE.finditer(text or "")}
+    return [t for t in _TASK_TAGS if t in found]
+
 
 def iso_week_key(d: date) -> str:
     """YYYY-Www format for given date."""
@@ -98,6 +111,7 @@ def aggregate_pool() -> list[dict]:
                     "source_section": section,
                     "line_index": b.get("line_index"),
                     "is_completed": False,
+                    "tags": parse_task_tags(b["text"]),
                 })
 
     # Source 2: Project READMEs — ## Next Steps sections
@@ -120,6 +134,7 @@ def aggregate_pool() -> list[dict]:
                     "source_section": "Next Steps",
                     "line_index": b.get("line_index"),
                     "is_completed": False,
+                    "tags": parse_task_tags(b["text"]),
                 })
 
     return pool

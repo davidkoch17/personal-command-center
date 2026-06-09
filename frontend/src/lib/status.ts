@@ -42,3 +42,39 @@ export function countdownLabel(isoDateStr?: string | null): string | null {
   if (d > 0) return `in ${d}d`
   return `${Math.abs(d)}d ago`
 }
+
+/** Absolute deadline label, e.g. "Mon 8 Jun". Empty string for a bad date. */
+export function formatAbsoluteDate(isoDateStr?: string | null): string {
+  if (!isoDateStr) return ""
+  const d = new Date(isoDateStr)
+  if (Number.isNaN(d.getTime())) return ""
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
+}
+
+export type Urgency = "overdue" | "high" | "medium" | "low"
+
+/**
+ * Deadline urgency for the unified deadline display: overdue (past), high
+ * (≤2d), medium (≤5d), low (further out). Drives the color + word badge.
+ */
+export function deadlineUrgency(isoDateStr?: string | null): Urgency {
+  const d = daysUntil(isoDateStr)
+  if (d === null) return "low"
+  if (d < 0) return "overdue"
+  if (d <= 2) return "high"
+  if (d <= 5) return "medium"
+  return "low"
+}
+
+/** Tailwind text-color class for an urgency level. */
+export function urgencyColor(u: Urgency): string {
+  switch (u) {
+    case "overdue":
+    case "high":
+      return "text-danger"
+    case "medium":
+      return "text-warning"
+    default:
+      return "text-accent"
+  }
+}

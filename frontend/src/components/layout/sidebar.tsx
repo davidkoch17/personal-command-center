@@ -2,7 +2,6 @@ import { NavLink } from "react-router-dom"
 import {
   Home,
   CalendarRange,
-  ListChecks,
   FolderKanban,
   Lightbulb,
   Inbox,
@@ -14,7 +13,6 @@ import {
   Video,
   BookOpen,
   Cog,
-  Calendar,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -35,8 +33,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: "main",
     links: [
       { to: "/", label: "home", icon: Home },
-      { to: "/planner", label: "planner", icon: CalendarRange },
-      { to: "/tasks", label: "tasks", icon: ListChecks },
+      // v2: Plan absorbs planner + tasks + calendar + daily priorities.
+      { to: "/plan", label: "plan", icon: CalendarRange },
       { to: "/projects", label: "projects", icon: FolderKanban },
       { to: "/ideas", label: "ideas", icon: Lightbulb },
       { to: "/inbox", label: "inbox", icon: Inbox },
@@ -64,7 +62,6 @@ const NAV_GROUPS: NavGroup[] = [
     links: [
       // v2: Background Runs + Settings + diagnostics merged into one System page.
       { to: "/system", label: "system", icon: Cog },
-      { to: "/calendar", label: "calendar", icon: Calendar },
     ],
   },
 ]

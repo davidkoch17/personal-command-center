@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 /** Flat page list for quick-nav (mirrors the sidebar). */
 const PAGES: { to: string; label: string }[] = [
   { to: "/", label: "home" },
-  { to: "/tasks", label: "tasks" },
+  { to: "/plan", label: "plan" },
   { to: "/projects", label: "projects" },
   { to: "/ideas", label: "ideas" },
   { to: "/inbox", label: "inbox" },
@@ -22,7 +22,6 @@ const PAGES: { to: string; label: string }[] = [
   { to: "/reading", label: "reading" },
   { to: "/background-runs", label: "background runs" },
   { to: "/settings", label: "settings" },
-  { to: "/calendar", label: "calendar" },
 ]
 
 /**
