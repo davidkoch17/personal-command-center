@@ -10,6 +10,7 @@ import { Plan } from "@/pages/plan"
 import { Projects } from "@/pages/projects"
 import { Ideas } from "@/pages/ideas"
 import { Inbox } from "@/pages/inbox"
+import { Wealth } from "@/pages/wealth"
 import { Portfolio } from "@/pages/portfolio"
 import { Money } from "@/pages/money"
 import { Watchlist } from "@/pages/watchlist"
@@ -72,6 +73,10 @@ const router = createBrowserRouter([
       { path: "/projects", element: <Projects /> },
       { path: "/ideas", element: <Ideas /> },
       { path: "/inbox", element: <Inbox /> },
+      // v2 Page 3 — Wealth merges Portfolio + Watchlist + Decision Journal +
+      // Money into one hub. The old standalone routes stay reachable by URL
+      // during the v2 transition (deep-dive workspaces are unaffected).
+      { path: "/wealth", element: <Wealth /> },
       { path: "/portfolio", element: <Portfolio /> },
       { path: "/money", element: <Money /> },
       { path: "/watchlist", element: <Watchlist /> },

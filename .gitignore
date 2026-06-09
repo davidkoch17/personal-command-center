@@ -18,6 +18,11 @@ data/weekly_briefing_state.json
 
 # System page — Skills & Agents registry soft-disable/archive state (per-machine).
 data/registry_state.json
+
+# Wealth page (v2 N1) — monthly net-worth snapshot store + personal wealth
+# reference data (insurance / PKV / accounts). Per-machine, never committed.
+data/networth_snapshots.json
+data/wealth_config.json
 .venv/
 venv/
 .DS_Store

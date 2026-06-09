@@ -5,10 +5,7 @@ import {
   FolderKanban,
   Lightbulb,
   Inbox,
-  LineChart,
   Wallet,
-  Eye,
-  NotebookPen,
   GraduationCap,
   Video,
   BookOpen,
@@ -43,10 +40,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "finance",
     links: [
-      { to: "/portfolio", label: "portfolio", icon: LineChart },
-      { to: "/money", label: "money", icon: Wallet },
-      { to: "/watchlist", label: "watchlist", icon: Eye },
-      { to: "/decision-journal", label: "journal", icon: NotebookPen },
+      // v2: Wealth absorbs portfolio + money + watchlist + decision journal.
+      { to: "/wealth", label: "wealth", icon: Wallet },
     ],
   },
   {

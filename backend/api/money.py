@@ -1,16 +1,26 @@
 """Money API — wraps modules.finance.money + tax-scenario skill."""
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Query
 
 from backend.api._helpers import df_records, clean_dict
 from backend.models.schemas import TaxScenarioRequest
-from modules.finance import money
+from core.config import DATA_DIR, get_logger
+from modules.finance import money, networth_history
 from modules.agents import background
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
 MONEY_SKILLS_MODULE = "modules.finance.money_skills"
+
+# Per-machine wealth reference data (insurance · PKV · accounts) — edited by hand
+# in data/wealth_config.json; gitignored. The endpoint serves the default
+# template (structure only, no invented figures) merged with any saved overrides.
+WEALTH_CONFIG_FILE = DATA_DIR / "wealth_config.json"
 
 
 @router.get("/snapshot")
@@ -19,6 +29,19 @@ def snapshot() -> dict:
     cash = money.current_cash_balance()
     nw = clean_dict(money.latest_net_worth())
     burn = money.monthly_fixed_estimate()
+    # N1 — record a monthly net-worth snapshot on each finance refresh (deduped
+    # per month). Wrapped so a store failure can never break the snapshot call.
+    try:
+        networth_history.record_snapshot(
+            nw.get("total"),
+            components={
+                "bank": nw.get("bank"),
+                "tr": nw.get("tr"),
+                "crypto": nw.get("crypto"),
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("net-worth snapshot record failed: %s", exc)
     return {
         "cash_balance": cash,
         "net_worth": nw.get("total"),
@@ -26,6 +49,20 @@ def snapshot() -> dict:
         "monthly_burn": burn,
         "runway_months": money.runway_months(cash, burn),
     }
+
+
+@router.get("/networth-history")
+def networth_history_endpoint() -> dict:
+    """Monthly net-worth trend (N1) — sheet history overlaid with live snapshots."""
+    series = networth_history.history()
+    latest = series[-1] if series else None
+    first = series[0] if series else None
+    change = (
+        round(latest["total"] - first["total"], 2)
+        if latest and first and latest["total"] is not None and first["total"] is not None
+        else None
+    )
+    return {"history": series, "count": len(series), "latest": latest, "change_since_start": change}
 
 
 @router.get("/cashflow")
@@ -43,6 +80,79 @@ def categories(months: int = Query(6, ge=1)) -> dict:
         return {"months": months, "categories": []}
     records = df_records(pivot.reset_index())
     return {"months": months, "categories": records[-months:]}
+
+
+# --- Wealth reference: insurance · PKV decline · Mehrkontenmodell -----------
+# Structure only (no invented premiums/balances). David fills the detail fields
+# in data/wealth_config.json; the third insurance type stays a marked placeholder
+# until he resolves it (Haftpflicht / Unfall / Hausrat — open decision in the
+# v2 spec). Each entry's `status` of "placeholder" tells the UI to render an
+# explicit "to record" state rather than a fabricated value.
+_WEALTH_CONFIG_DEFAULT: dict = {
+    "insurance": [
+        {
+            "key": "kv",
+            "type": "Krankenversicherung (KV)",
+            "status": "placeholder",
+            "provider": None,
+            "monthly_eur": None,
+            "notes": "GKV vs. PKV — record the chosen policy here.",
+        },
+        {
+            "key": "bu",
+            "type": "Berufsunfähigkeitsversicherung (BU)",
+            "status": "placeholder",
+            "provider": None,
+            "monthly_eur": None,
+            "notes": "High priority before Evercore start — record provider + monthly premium.",
+        },
+        {
+            "key": "third",
+            "type": "Third insurance — TBD",
+            "status": "placeholder",
+            "provider": None,
+            "monthly_eur": None,
+            "notes": "Open decision: Haftpflicht / Unfall / Hausrat. Pick one, then record it.",
+        },
+    ],
+    # PKV decline record — the spec asks this be visible. Outcome unknown to the
+    # dashboard; left as a marked record for David to confirm.
+    "pkv_decision": {
+        "status": "unrecorded",
+        "decided_on": None,
+        "outcome": None,
+        "rationale": None,
+        "notes": "PKV decision (memo: weighed late May 2026). Record outcome + rationale here.",
+    },
+    # Mehrkontenmodell — account *purposes* are the framework (not personal data);
+    # bank + balance fields stay empty until recorded.
+    "accounts": [
+        {"key": "giro", "label": "Girokonto (running costs)", "bank": None, "purpose": "Fixed + daily spend"},
+        {"key": "tagesgeld", "label": "Tagesgeld (Notgroschen)", "bank": None, "purpose": "Emergency buffer → €4,000 (Phase 1)"},
+        {"key": "depot", "label": "Depot (Trade Republic)", "bank": None, "purpose": "Investing (Phase 2 funding target)"},
+        {"key": "spending", "label": "Spending / lifestyle", "bank": None, "purpose": "Discretionary, ring-fenced"},
+    ],
+}
+
+
+@router.get("/wealth-config")
+def wealth_config() -> dict:
+    """Insurance tracker + PKV record + account structure (Mehrkontenmodell).
+
+    Serves the default structural template merged with any per-machine overrides
+    saved in ``data/wealth_config.json``. No figures are invented — empty fields
+    render as explicit "to record" states in the UI.
+    """
+    config = json.loads(json.dumps(_WEALTH_CONFIG_DEFAULT))  # deep copy
+    if WEALTH_CONFIG_FILE.exists():
+        try:
+            override = json.loads(WEALTH_CONFIG_FILE.read_text(encoding="utf-8"))
+            if isinstance(override, dict):
+                config.update(override)
+        except (json.JSONDecodeError, OSError) as exc:  # noqa: BLE001
+            logger.warning("wealth_config.json unreadable (%s); serving default", exc)
+    config["source"] = "wealth_config.json" if WEALTH_CONFIG_FILE.exists() else "default-template"
+    return config
 
 
 @router.post("/tax-scenario")

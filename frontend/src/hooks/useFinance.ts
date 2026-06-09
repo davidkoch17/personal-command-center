@@ -1194,3 +1194,94 @@ export function useFinanceDiagnostics(enabled: boolean, probe = false) {
     staleTime: 0,
   })
 }
+
+// --- v2 Wealth page: net-worth trend (N1) + after-tax-return (D2) + config ---
+
+export interface NetWorthPoint {
+  month: string
+  total: number | null
+  source: string
+}
+
+export interface NetWorthHistoryResponse {
+  history: NetWorthPoint[]
+  count: number
+  latest: NetWorthPoint | null
+  change_since_start: number | null
+}
+
+/** Monthly net-worth trend (N1) — sheet backbone overlaid with live snapshots. */
+export function useNetWorthHistory() {
+  return useQuery({
+    queryKey: ["money", "networth-history"],
+    queryFn: () => api.get<NetWorthHistoryResponse>("/api/money/networth-history"),
+    staleTime: 5 * 60_000,
+  })
+}
+
+export interface AfterTaxReturnResponse {
+  gross_return: number
+  after_tax_return: number
+  asset_type: string
+  holding_period_days: number
+  tax_free: boolean
+  effective_rate: number
+}
+
+/** After-tax return (D2) — wires the built-but-unused tax/after-tax-return GET. */
+export function useAfterTaxReturn() {
+  return useMutation({
+    mutationFn: (req: {
+      gross_return: number
+      holding_period_days: number
+      asset_type: string
+      church_tax?: boolean
+    }) =>
+      api.get<AfterTaxReturnResponse>(
+        `/api/finance/tax/after-tax-return?gross_return=${req.gross_return}` +
+          `&holding_period_days=${req.holding_period_days}` +
+          `&asset_type=${encodeURIComponent(req.asset_type)}` +
+          `&church_tax=${req.church_tax ? "true" : "false"}`,
+      ),
+  })
+}
+
+export interface InsuranceEntry {
+  key: string
+  type: string
+  status: string
+  provider: string | null
+  monthly_eur: number | null
+  notes: string | null
+}
+
+export interface PkvDecision {
+  status: string
+  decided_on: string | null
+  outcome: string | null
+  rationale: string | null
+  notes: string | null
+}
+
+export interface AccountEntry {
+  key: string
+  label: string
+  bank: string | null
+  purpose: string
+}
+
+export interface WealthConfigResponse {
+  insurance: InsuranceEntry[]
+  pkv_decision: PkvDecision
+  accounts: AccountEntry[]
+  source: string
+}
+
+/** Insurance tracker + PKV record + Mehrkontenmodell (structural template). */
+export function useWealthConfig() {
+  return useQuery({
+    queryKey: ["money", "wealth-config"],
+    queryFn: () => api.get<WealthConfigResponse>("/api/money/wealth-config"),
+    staleTime: 60 * 60_000,
+  })
+}

@@ -141,6 +141,42 @@ export function PerformanceArea({
   )
 }
 
+// --- Net-worth over time (N1) — single accent line ---------------------------
+export function NetWorthTrendLine({
+  data,
+  height = 240,
+}: {
+  data: { month: string; total: number | null }[]
+  height?: number
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+        <defs>
+          <linearGradient id="nwFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={CHART_COLORS.accent} stopOpacity={0.25} />
+            <stop offset="100%" stopColor={CHART_COLORS.accent} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid {...GRID_PROPS} />
+        <XAxis dataKey="month" {...AXIS_PROPS} />
+        <YAxis {...AXIS_PROPS} width={64} domain={["auto", "auto"]} />
+        <Tooltip content={<CockpitTooltip />} />
+        <Area
+          type="monotone"
+          dataKey="total"
+          name="net worth"
+          stroke={CHART_COLORS.accent}
+          strokeWidth={2}
+          fill="url(#nwFill)"
+          dot={false}
+          connectNulls
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  )
+}
+
 // --- Category monthly trend (multi-line) ------------------------------------
 export function CategoryTrendLine({
   data,
