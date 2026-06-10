@@ -136,3 +136,32 @@ def list_videos() -> list[dict]:
 def read_section(folder: Path, filename: str) -> str:
     p = folder / filename
     return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
+def posting_log() -> dict:
+    """All videos bucketed for the posting log / calendar surface.
+
+    ``scheduled`` = has a posting_date and not yet published (soonest first);
+    ``published`` = stage PUBLISHED (most-recent date first);
+    ``undated`` = everything else still in the pipeline without a date.
+    """
+    scheduled: list[dict] = []
+    published: list[dict] = []
+    undated: list[dict] = []
+    for v in list_videos():
+        row = {
+            "name": v["name"],
+            "title": v["title"],
+            "platform": v["platform"],
+            "stage": v["stage"],
+            "posting_date": v["posting_date"],
+        }
+        if v["stage"] == "PUBLISHED":
+            published.append(row)
+        elif v["posting_date"]:
+            scheduled.append(row)
+        else:
+            undated.append(row)
+    scheduled.sort(key=lambda r: r["posting_date"])
+    published.sort(key=lambda r: r["posting_date"] or "", reverse=True)
+    return {"scheduled": scheduled, "published": published, "undated": undated}

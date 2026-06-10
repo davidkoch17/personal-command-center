@@ -179,6 +179,18 @@ class BrandSkillRequest(BaseModel):
     question: Optional[str] = None  # only for ask_claude_about_video
 
 
+class BrandStageMoveRequest(BaseModel):
+    # Target pipeline stage (IDEAS/SCRIPTING/FILMING/EDITING/PUBLISHED). When
+    # omitted, the video advances to the next stage.
+    stage: Optional[str] = None
+
+
+class BrandEditRequest(BaseModel):
+    # "New edit" trigger (Remotion stub). Either field optional.
+    video_name: Optional[str] = None
+    note: Optional[str] = None
+
+
 # --- Career -----------------------------------------------------------------
 class CareerSkillRequest(BaseModel):
     skill: str                  # quiz_technicals / mock_interview / deal_note / ...

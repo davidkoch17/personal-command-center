@@ -3,8 +3,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from backend.models.schemas import BrandVideoCreateRequest, BrandSkillRequest
-from modules.brand import videos
+from backend.models.schemas import (
+    BrandVideoCreateRequest,
+    BrandSkillRequest,
+    BrandStageMoveRequest,
+    BrandEditRequest,
+)
+from modules.brand import videos, inspirations, edits
 from modules.agents import background
 
 router = APIRouter()
@@ -113,3 +118,49 @@ def run_skill(name: str, req: BrandSkillRequest) -> dict:
         args=args, label=f"Brand {req.skill} {name}",
     )
     return {"ok": True, "run_id": info["run_id"]}
+
+
+@router.post("/videos/{name}/stage")
+def move_stage(name: str, req: BrandStageMoveRequest) -> dict:
+    """Move a video to a pipeline stage (kanban card move).
+
+    With ``stage`` set, jump to that stage; without it, advance to the next.
+    This is the previously-pending stage-move so cards actually move.
+    """
+    folder = videos.video_folder(name)
+    if not folder.exists():
+        raise HTTPException(status_code=404, detail=f"Unknown video: {name}")
+    if req.stage:
+        target = req.stage.strip().upper()
+        if target not in videos.STAGES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown stage '{req.stage}'. Options: {videos.STAGES}",
+            )
+        videos.set_stage(folder, target)
+        new_stage = target
+    else:
+        new_stage = videos.advance_stage(folder)
+    return {"ok": True, "name": name, "stage": new_stage}
+
+
+@router.get("/posting")
+def posting() -> dict:
+    """Posting log / calendar: scheduled, published, and undated videos."""
+    return videos.posting_log()
+
+
+@router.get("/inspirations")
+def inspirations_board() -> dict:
+    """Inspirations board — reference reels + notes from 02_Inspirations/."""
+    return {"inspirations": inspirations.list_inspirations()}
+
+
+@router.post("/edits")
+def new_edit(req: BrandEditRequest) -> dict:
+    """'New edit' trigger — STUB for the future Remotion repo (no real edit)."""
+    if req.video_name:
+        folder = videos.video_folder(req.video_name)
+        if not folder.exists():
+            raise HTTPException(status_code=404, detail=f"Unknown video: {req.video_name}")
+    return edits.request_edit(video_name=req.video_name or "", note=req.note or "")

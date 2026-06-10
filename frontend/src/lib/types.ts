@@ -202,6 +202,15 @@ export interface BrandSkillRequest {
   question?: string | null // only for ask_claude_about_video
 }
 
+export interface BrandStageMoveRequest {
+  stage?: string | null // omit to advance to the next stage
+}
+
+export interface BrandEditRequest {
+  video_name?: string | null
+  note?: string | null
+}
+
 // --- Career -----------------------------------------------------------------
 export interface CareerSkillRequest {
   skill: string // quiz_technicals / mock_interview / deal_note / ...

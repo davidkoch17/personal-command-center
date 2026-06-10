@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
-import type { BrandVideoCreateRequest } from "@/lib/types"
+import type {
+  BrandVideoCreateRequest,
+  BrandEditRequest,
+} from "@/lib/types"
 
 export interface VideoCard {
   name: string
@@ -80,6 +83,68 @@ export function useRunBrandSkill(name: string | undefined) {
       api.post<{ ok: boolean; run_id: string }>(
         `/api/brand/videos/${encodeURIComponent(name!)}/skill`,
         { skill, question },
+      ),
+  })
+}
+
+export interface PostingRow {
+  name: string
+  title: string
+  platform: string
+  stage: string
+  posting_date: string
+}
+
+export interface PostingLog {
+  scheduled: PostingRow[]
+  published: PostingRow[]
+  undated: PostingRow[]
+}
+
+export interface Inspiration {
+  name: string
+  title: string
+  url: string
+  platform: string
+  tags: string[]
+  notes: string
+}
+
+/** Move a kanban card to a stage. Omit `stage` to advance one stage. */
+export function useMoveStage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, stage }: { name: string; stage?: string }) =>
+      api.post<{ ok: boolean; name: string; stage: string }>(
+        `/api/brand/videos/${encodeURIComponent(name)}/stage`,
+        { stage },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["brand"] }),
+  })
+}
+
+export function usePostingLog() {
+  return useQuery({
+    queryKey: ["brand", "posting"],
+    queryFn: () => api.get<PostingLog>("/api/brand/posting"),
+  })
+}
+
+export function useInspirations() {
+  return useQuery({
+    queryKey: ["brand", "inspirations"],
+    queryFn: () =>
+      api.get<{ inspirations: Inspiration[] }>("/api/brand/inspirations"),
+  })
+}
+
+/** "New edit" — stub trigger for the future Remotion repo. */
+export function useRequestEdit() {
+  return useMutation({
+    mutationFn: (req: BrandEditRequest) =>
+      api.post<{ ok: boolean; stubbed: boolean; message: string; queued_at: string }>(
+        "/api/brand/edits",
+        req,
       ),
   })
 }
