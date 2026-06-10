@@ -12,7 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton"
  *
  * Status dot: 🟢 review not overdue + reading fresh (≤7d) · 🟡 either overdue
  * or stale >7d · 🔴 both overdue and stale >14d · ⚪ no data sources at all.
- * Click target: /settings (until a /system page exists).
+ * Reading status folds in here (v2 — no standalone Reading page).
+ * Click target: /system (the Brain/System focus area's operational home).
  */
 export function BrainSystemCard() {
   const { data, isLoading } = useBrainSystem()
@@ -25,7 +26,7 @@ export function BrainSystemCard() {
   return (
     <button
       type="button"
-      onClick={() => navigate("/settings")}
+      onClick={() => navigate("/system")}
       className="panel panel-hover group flex min-h-[6.5rem] flex-col gap-1.5 p-3 text-left transition-colors"
     >
       <div className="flex items-start justify-between gap-1.5">

@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { ArrowUpRight } from "lucide-react"
 import { Collapsible } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot, type StatusColor } from "@/components/ui/status-dot"
@@ -38,9 +39,14 @@ const STATUS_TEXT: Record<SkillStatus["status"], string> = {
  * [run] launches the skill in the background (Background_Runs page tracks it);
  * skills that need richer inputs link to the page that owns them. Collapsed by
  * default on mobile (accordion), open on desktop.
+ *
+ * v2: this is the *curated quick-run* directory. The full Skills & Agents
+ * Registry (all ~36 skills + 15 agents, with delete) lives on /system — the
+ * footer link jumps there.
  */
 export function SkillsAgentsDirectory() {
   const { data, isLoading } = useSkillsStatus()
+  const navigate = useNavigate()
   // Evaluated once at mount: desktop starts open, mobile starts collapsed.
   const [defaultOpen] = useState(() => window.matchMedia("(min-width: 768px)").matches)
 
@@ -61,6 +67,14 @@ export function SkillsAgentsDirectory() {
           ))}
         </div>
       )}
+      <button
+        type="button"
+        onClick={() => navigate("/system")}
+        className="mt-2 flex w-full items-center justify-end gap-1 rounded-sm px-1 py-1 text-xs text-text-secondary transition-colors hover:text-accent"
+      >
+        full registry on system
+        <ArrowUpRight className="h-3.5 w-3.5" />
+      </button>
     </Collapsible>
   )
 }

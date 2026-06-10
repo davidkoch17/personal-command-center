@@ -3,11 +3,9 @@ import {
   Home,
   CalendarRange,
   Rocket,
-  Inbox,
   Wallet,
   GraduationCap,
   Video,
-  BookOpen,
   Cog,
   type LucideIcon,
 } from "lucide-react"
@@ -24,6 +22,9 @@ interface NavGroup {
   links: NavLinkDef[]
 }
 
+// v2 sidebar — exactly the 7 locked pages (Dashboard_v2_Spec.md §3).
+// Dropped/merged out of the nav: Inbox (Quick Capture button lives on every
+// page instead) and Reading (folded into the Home Brain/System focus card).
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "main",
@@ -33,7 +34,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/plan", label: "plan", icon: CalendarRange },
       // v2: Ventures absorbs projects + ideas (company of agents).
       { to: "/ventures", label: "ventures", icon: Rocket },
-      { to: "/inbox", label: "inbox", icon: Inbox },
     ],
   },
   {
@@ -48,13 +48,13 @@ const NAV_GROUPS: NavGroup[] = [
     links: [
       { to: "/career", label: "career", icon: GraduationCap },
       { to: "/brand", label: "brand", icon: Video },
-      { to: "/reading", label: "reading", icon: BookOpen },
     ],
   },
   {
     label: "system",
     links: [
-      // v2: Background Runs + Settings + diagnostics merged into one System page.
+      // v2: Background Runs + Settings + diagnostics + Skills & Agents Registry
+      // merged into one System page.
       { to: "/system", label: "system", icon: Cog },
     ],
   },
