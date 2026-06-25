@@ -10,6 +10,11 @@ data/positions.json
 data/transactions.jsonl
 data/price_cache/
 
+# Phase A capture pipeline — SQLite source of truth (personal, per-machine).
+data/captures.db
+data/captures.db-wal
+data/captures.db-shm
+
 # Phase 15b — Fama-French factor data cache (downloaded from Ken French library).
 data/ff_cache/
 

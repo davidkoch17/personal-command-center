@@ -38,6 +38,31 @@ POSITIONS_FILE = DATA_DIR / "positions.json"
 TRANSACTIONS_FILE = DATA_DIR / "transactions.jsonl"
 PRICE_CACHE_DIR = DATA_DIR / "price_cache"
 
+# --- Phase A: capture pipeline (iOS Shortcut -> OneDrive inbox -> SQLite) -----
+# Two iOS shortcuts drop a media file + sidecar JSON into these vault inbox
+# folders; the polling watcher ingests them into the captures DB.
+NEWS_CAPTURES_PATH = INBOX_PATH / "News_Captures"   # images / screenshots
+VOICE_NOTES_PATH = INBOX_PATH / "Voice_Notes"       # voice notes
+# SQLite is the source of truth for captures (filtering, status mutation,
+# capture->many-tickers relations). Lives in the repo's data/ dir (NOT OneDrive),
+# gitignored as per-machine personal data. Always written via Python (sqlite3).
+CAPTURES_DB = DATA_DIR / "captures.db"
+CAPTURE_WATCHER_INTERVAL_SECONDS = 60
+
+# Tesseract OCR (deu+eng). The binary installs to Program Files; the German
+# language pack lives in a user-writable tessdata dir (Program Files needs admin
+# to write into). Both overridable via env for the second laptop / other setups.
+TESSERACT_EXE = Path(
+    os.getenv("TESSERACT_EXE", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+)
+TESSERACT_TESSDATA_DIR = Path(
+    os.getenv("TESSERACT_TESSDATA_DIR", r"C:\Users\david\AppData\Local\Tesseract-OCR\tessdata")
+)
+TESSERACT_LANG = "deu+eng"
+
+# Known projects Claude may tag a capture with (LOCKED in the v3 build spec § b).
+CAPTURE_KNOWN_PROJECTS = ["K&E", "Ulli/Acebuche", "Immos", "Personal Brand"]
+
 # Benchmark universe for performance/risk comparisons. Keys are stable handles;
 # ``ticker`` is the yfinance symbol used to pull the benchmark return series.
 BENCHMARKS: dict[str, dict[str, str]] = {
