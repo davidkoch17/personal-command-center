@@ -116,6 +116,17 @@ MARKET_BRIEFS_DIR = INVESTING_PATH / "Market_Briefs"
 POSITION_NOTES_DIR = INVESTING_PATH / "Position_Notes"
 DECISION_LOG_FILE = SYSTEM_PATH / "Decision_Log.md"
 
+# --- Phase C: research engine ------------------------------------------------
+# Home for every research-skill report. Each run writes BOTH a polished .docx
+# deep-dive AND a machine-readable .json sidecar (the dashboard reads the JSON,
+# never parses Word) to:
+#   Stock_Reports/<TARGET>/<YYYY-MM-DD>_<TARGET>.{docx,json}
+# (stock-analysis uses the bare ticker basename per the v3 spec; other research
+# skills suffix the skill key so same-day reports for one ticker never collide.)
+STOCK_REPORTS_DIR = INVESTING_PATH / "Stock_Reports"
+# Declarative catalogue of every skill + agent (repo config, NOT vault).
+SKILLS_REGISTRY_FILE = REPO_ROOT / "config" / "skills_registry.yaml"
+
 # Career / brand workspace anchors.
 CAREER_PATH = VAULT_PATH / "3_Career"
 ONBOARDING_FILE = CAREER_PATH / "05_Current_Job" / "Onboarding.md"

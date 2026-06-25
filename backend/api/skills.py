@@ -84,6 +84,36 @@ SKILL_REGISTRY: dict[str, tuple[str, str, list[tuple[str, object]]]] = {
     "quarterly_money_review": ("modules.finance.money_skills", "quarterly_money_review", []),
     "tax_deductible_review": ("modules.finance.money_skills", "tax_deductible_review", []),
     "bill_forecaster": ("modules.finance.money_skills", "bill_forecaster", []),
+    # Research skills (Phase C) — all run in the background via the SAME runner
+    # infra as Idea Validation; each emits a .docx + .json sidecar into the
+    # Reports library (4_Areas/Investing/Stock_Reports/<TARGET>/).
+    "stock_analysis": (
+        "modules.agents.skills.research", "stock_analysis",
+        [("ticker", _REQUIRED), ("name", "")],
+    ),
+    "earnings_review": (
+        "modules.agents.skills.research", "earnings_review", [("ticker", _REQUIRED)],
+    ),
+    "sector_deepdive": (
+        "modules.agents.skills.research", "sector_deepdive", [("sector", _REQUIRED)],
+    ),
+    "peer_comparison": (
+        "modules.agents.skills.research", "peer_comparison",
+        [("ticker", _REQUIRED), ("peers", "")],
+    ),
+    "valuation_refresh": (
+        "modules.agents.skills.research", "valuation_refresh", [("ticker", _REQUIRED)],
+    ),
+    "macro_brief": ("modules.agents.skills.research", "macro_brief", []),
+    "short_thesis": (
+        "modules.agents.skills.research", "short_thesis", [("ticker", _REQUIRED)],
+    ),
+    "insider_scan": (
+        "modules.agents.skills.research", "insider_scan", [("ticker", _REQUIRED)],
+    ),
+    "thirteen_f_tracker": (
+        "modules.agents.skills.research", "thirteen_f_tracker", [("target", _REQUIRED)],
+    ),
     # Project Q&A
     "ask_about_project": (
         "modules.agents.skills.ask_about_project", "ask",

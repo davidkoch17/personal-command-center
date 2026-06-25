@@ -1,0 +1,375 @@
+_meta:
+  description: Declarative catalogue of every skill + agent (Phase C).
+  generated_at: '2026-06-25T11:32:18'
+  note: Regenerate with modules.agents.skills.research.catalog.build_registry_yaml().
+skills:
+- name: stock_analysis
+  label: Stock Analysis
+  domain: research
+  type: skill
+  runner: background:modules.agents.skills.research.stock_analysis
+  target_kind: ticker
+  schedule: on_demand
+  last_run:
+    at: '2026-06-25T11:37:55'
+    status: completed
+- name: earnings_review
+  label: Earnings Review
+  domain: research
+  type: skill
+  runner: background:modules.agents.skills.research.earnings_review
+  target_kind: ticker
+  schedule: on_demand
+  last_run: null
+- name: sector_deepdive
+  label: Sector Deep-Dive
+  domain: research
+  type: skill
+  runner: background:modules.agents.skills.research.sector_deepdive
+  target_kind: sector
+  schedule: on_demand
+  last_run: null
+- name: peer_comparison
+  label: Peer Comparison
+  domain: research
+  type: skill
+  runner: background:modules.agents.skills.research.peer_comparison
+  target_kind: ticker
+  schedule: on_demand
+  last_run: null
+- name: valuation_refresh
+  label: Valuation Refresh
+  domain: research
+  type: skill
+  runner: background:modules.agents.skills.research.valuation_refresh
+  target_kind: ticker
+  schedule: on_demand
+  last_run: null
+- name: macro_brief
+  label: Macro Brief
+  domain: research
+  type: skill
+  runner: background:modules.agents.skills.research.macro_brief
+  target_kind: none
+  schedule: weekly
+  last_run: null
+- name: short_thesis
+  label: Short Thesis
+  domain: research
+  type: skill
+  runner: background:modules.agents.skills.research.short_thesis
+  target_kind: ticker
+  schedule: on_demand
+  last_run: null
+- name: insider_scan
+  label: Insider / Ownership Scan
+  domain: research
+  type: skill
+  runner: background:modules.agents.skills.research.insider_scan
+  target_kind: ticker
+  schedule: on_demand
+  last_run: null
+- name: thirteen_f_tracker
+  label: 13F Tracker
+  domain: research
+  type: skill
+  runner: background:modules.agents.skills.research.thirteen_f_tracker
+  target_kind: ticker_or_fund
+  schedule: on_demand
+  last_run: null
+- name: market_researcher
+  label: Market Researcher
+  domain: research
+  type: agent
+  runner: skill:market_researcher
+  target_kind: null
+  schedule: weekly
+  last_run: null
+- name: earnings_reviewer
+  label: Earnings Reviewer
+  domain: wealth
+  type: agent
+  runner: skill:earnings_reviewer
+  target_kind: ticker
+  schedule: on_demand
+  last_run: null
+- name: valuation_reviewer
+  label: Valuation Reviewer
+  domain: wealth
+  type: agent
+  runner: page:/workspace/portfolio
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: model_builder
+  label: Model Builder
+  domain: wealth
+  type: agent
+  runner: page:/workspace/portfolio
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: idea_validator
+  label: Idea Validator
+  domain: ventures
+  type: agent
+  runner: page:/ideas
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: ask_about_project
+  label: Ask About Project
+  domain: ventures
+  type: agent
+  runner: page:/projects
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: ask_anything
+  label: Ask Anything
+  domain: system
+  type: agent
+  runner: skill:ask_anything
+  target_kind: question
+  schedule: on_demand
+  last_run: null
+- name: daily_priorities
+  label: Daily Priorities
+  domain: plan
+  type: agent
+  runner: page:/
+  target_kind: null
+  schedule: daily
+  last_run: null
+- name: planner_ai
+  label: Planner AI
+  domain: plan
+  type: agent
+  runner: page:/planner
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: weekly_briefing
+  label: Weekly Briefing
+  domain: system
+  type: agent
+  runner: scheduled
+  target_kind: null
+  schedule: weekly
+  last_run: null
+- name: generate_thesis_statement
+  label: Generate Thesis Statement
+  domain: wealth
+  type: skill
+  runner: skill:generate_thesis_statement
+  target_kind: ticker
+  schedule: on_demand
+  last_run: null
+- name: summarize_filing
+  label: Summarize Filing
+  domain: wealth
+  type: skill
+  runner: page:/watchlist
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: compare_to_peers
+  label: Compare to Peers
+  domain: wealth
+  type: skill
+  runner: page:/watchlist
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: portfolio_scenario
+  label: Portfolio Scenario
+  domain: wealth
+  type: skill
+  runner: skill:portfolio_scenario
+  target_kind: scenario_description
+  schedule: on_demand
+  last_run: null
+- name: why_is_x_moving
+  label: Why Is X Moving
+  domain: wealth
+  type: skill
+  runner: skill:why_is_x_moving
+  target_kind: ticker
+  schedule: on_demand
+  last_run: null
+- name: rebalance_suggestor
+  label: Rebalance Suggestor
+  domain: wealth
+  type: skill
+  runner: page:/portfolio
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: add_hypothesis
+  label: Add Hypothesis
+  domain: wealth
+  type: skill
+  runner: page:/watchlist
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: quarterly_portfolio_review
+  label: Quarterly Portfolio Review
+  domain: wealth
+  type: skill
+  runner: skill:quarterly_portfolio_review
+  target_kind: null
+  schedule: quarterly
+  last_run: null
+- name: tax_scenario
+  label: Tax Scenario
+  domain: wealth
+  type: skill
+  runner: skill:tax_scenario
+  target_kind: scenario_description
+  schedule: on_demand
+  last_run: null
+- name: forecast_cash_flow
+  label: Forecast Cash Flow
+  domain: wealth
+  type: skill
+  runner: skill:forecast_cash_flow
+  target_kind: scenario_description
+  schedule: on_demand
+  last_run: null
+- name: find_expense_optimizations
+  label: Find Expense Optimizations
+  domain: wealth
+  type: skill
+  runner: skill:find_expense_optimizations
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: quarterly_money_review
+  label: Quarterly Money Review
+  domain: wealth
+  type: skill
+  runner: skill:quarterly_money_review
+  target_kind: null
+  schedule: quarterly
+  last_run: null
+- name: tax_deductible_review
+  label: Tax Deductible Review
+  domain: wealth
+  type: skill
+  runner: skill:tax_deductible_review
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: bill_forecaster
+  label: Bill Forecaster
+  domain: wealth
+  type: skill
+  runner: skill:bill_forecaster
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: quiz_technicals
+  label: 'Quiz: Technicals'
+  domain: career
+  type: skill
+  runner: page:/career
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: mock_interview
+  label: Mock Interview
+  domain: career
+  type: skill
+  runner: page:/career
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: deal_note
+  label: Deal Note
+  domain: career
+  type: skill
+  runner: page:/career
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: model_checker
+  label: Model Checker
+  domain: career
+  type: skill
+  runner: page:/career
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: industry_primer
+  label: Industry Primer
+  domain: career
+  type: skill
+  runner: page:/career
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: career_letter_draft
+  label: Career Letter Draft
+  domain: career
+  type: skill
+  runner: page:/career
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: generate_hook_variants
+  label: Generate Hook Variants
+  domain: brand
+  type: skill
+  runner: page:/brand
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: draft_first_pass_script
+  label: Draft First-Pass Script
+  domain: brand
+  type: skill
+  runner: page:/brand
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: generate_shot_list
+  label: Generate Shot List
+  domain: brand
+  type: skill
+  runner: page:/brand
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: generate_title_variants
+  label: Generate Title Variants
+  domain: brand
+  type: skill
+  runner: page:/brand
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: generate_description_tags
+  label: Generate Description + Tags
+  domain: brand
+  type: skill
+  runner: page:/brand
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: generate_thumbnail_copy
+  label: Generate Thumbnail Copy
+  domain: brand
+  type: skill
+  runner: page:/brand
+  target_kind: null
+  schedule: on_demand
+  last_run: null
+- name: ask_claude_about_video
+  label: Ask About Video
+  domain: brand
+  type: skill
+  runner: page:/brand
+  target_kind: null
+  schedule: on_demand
+  last_run: null

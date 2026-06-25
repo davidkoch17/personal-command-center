@@ -118,6 +118,72 @@ REGISTRY: list[dict] = [
         "patterns": ("weekly_brief", "briefing"), "cadence_days": 7,
         "note": "auto-scheduled Sunday 18:00",
     },
+    # --- Research skills (Phase C) -------------------------------------------
+    # Each emits a .docx + .json sidecar into the Reports library and runs in the
+    # background via the generic skill launcher (same runner as Idea Validation).
+    {
+        "key": "stock_analysis", "label": "Stock Analysis", "kind": "skill",
+        "domain": "research",
+        "description": "Full 12-section equity deep-dive (DCF + reverse-DCF + scenarios) → .docx + JSON sidecar.",
+        "run_skill": "stock_analysis", "prompt_arg": "ticker", "run_target": None,
+        "patterns": ("stock_analysis",), "cadence_days": None, "note": None,
+    },
+    {
+        "key": "earnings_review", "label": "Earnings Review", "kind": "skill",
+        "domain": "research",
+        "description": "Post-earnings thesis update for a ticker → .docx + JSON sidecar.",
+        "run_skill": "earnings_review", "prompt_arg": "ticker", "run_target": None,
+        "patterns": ("earnings_review",), "cadence_days": None, "note": None,
+    },
+    {
+        "key": "sector_deepdive", "label": "Sector Deep-Dive", "kind": "skill",
+        "domain": "research",
+        "description": "Thematic/sector deep-dive (TAM, value chain, best-positioned names) → .docx + JSON sidecar.",
+        "run_skill": "sector_deepdive", "prompt_arg": "sector", "run_target": None,
+        "patterns": ("sector_deepdive",), "cadence_days": None, "note": None,
+    },
+    {
+        "key": "peer_comparison", "label": "Peer Comparison", "kind": "skill",
+        "domain": "research",
+        "description": "Comparables analysis of a ticker vs its peer set → .docx + JSON sidecar.",
+        "run_skill": "peer_comparison", "prompt_arg": "ticker", "run_target": None,
+        "patterns": ("peer_comparison",), "cadence_days": None, "note": None,
+    },
+    {
+        "key": "valuation_refresh", "label": "Valuation Refresh", "kind": "skill",
+        "domain": "research",
+        "description": "Re-run DCF + reverse-DCF + scenarios only for a ticker → .docx + JSON sidecar.",
+        "run_skill": "valuation_refresh", "prompt_arg": "ticker", "run_target": None,
+        "patterns": ("valuation_refresh",), "cadence_days": None, "note": None,
+    },
+    {
+        "key": "macro_brief", "label": "Macro Brief", "kind": "skill",
+        "domain": "research",
+        "description": "Weekly macro / market read (rates, growth, risks, week ahead) → .docx + JSON sidecar.",
+        "run_skill": "macro_brief", "prompt_arg": None, "run_target": None,
+        "patterns": ("macro_brief",), "cadence_days": 7, "note": None,
+    },
+    {
+        "key": "short_thesis", "label": "Short Thesis", "kind": "skill",
+        "domain": "research",
+        "description": "Dedicated bear/short case + downside scenario for a ticker → .docx + JSON sidecar.",
+        "run_skill": "short_thesis", "prompt_arg": "ticker", "run_target": None,
+        "patterns": ("short_thesis",), "cadence_days": None, "note": None,
+    },
+    {
+        "key": "insider_scan", "label": "Insider / Ownership Scan", "kind": "skill",
+        "domain": "research",
+        "description": "Recent insider transactions + ownership changes for a ticker → .docx + JSON sidecar.",
+        "run_skill": "insider_scan", "prompt_arg": "ticker", "run_target": None,
+        "patterns": ("insider_scan",), "cadence_days": None, "note": None,
+    },
+    {
+        "key": "thirteen_f_tracker", "label": "13F Tracker", "kind": "skill",
+        "domain": "research",
+        "description": "Institutional 13F holdings + position changes for a name or fund → .docx + JSON sidecar.",
+        "run_skill": "thirteen_f_tracker", "prompt_arg": "target", "run_target": None,
+        "patterns": ("thirteen_f_tracker", "13f"), "cadence_days": None, "note": None,
+    },
     # --- Wealth skills -------------------------------------------------------
     {
         "key": "generate_thesis_statement", "label": "Generate Thesis Statement", "kind": "skill",
