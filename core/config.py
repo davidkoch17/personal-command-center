@@ -38,6 +38,18 @@ POSITIONS_FILE = DATA_DIR / "positions.json"
 TRANSACTIONS_FILE = DATA_DIR / "transactions.jsonl"
 PRICE_CACHE_DIR = DATA_DIR / "price_cache"
 
+# --- Phase B: net worth + history -------------------------------------------
+# Excel import drops live in the vault inbox; the parser maps them to the
+# generated finance CSVs below. The CSVs (like positions.json/transactions.jsonl)
+# live in the repo's ``data/`` dir, NOT the vault, written via Python file I/O.
+FINANCE_IMPORTS_DIR = INBOX_PATH / "Finance_Imports"        # David drops Amex/bank .xlsx here
+IMPORT_PROFILES_FILE = REPO_ROOT / "config" / "import_profiles.yaml"
+EXPENSES_CSV = DATA_DIR / "expenses.csv"                    # date, amount_eur, category, source, raw_description, imported_from_file
+INCOME_CSV = DATA_DIR / "income.csv"                        # date, amount_eur, source, raw_description
+NETWORTH_DAILY_CSV = DATA_DIR / "networth_daily.csv"        # date, bank_total, portfolio_total_eur, crypto_total_eur, debts_total, net_worth_eur
+POSITIONS_DAILY_CSV = DATA_DIR / "positions_daily.csv"      # date, ticker, qty, price_eur, value_eur, cost_basis_eur
+REALIZED_TRADES_CSV = DATA_DIR / "realized_trades.csv"      # ticker, date_bought, date_sold, qty, buy_price_eur, sell_price_eur, fees_eur, realized_gain_eur, holding_days
+
 # --- Phase A: capture pipeline (iOS Shortcut -> OneDrive inbox -> SQLite) -----
 # Two iOS shortcuts drop a media file + sidecar JSON into these vault inbox
 # folders; the polling watcher ingests them into the captures DB.

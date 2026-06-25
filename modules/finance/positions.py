@@ -146,15 +146,19 @@ def current_holdings() -> dict[str, float]:
     return {tk: round(q, 8) for tk, q in totals.items() if abs(q) > 1e-9}
 
 
-def cost_basis(ticker: str) -> tuple[float, float]:
-    """FIFO cost basis for the *currently held* shares of ``ticker``.
+def cost_basis(ticker: str, as_of: Optional[date] = None) -> tuple[float, float]:
+    """FIFO cost basis for the held shares of ``ticker`` (today, or ``as_of``).
 
     Returns ``(avg_cost, total_basis)``. Sells consume the oldest buy lots first
     (FIFO); the remaining open lots define the basis. Fees are folded into each
-    buy lot's cost. With nothing held, returns ``(0.0, 0.0)``.
+    buy lot's cost. With nothing held, returns ``(0.0, 0.0)``. When ``as_of`` is
+    given, only transactions on/before that date are replayed — used by the
+    backfill to value historical positions at their then-current basis.
     """
     lots: list[list[float]] = []  # each: [remaining_qty, per_share_cost]
     for t in transactions_for(ticker):
+        if as_of is not None and t.date > as_of:
+            break
         if t.action == "buy":
             per_share = t.price + (t.fees / t.quantity if t.quantity else 0.0)
             lots.append([t.quantity, per_share])
@@ -171,3 +175,24 @@ def cost_basis(ticker: str) -> tuple[float, float]:
     total_basis = sum(lot[0] * lot[1] for lot in lots)
     avg_cost = total_basis / total_qty if total_qty > 1e-9 else 0.0
     return round(avg_cost, 6), round(total_basis, 2)
+
+
+def holdings_asof(as_of: date) -> dict[str, float]:
+    """Net quantity per ticker from buys/sells on or before ``as_of``.
+
+    Same netting as :func:`current_holdings` but truncated to a date, so the
+    backfill can reconstruct how many shares were held on each historical day.
+    """
+    totals: dict[str, float] = {}
+    for t in list_transactions():
+        if t.action not in _QUANTITY_ACTIONS or t.date > as_of:
+            continue
+        sign = 1.0 if t.action == "buy" else -1.0
+        totals[t.ticker] = totals.get(t.ticker, 0.0) + sign * t.quantity
+    return {tk: round(q, 8) for tk, q in totals.items() if abs(q) > 1e-9}
+
+
+def first_transaction_date(ticker: str) -> Optional[date]:
+    """Date of the earliest transaction for ``ticker`` (None if none)."""
+    txns = transactions_for(ticker)
+    return txns[0].date if txns else None

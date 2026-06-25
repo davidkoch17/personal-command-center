@@ -10,6 +10,13 @@ data/positions.json
 data/transactions.jsonl
 data/price_cache/
 
+# Phase B net worth + history — generated financial CSVs (personal, per-machine).
+data/expenses.csv
+data/income.csv
+data/networth_daily.csv
+data/positions_daily.csv
+data/realized_trades.csv
+
 # Phase A capture pipeline — SQLite source of truth (personal, per-machine).
 data/captures.db
 data/captures.db-wal

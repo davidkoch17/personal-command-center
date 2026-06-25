@@ -1,0 +1,118 @@
+# Finance import profiles (Phase B — Net Worth ingestion).
+#
+# David drops Amex / bank .xlsx exports into 0_Inbox/Finance_Imports/. The parser
+# (modules/finance/excel_import.py) selects a profile by matching the filename
+# against each profile's `match` substrings, maps the source's column headers to
+# the standard fields (date / amount / description), then splits rows into
+# data/expenses.csv and data/income.csv with a keyword category (Claude fallback
+# for unknown descriptions).
+#
+# To add a new source: copy a profile block, set `match` to a filename keyword,
+# and map the three columns. All amounts are assumed already in EUR (German
+# accounts); set `currency` if a source reports another currency (not yet
+# converted — flagged in logs).
+
+profiles:
+  amex:
+    match: ["amex", "american express", "americanexpress"]
+    sheet: 0            # sheet name or 0-based index
+    header_row: 0       # 0-based row holding the column headers
+    currency: EUR
+    columns:
+      date: "Datum"
+      amount: "Betrag"
+      description: "Beschreibung"
+    date_format: null   # null = let pandas infer; else a strptime pattern
+    # Sign convention of the `amount` column:
+    #   expense_positive -> a positive amount is a charge (spend); negative = credit/refund
+    #   inflow_positive  -> a positive amount is money in (income); negative = spend
+    amount_sign: expense_positive
+    decimal: ","
+    thousands: "."
+
+  dkb:
+    match: ["dkb"]
+    sheet: 0
+    header_row: 0
+    currency: EUR
+    columns:
+      date: "Buchungstag"
+      amount: "Betrag (EUR)"
+      description: "Verwendungszweck"
+    date_format: "%d.%m.%Y"
+    amount_sign: inflow_positive
+    decimal: ","
+    thousands: "."
+
+  haspa:
+    match: ["haspa", "hamburger sparkasse"]
+    sheet: 0
+    header_row: 0
+    currency: EUR
+    columns:
+      date: "Buchungstag"
+      amount: "Betrag"
+      description: "Verwendungszweck"
+    date_format: "%d.%m.%Y"
+    amount_sign: inflow_positive
+    decimal: ","
+    thousands: "."
+
+  # Generic English-header fallback (e.g. a hand-built .xlsx). Used only when no
+  # source-specific profile matches the filename.
+  generic:
+    match: []
+    sheet: 0
+    header_row: 0
+    currency: EUR
+    columns:
+      date: "Date"
+      amount: "Amount"
+      description: "Description"
+    date_format: null
+    amount_sign: inflow_positive
+    decimal: "."
+    thousands: ","
+
+# Keyword categorization for EXPENSE rows. First rule whose keyword is a
+# case-insensitive substring of the description wins. Income rows are detected by
+# sign / income_keywords and routed to income.csv (no category needed).
+categorization:
+  default: "Uncategorized"
+  income_keywords:
+    - "gehalt"
+    - "lohn"
+    - "salary"
+    - "payroll"
+    - "evercore"
+    - "erstattung"
+    - "refund"
+    - "rueckzahlung"
+    - "gutschrift"
+    - "dividende"
+    - "dividend"
+    - "zinsen"
+    - "interest"
+  rules:
+    - category: "Rent"
+      keywords: ["miete", "rent", "vonovia", "kaltmiete", "warmmiete", "hausverwaltung"]
+    - category: "Groceries"
+      keywords: ["rewe", "edeka", "aldi", "lidl", "penny", "kaufland", "netto", "dm ", "rossmann", "supermarkt", "grocery"]
+    - category: "Dining"
+      keywords: ["restaurant", "cafe", "coffee", "starbucks", "mcdonald", "burger", "lieferando", "uber eats", "wolt", "bar ", "pizz"]
+    - category: "Transport"
+      keywords: ["uber", "bolt", "taxi", "deutsche bahn", "db ", "bvg", "mvg", "hvv", "bahn", "flixbus", "sixt", "shell", "aral", "esso", "tankstelle", "fuel"]
+    - category: "Travel"
+      keywords: ["lufthansa", "ryanair", "eurowings", "airbnb", "booking.com", "hotel", "flight", "airline", "expedia"]
+    - category: "Subscriptions"
+      keywords: ["netflix", "spotify", "amazon prime", "youtube", "icloud", "google one", "openai", "anthropic", "adobe", "notion", "github", "abo", "subscription"]
+    - category: "Utilities"
+      keywords: ["strom", "vodafone", "telekom", "o2", "1und1", "1&1", "gas ", "wasser", "internet", "mobilfunk", "utility"]
+    - category: "Insurance"
+      keywords: ["versicherung", "allianz", "axa", "huk", "pkv", "krankenversicherung", "insurance"]
+    - category: "Health"
+      keywords: ["apotheke", "arzt", "pharmacy", "doctor", "fitness", "gym", "mcfit", "clever fit"]
+    - category: "Shopping"
+      keywords: ["amazon", "zalando", "zara", "h&m", "media markt", "saturn", "ikea", "apple store"]
+    - category: "Taxes & Fees"
+      keywords: ["finanzamt", "steuer", "gebuehr", "fee", "tax"]

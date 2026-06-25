@@ -70,6 +70,47 @@ def convert(amount: float, from_ccy: str, to_ccy: str, on_date: Optional[date] =
     return amount * rate
 
 
+def _fx_series_with_inverse(from_ccy: str, to_ccy: str) -> pd.Series:
+    """``from→to`` daily FX series, falling back to the inverted pair if needed."""
+    direct = fx_series(from_ccy, to_ccy)
+    if not direct.empty:
+        return direct
+    inv = fx_series(to_ccy, from_ccy)
+    if not inv.empty:
+        return (1.0 / inv).dropna()
+    return pd.Series(dtype="float64")
+
+
+def closes_eur(ticker: str, native_currency: Optional[str] = None) -> pd.Series:
+    """Daily close series for ``ticker`` expressed in EUR (empty if unavailable).
+
+    yfinance quotes US equities/ADRs and ``*-USD`` crypto in their native
+    currency; this multiplies each day's native close by that day's native→EUR FX
+    rate (forward/back-filled to the price index) so the series is EUR-on-EUR.
+    Mirrors :func:`price_history.latest_price_eur` but over the full history —
+    used by the daily-snapshot backfill to value historical positions.
+
+    ``native_currency`` may be passed to skip the yfinance currency lookup.
+    """
+    from modules.finance.price_history import get_closes, quote_currency
+
+    closes = get_closes(ticker)
+    if closes.empty:
+        return pd.Series(dtype="float64")
+    ccy = (native_currency or quote_currency(ticker)).upper()
+    if ccy == DEFAULT_REPORTING:
+        return closes
+    fx = _fx_series_with_inverse(ccy, DEFAULT_REPORTING)
+    if fx.empty:
+        # Last resort: a single latest rate (better than dropping the position).
+        from modules.finance.price_history import fx_rate_to_eur
+
+        rate, _ = fx_rate_to_eur(ccy)
+        return (closes * rate).dropna() if rate else closes
+    fx = fx.reindex(closes.index).ffill().bfill()
+    return (closes * fx).dropna()
+
+
 def position_currency_breakdown(positions: list, prices: dict, to_ccy: str = DEFAULT_REPORTING) -> dict:
     """How much of the portfolio sits in each native currency.
 
