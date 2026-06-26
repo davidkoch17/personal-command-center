@@ -9,15 +9,45 @@ from fastapi import APIRouter, HTTPException
 
 from backend.models.schemas import (
     ProjectCard, ProjectLogEntry, ProjectNextStepToggleRequest, ProjectCreateRequest,
+    BriefingCard,
 )
 from core import vault, markdown
-from core.config import PROJECT_INDEX_FILE
+from core.config import PROJECT_INDEX_FILE, VAULT_PATH
 from modules.agents import background
+from modules.captures import db as captures_db
 from modules.projects import agents, workspace
 
 router = APIRouter()
 
 _FLOW_RE = re.compile(r"\*\*Type:\*\*\s*Flow\s*([AB])", re.IGNORECASE)
+
+# The four Projects-pillar cards (spec § e) map to the project-tag labels the
+# voice classifier writes onto tasks. Only these projects show a live task count.
+PILLAR_TASK_LABELS = {
+    "02": "K&E",
+    "03": "Ulli/Acebuche",
+    "05": "Personal Brand",
+    "06": "Immos",
+}
+
+BRIEFINGS_DIR = VAULT_PATH / "99_System" / "Briefings"
+
+
+def _phase(status_text: str) -> str | None:
+    """Derive a short phase label from the index ``**Status:**`` line.
+
+    Prefers the parenthetical qualifier (e.g. ``Active (Dossier-Optimierung —
+    endphase)`` -> ``Dossier-Optimierung — endphase``); else the clause before
+    the first dash; else the trimmed status text. None if there is no status.
+    """
+    text = (status_text or "").strip()
+    if not text:
+        return None
+    m = re.search(r"\(([^)]+)\)", text)
+    if m:
+        return m.group(1).strip()
+    head = re.split(r"\s+[—-]\s+", text)[0].strip()
+    return head or text[:60]
 
 
 def _parse_flow(readme: str) -> str | None:
@@ -78,11 +108,17 @@ def _projects() -> list[dict]:
 
 @router.get("")
 def list_projects() -> list[ProjectCard]:
-    """Project cards with status, big milestone, and the first open next step."""
+    """Project cards with status, big milestone, next step, and pillar enrichment.
+
+    Pillar enrichment (Phase E): a short phase label, the count + newest of the
+    project's open captures-DB tasks, and the project's last-activity timestamp.
+    """
+    tasks_by_project = captures_db.open_tasks_by_project()
     cards: list[ProjectCard] = []
     for proj in _projects():
+        pid = proj["id"]
         try:
-            root = workspace.project_root(proj["id"])
+            root = workspace.project_root(pid)
             readme = vault.read_md(root / "README.md")
         except FileNotFoundError:
             readme = ""
@@ -90,8 +126,14 @@ def list_projects() -> list[ProjectCard]:
         steps = workspace.parse_next_steps(readme)
         open_steps = [s for s in steps if not s["checked"]]
         big = _big_milestone(milestones)
+        label = PILLAR_TASK_LABELS.get(pid)
+        open_tasks = tasks_by_project.get(label, []) if label else []
+        try:
+            activity = workspace.last_activity(pid) if _root_ok(pid) else None
+        except OSError:
+            activity = None
         cards.append(ProjectCard(
-            id=proj["id"],
+            id=pid,
             name=proj["name"].replace("_", " "),
             status=_status_key(proj),
             status_emoji=proj.get("status_emoji") or "",
@@ -101,9 +143,46 @@ def list_projects() -> list[ProjectCard]:
             next_step=(open_steps[0]["text"] if open_steps else proj.get("next_step") or None),
             folder=proj.get("folder", ""),
             flow=_parse_flow(readme),
-            has_agents=agents.manifest_path(proj["id"]).exists() if _root_ok(proj["id"]) else False,
+            has_agents=agents.manifest_path(pid).exists() if _root_ok(pid) else False,
+            phase=_phase(proj.get("status_text") or ""),
+            open_task_count=len(open_tasks),
+            top_task=open_tasks[0] if open_tasks else None,
+            last_activity=activity,
         ))
     return cards
+
+
+@router.get("/briefing")
+def latest_briefing() -> BriefingCard:
+    """Latest weekly briefing (99_System/Briefings/) for the pillar's small card."""
+    files = sorted(BRIEFINGS_DIR.glob("*_briefing.md")) if BRIEFINGS_DIR.exists() else []
+    if not files:
+        return BriefingCard(title="No briefings yet", count=0)
+    latest = files[-1]
+    text = vault.read_md(latest)
+    # Date prefix "YYYY-MM-DD_briefing.md".
+    date_str = latest.name.split("_", 1)[0]
+    parsed = _parse_date(date_str)
+    # Title = first H1/H2 if present, else the filename stem.
+    title = latest.stem.replace("_", " ")
+    body_lines: list[str] = []
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("#"):
+            heading = s.lstrip("#").strip()
+            if heading and title == latest.stem.replace("_", " "):
+                title = heading
+            continue
+        if s:
+            body_lines.append(s)
+    excerpt = " ".join(body_lines)[:280]
+    return BriefingCard(
+        date=parsed.isoformat() if parsed else date_str,
+        title=title,
+        path=str(latest),
+        excerpt=excerpt,
+        count=len(files),
+    )
 
 
 def _root_ok(project_id: str) -> bool:

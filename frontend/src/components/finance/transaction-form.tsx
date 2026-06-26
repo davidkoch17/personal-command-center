@@ -18,7 +18,7 @@ const ACTIONS = ["buy", "sell", "dividend", "deposit", "withdraw", "split"] as c
  * Log-transaction form (POST /api/finance/transactions). Used inline on the
  * Portfolio workspace and inside a dialog on the Home Quick Run panel.
  */
-export function TransactionForm({ onDone }: { onDone?: () => void }) {
+export function TransactionForm({ onDone }: { onDone?: (tx?: TransactionRequest) => void }) {
   const record = useRecordTransaction()
   const [ticker, setTicker] = useState("")
   const [action, setAction] = useState<(typeof ACTIONS)[number]>("buy")
@@ -51,7 +51,7 @@ export function TransactionForm({ onDone }: { onDone?: () => void }) {
         setPrice("")
         setFees("")
         setNotes("")
-        onDone?.()
+        onDone?.(req)
       },
       onError: (e) => toast.error("could not log transaction", String(e)),
     })

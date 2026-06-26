@@ -1,20 +1,37 @@
-import { Panel } from "@/components/ui/panel"
+import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { NumberDisplay } from "@/components/ui/number-display"
-import { MetricPanel } from "@/components/finance/metric-panel"
-import { HoldingsTable } from "@/components/finance/holdings-table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoBarrierBanner } from "@/components/ui/info-barrier-banner"
-import { usePortfolioSnapshot, usePortfolioPerformance } from "@/hooks/useFinance"
+import { OverviewTab } from "@/components/portfolio/overview-tab"
+import { HoldingsTab } from "@/components/portfolio/holdings-tab"
+import { WatchlistTab } from "@/components/portfolio/watchlist-tab"
+import { CapturesTab } from "@/components/portfolio/captures-tab"
+import { ResearchTab } from "@/components/portfolio/research-tab"
 
+const TABS = ["overview", "holdings", "watchlist", "captures", "research"] as const
+type Tab = (typeof TABS)[number]
+
+/**
+ * Portfolio Hub (Pillar 1, v3 spec § d) — a single page with five sub-nav tabs.
+ * Refactors the v2 Portfolio + Watchlist + Money pages onto their existing
+ * backends. Default tab = Overview. No Briefing tab (moved to Projects pillar).
+ */
 export function Portfolio() {
-  const snap = usePortfolioSnapshot()
-  const ytd = usePortfolioPerformance("ytd")
+  const [params, setParams] = useSearchParams()
+  const raw = params.get("tab")
+  const tab: Tab = (TABS as readonly string[]).includes(raw ?? "") ? (raw as Tab) : "overview"
+
+  function setTab(t: string) {
+    setParams((p) => {
+      p.set("tab", t)
+      return p
+    })
+  }
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">portfolio</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">portfolio hub</h1>
         <Button asChild variant="secondary" size="sm">
           <a href="/workspace/portfolio" target="_blank" rel="noopener noreferrer">
             open workspace ↗
@@ -24,75 +41,21 @@ export function Portfolio() {
 
       <InfoBarrierBanner message="restricted-sector names may be involved" />
 
-      {/* Top metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricPanel
-          label="total value"
-          value={
-            snap.isLoading ? (
-              <Skeleton className="h-7 w-28" />
-            ) : (
-              <NumberDisplay value={snap.data?.total_value} format="currency" emphasized animate />
-            )
-          }
-          caption={`${snap.data?.position_count ?? 0} positions`}
-        />
-        <MetricPanel
-          label="p&l today"
-          dotColor="muted"
-          value={<span className="text-text-label">—</span>}
-          caption="no intraday source"
-        />
-        <MetricPanel
-          label="p&l ytd"
-          dotColor={
-            (ytd.data?.change_pct ?? 0) >= 0 ? "success" : "danger"
-          }
-          value={
-            ytd.isLoading ? (
-              <Skeleton className="h-7 w-20" />
-            ) : (
-              <NumberDisplay value={ytd.data?.change_pct} format="percent" signed />
-            )
-          }
-        />
-        <MetricPanel
-          label="cash deployable"
-          dotColor="success"
-          value={
-            snap.isLoading ? (
-              <Skeleton className="h-7 w-28" />
-            ) : (
-              <NumberDisplay value={snap.data?.cash_deployable} format="currency" />
-            )
-          }
-        />
-      </div>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="overview">overview</TabsTrigger>
+          <TabsTrigger value="holdings">holdings</TabsTrigger>
+          <TabsTrigger value="watchlist">watchlist</TabsTrigger>
+          <TabsTrigger value="captures">captures</TabsTrigger>
+          <TabsTrigger value="research">research</TabsTrigger>
+        </TabsList>
 
-      {/* Holdings table */}
-      <Panel title="holdings" meta={`${snap.data?.holdings.length ?? 0} positions`} statusDotColor="accent">
-        {snap.isLoading ? (
-          <Skeleton className="h-40" />
-        ) : snap.isError ? (
-          <p className="text-text-secondary">could not load holdings. backend on :8000?</p>
-        ) : (
-          <HoldingsTable holdings={snap.data?.holdings ?? []} />
-        )}
-      </Panel>
-
-      {/* Signals + recent activity (no aggregate endpoints yet) */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Panel title="watchlist signals" statusDotColor="muted">
-          <p className="text-sm text-text-label">
-            brief signals surface per-name in the watchlist workspace (no aggregate endpoint yet)
-          </p>
-        </Panel>
-        <Panel title="recent activity" statusDotColor="muted">
-          <p className="text-sm text-text-label">
-            portfolio-action log endpoint pending (backend phase)
-          </p>
-        </Panel>
-      </div>
+        <TabsContent value="overview">{tab === "overview" && <OverviewTab />}</TabsContent>
+        <TabsContent value="holdings">{tab === "holdings" && <HoldingsTab />}</TabsContent>
+        <TabsContent value="watchlist">{tab === "watchlist" && <WatchlistTab />}</TabsContent>
+        <TabsContent value="captures">{tab === "captures" && <CapturesTab />}</TabsContent>
+        <TabsContent value="research">{tab === "research" && <ResearchTab />}</TabsContent>
+      </Tabs>
     </div>
   )
 }

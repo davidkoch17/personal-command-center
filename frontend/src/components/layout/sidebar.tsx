@@ -1,20 +1,20 @@
 import { NavLink } from "react-router-dom"
 import {
-  Home,
-  CalendarRange,
-  Rocket,
   Wallet,
-  GraduationCap,
-  Video,
+  FolderKanban,
+  Activity,
+  Search,
   Cog,
   type LucideIcon,
 } from "lucide-react"
+import { openSearch } from "@/lib/search-bus"
 import { cn } from "@/lib/utils"
 
 interface NavLinkDef {
-  to: string
   label: string
   icon: LucideIcon
+  to?: string // route link…
+  action?: () => void // …or an action (e.g. open the search palette)
 }
 
 interface NavGroup {
@@ -22,43 +22,32 @@ interface NavGroup {
   links: NavLinkDef[]
 }
 
-// v2 sidebar — exactly the 7 locked pages (Dashboard_v2_Spec.md §3).
-// Dropped/merged out of the nav: Inbox (Quick Capture button lives on every
-// page instead) and Reading (folded into the Home Brain/System focus card).
+// v3 sidebar (Dashboard_v3_Build_Spec § f): exactly the two pillars +
+// Background Runs + Search + Settings. Everything else is folded into a pillar
+// and stays reachable by URL only (no sidebar entry).
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "main",
+    label: "pillars",
     links: [
-      { to: "/", label: "home", icon: Home },
-      // v2: Plan absorbs planner + tasks + calendar + daily priorities.
-      { to: "/plan", label: "plan", icon: CalendarRange },
-      // v2: Ventures absorbs projects + ideas (company of agents).
-      { to: "/ventures", label: "ventures", icon: Rocket },
-    ],
-  },
-  {
-    label: "finance",
-    links: [
-      // v2: Wealth absorbs portfolio + money + watchlist + decision journal.
-      { to: "/wealth", label: "wealth", icon: Wallet },
-    ],
-  },
-  {
-    label: "life",
-    links: [
-      { to: "/career", label: "career", icon: GraduationCap },
-      { to: "/brand", label: "brand", icon: Video },
+      { to: "/portfolio", label: "portfolio", icon: Wallet },
+      { to: "/projects", label: "projects", icon: FolderKanban },
     ],
   },
   {
     label: "system",
     links: [
-      // v2: Background Runs + Settings + diagnostics + Skills & Agents Registry
-      // merged into one System page.
-      { to: "/system", label: "system", icon: Cog },
+      { to: "/background-runs", label: "background runs", icon: Activity },
+      { label: "search", icon: Search, action: openSearch },
+      { to: "/settings", label: "settings", icon: Cog },
     ],
   },
 ]
+
+const ITEM_CLASS =
+  "flex w-full items-center gap-2.5 rounded-sm border-l-2 px-2 py-1.5 text-sm transition-colors"
+const INACTIVE_CLASS =
+  "border-transparent text-text-secondary hover:border-accent-dim hover:text-text hover:bg-bg-panel-hover"
+const ACTIVE_CLASS = "border-accent text-accent bg-bg-panel-hover"
 
 function NavList({
   showLabels,
@@ -77,28 +66,41 @@ function NavList({
           <ul className="space-y-0.5">
             {group.links.map((link) => {
               const Icon = link.icon
+              const labelSpan = (
+                <span className={cn("truncate capitalize", !showLabels && "hidden min-[1100px]:inline")}>
+                  {link.label}
+                </span>
+              )
               return (
-                <li key={link.to}>
-                  <NavLink
-                    to={link.to}
-                    end={link.to === "/"}
-                    onClick={onNavigate}
-                    aria-label={link.label}
-                    title={link.label}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-2.5 rounded-sm border-l-2 px-2 py-1.5 text-sm transition-colors",
-                        isActive
-                          ? "border-accent text-accent bg-bg-panel-hover"
-                          : "border-transparent text-text-secondary hover:border-accent-dim hover:text-text hover:bg-bg-panel-hover",
-                      )
-                    }
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className={cn("truncate capitalize", !showLabels && "hidden min-[1100px]:inline")}>
-                      {link.label}
-                    </span>
-                  </NavLink>
+                <li key={link.label}>
+                  {link.to ? (
+                    <NavLink
+                      to={link.to}
+                      onClick={onNavigate}
+                      aria-label={link.label}
+                      title={link.label}
+                      className={({ isActive }) =>
+                        cn(ITEM_CLASS, isActive ? ACTIVE_CLASS : INACTIVE_CLASS)
+                      }
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {labelSpan}
+                    </NavLink>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={link.label}
+                      title={`${link.label} (⌘K)`}
+                      onClick={() => {
+                        link.action?.()
+                        onNavigate?.()
+                      }}
+                      className={cn(ITEM_CLASS, INACTIVE_CLASS)}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {labelSpan}
+                    </button>
+                  )}
                 </li>
               )
             })}

@@ -30,7 +30,7 @@ from backend.api import (
     tasks, projects, ideas, inbox, portfolio, money,
     watchlist, brand, career, integrations, runs,
     search, skills, reading, system, voice, daily,
-    planner, chat, home,
+    planner, chat, home, captures, research,
 )
 from backend.api import finance
 from modules.briefings import weekly
@@ -80,6 +80,8 @@ app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"]
 app.include_router(finance.router, prefix="/api/finance", tags=["finance"])
 app.include_router(money.router, prefix="/api/money", tags=["money"])
 app.include_router(watchlist.router, prefix="/api/watchlist", tags=["watchlist"])
+app.include_router(captures.router, prefix="/api/captures", tags=["captures"])
+app.include_router(research.router, prefix="/api/research", tags=["research"])
 app.include_router(brand.router, prefix="/api/brand", tags=["brand"])
 app.include_router(career.router, prefix="/api/career", tags=["career"])
 app.include_router(integrations.router, prefix="/api/integrations", tags=["integrations"])

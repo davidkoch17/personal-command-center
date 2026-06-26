@@ -202,3 +202,191 @@ def insert_park(title: str, body: str, source_capture_id: str,
             (title, body, source_capture_id, datetime.now().isoformat()),
         )
         return int(cur.lastrowid)
+
+
+# --- read side (Phase D — News Captures Hub + Connected News) ----------------
+# Statuses (spec § b approval model B): pending | approved-auto | approved | archived.
+# Categories: news | task | park | note.
+
+# Sentinel: lets update_capture() distinguish "set routing to null" from "leave unchanged".
+_UNSET = object()
+
+
+def _row_to_capture(row: sqlite3.Row) -> dict:
+    """Materialize a captures row into a dict, decoding the JSON columns."""
+    rec = dict(row)
+    for json_col in ("ai_tags", "routing_suggestions"):
+        raw = rec.get(json_col)
+        if isinstance(raw, str) and raw.strip():
+            try:
+                rec[json_col] = json.loads(raw)
+            except json.JSONDecodeError:
+                rec[json_col] = raw
+        elif raw is None:
+            rec[json_col] = [] if json_col == "ai_tags" else None
+    return rec
+
+
+def _tickers_for(conn: sqlite3.Connection, capture_id: str) -> list[dict]:
+    rows = conn.execute(
+        "SELECT ticker, sector FROM capture_tickers WHERE capture_id = ? ORDER BY ticker",
+        (capture_id,),
+    ).fetchall()
+    return [{"ticker": r["ticker"], "sector": r["sector"]} for r in rows]
+
+
+def list_captures(status: str | None = None, category: str | None = None,
+                  limit: int = 300, db_path: Path = CAPTURES_DB) -> list[dict]:
+    """Captures newest-first, optionally filtered by status/category, with tickers."""
+    clauses, params = [], []
+    if status:
+        clauses.append("status = ?")
+        params.append(status)
+    if category:
+        clauses.append("category = ?")
+        params.append(category)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    params.append(limit)
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM captures {where} ORDER BY captured_at DESC LIMIT ?", params
+        ).fetchall()
+        out = []
+        for r in rows:
+            rec = _row_to_capture(r)
+            rec["tickers"] = _tickers_for(conn, rec["id"])
+            out.append(rec)
+    return out
+
+
+def get_capture(capture_id: str, db_path: Path = CAPTURES_DB) -> dict | None:
+    """One capture with its ticker links (None if not found)."""
+    with connect(db_path) as conn:
+        row = conn.execute("SELECT * FROM captures WHERE id = ?", (capture_id,)).fetchone()
+        if row is None:
+            return None
+        rec = _row_to_capture(row)
+        rec["tickers"] = _tickers_for(conn, capture_id)
+    return rec
+
+
+def captures_for_ticker(ticker: str, exclude_archived: bool = True,
+                        db_path: Path = CAPTURES_DB) -> list[dict]:
+    """All captures linked to ``ticker`` (Connected News), newest first."""
+    tk = (ticker or "").strip().upper()
+    if not tk:
+        return []
+    archived = "" if not exclude_archived else "AND c.status != 'archived'"
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            f"""SELECT c.*, ct.sector AS link_sector
+                 FROM captures c JOIN capture_tickers ct ON ct.capture_id = c.id
+                 WHERE ct.ticker = ? {archived}
+                 ORDER BY c.captured_at DESC""",
+            (tk,),
+        ).fetchall()
+        out = []
+        for r in rows:
+            rec = _row_to_capture(r)
+            rec["link_sector"] = r["link_sector"]
+            rec["tickers"] = _tickers_for(conn, rec["id"])
+            out.append(rec)
+    return out
+
+
+def sector_radar(exclude_archived: bool = True, db_path: Path = CAPTURES_DB) -> list[dict]:
+    """Capture counts grouped by sector (the watchlist-wide 'what changed' radar)."""
+    archived = "WHERE c.status != 'archived'" if exclude_archived else ""
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            f"""SELECT COALESCE(NULLIF(ct.sector, ''), 'Uncategorized') AS sector,
+                       COUNT(DISTINCT ct.capture_id) AS n
+                 FROM capture_tickers ct JOIN captures c ON c.id = ct.capture_id
+                 {archived}
+                 GROUP BY sector ORDER BY n DESC""",
+        ).fetchall()
+    return [{"sector": r["sector"], "count": r["n"]} for r in rows]
+
+
+def ticker_counts(exclude_archived: bool = True, db_path: Path = CAPTURES_DB) -> dict[str, int]:
+    """``{ticker: capture_count}`` for the watchlist Connected-News badges."""
+    archived = "WHERE c.status != 'archived'" if exclude_archived else ""
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            f"""SELECT ct.ticker AS ticker, COUNT(DISTINCT ct.capture_id) AS n
+                 FROM capture_tickers ct JOIN captures c ON c.id = ct.capture_id
+                 {archived}
+                 GROUP BY ct.ticker""",
+        ).fetchall()
+    return {r["ticker"]: r["n"] for r in rows}
+
+
+def update_capture(capture_id: str, *, status: str | None = None,
+                   category: str | None = None,
+                   routing_suggestions: object = _UNSET,
+                   notes: str | None = None, routing_locked: int | None = None,
+                   db_path: Path = CAPTURES_DB) -> bool:
+    """Patch mutable capture fields (status/category/routing/notes). True if a row changed."""
+    sets, params = [], []
+    if status is not None:
+        sets.append("status = ?"); params.append(status)
+    if category is not None:
+        sets.append("category = ?"); params.append(category)
+    if routing_suggestions is not _UNSET:
+        val = routing_suggestions
+        if val is not None and not isinstance(val, str):
+            val = json.dumps(val, ensure_ascii=False)
+        sets.append("routing_suggestions = ?"); params.append(val)
+    if notes is not None:
+        sets.append("notes = ?"); params.append(notes)
+    if routing_locked is not None:
+        sets.append("routing_locked = ?"); params.append(int(routing_locked))
+    if not sets:
+        return False
+    params.append(capture_id)
+    with connect(db_path) as conn:
+        cur = conn.execute(f"UPDATE captures SET {', '.join(sets)} WHERE id = ?", params)
+        return cur.rowcount > 0
+
+
+def replace_tickers(capture_id: str, tickers: list[dict], db_path: Path = CAPTURES_DB) -> None:
+    """Replace the ticker links for a capture (used when David edits routing)."""
+    with connect(db_path) as conn:
+        conn.execute("DELETE FROM capture_tickers WHERE capture_id = ?", (capture_id,))
+        for t in tickers:
+            ticker = (t.get("ticker") or "").strip().upper()
+            if not ticker:
+                continue
+            conn.execute(
+                "INSERT OR IGNORE INTO capture_tickers (capture_id, ticker, sector) VALUES (?, ?, ?)",
+                (capture_id, ticker, t.get("sector")),
+            )
+
+
+def open_tasks_by_project(db_path: Path = CAPTURES_DB) -> dict[str, list[str]]:
+    """``{project_label: [open task texts, newest first]}`` for the Projects pillar.
+
+    Tasks carry the project label the voice classifier writes (one of the known
+    projects: ``K&E`` · ``Ulli/Acebuche`` · ``Immos`` · ``Personal Brand``). The
+    pillar's ``ProjectCard`` uses this for a live open-task count + top task per
+    project. Tasks with no project (or a closed status) are excluded.
+    """
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT project, text FROM tasks "
+            "WHERE status = 'open' AND project IS NOT NULL AND TRIM(project) != '' "
+            "ORDER BY created_at DESC"
+        ).fetchall()
+    out: dict[str, list[str]] = {}
+    for r in rows:
+        out.setdefault(r["project"], []).append(r["text"])
+    return out
+
+
+def status_counts(db_path: Path = CAPTURES_DB) -> dict[str, int]:
+    """``{status: count}`` across all captures (drives the Captures tab filter chips)."""
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT COALESCE(status, 'pending') AS status, COUNT(*) AS n FROM captures GROUP BY status"
+        ).fetchall()
+    return {r["status"]: r["n"] for r in rows}

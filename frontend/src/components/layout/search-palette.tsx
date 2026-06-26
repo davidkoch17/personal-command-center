@@ -4,24 +4,24 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { Search } from "lucide-react"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useSearchVault } from "@/hooks/useSearch"
+import { onOpenSearch } from "@/lib/search-bus"
 import { openInOs } from "@/lib/open-in-os"
 import { cn } from "@/lib/utils"
 
-/** Flat page list for quick-nav (mirrors the sidebar). */
+/** Flat page list for quick-nav. v3 pillars first, then routed legacy pages.
+ *  Archived pages (home / career / reading) are intentionally omitted. */
 const PAGES: { to: string; label: string }[] = [
-  { to: "/", label: "home" },
-  { to: "/plan", label: "plan" },
-  { to: "/projects", label: "projects" },
-  { to: "/ideas", label: "ideas" },
-  { to: "/inbox", label: "inbox" },
   { to: "/portfolio", label: "portfolio" },
-  { to: "/money", label: "money" },
-  { to: "/watchlist", label: "watchlist" },
-  { to: "/career", label: "career" },
-  { to: "/brand", label: "brand" },
-  { to: "/reading", label: "reading" },
+  { to: "/projects", label: "projects" },
   { to: "/background-runs", label: "background runs" },
   { to: "/settings", label: "settings" },
+  { to: "/plan", label: "plan" },
+  { to: "/ventures", label: "ventures" },
+  { to: "/ideas", label: "ideas" },
+  { to: "/inbox", label: "inbox" },
+  { to: "/money", label: "money" },
+  { to: "/watchlist", label: "watchlist" },
+  { to: "/brand", label: "brand" },
 ]
 
 /**
@@ -43,7 +43,12 @@ export function SearchPalette() {
       }
     }
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    // The sidebar "search" button opens the palette through this bus.
+    const offBus = onOpenSearch(() => setOpen(true))
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      offBus()
+    }
   }, [])
 
   useEffect(() => {

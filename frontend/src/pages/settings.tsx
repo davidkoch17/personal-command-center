@@ -13,9 +13,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { DiagnosticRow } from "@/components/settings/diagnostic-row"
-import { useSystemStatus, useClearCache } from "@/hooks/useSystem"
+import { useSystemStatus, useClearCache, useSystemConfig } from "@/hooks/useSystem"
 import { useDiagnostics } from "@/hooks/useDiagnostics"
 import { useFinanceDiagnostics } from "@/hooks/useFinance"
+import { useTheme } from "@/hooks/useTheme"
+import { openInOs } from "@/lib/open-in-os"
 import { toast } from "@/lib/toast-store"
 
 type BarrierMode = "auto" | "on" | "off"
@@ -55,6 +57,9 @@ export function Settings() {
         </Table>
       </Panel>
 
+      {/* 1b. v3 configuration (capture paths · snapshot · watchlist · tailscale) */}
+      <V3ConfigSection />
+
       {/* 2. Integration diagnostics */}
       <DiagnosticsSection />
 
@@ -68,16 +73,7 @@ export function Settings() {
       <VoiceSection />
 
       {/* 4. Theme */}
-      <Panel title="theme" statusDotColor="accent">
-        <div className="flex items-center gap-3">
-          <div className="h-6 w-6 rounded-sm border border-border" style={{ background: "#2563EB" }} />
-          <div>
-            <div className="text-sm text-text">cockpit</div>
-            <div className="font-mono text-xs text-text-secondary">accent #2563EB</div>
-          </div>
-          <span className="ml-auto text-xs text-text-label">theme swapping — future</span>
-        </div>
-      </Panel>
+      <ThemeSection />
 
       {/* 5. Cache */}
       <CacheSection />
@@ -113,6 +109,83 @@ export function Settings() {
         </Table>
       </Panel>
     </div>
+  )
+}
+
+/** v3 configuration (spec § f): capture paths, snapshot time, watchlist, tailscale. */
+function V3ConfigSection() {
+  const { data, isLoading } = useSystemConfig()
+
+  const Row = ({ k, v, openPath }: { k: string; v: string; openPath?: string }) => (
+    <TableRow>
+      <TableCell className="text-text-secondary">{k}</TableCell>
+      <TableCell className="font-mono text-xs">
+        {isLoading ? (
+          <Skeleton className="h-4 w-64" />
+        ) : openPath ? (
+          <button
+            type="button"
+            onClick={() => openInOs(openPath)}
+            className="text-left text-accent hover:underline"
+            title="open in os"
+          >
+            {v}
+          </button>
+        ) : (
+          v
+        )}
+      </TableCell>
+    </TableRow>
+  )
+
+  return (
+    <Panel title="v3 configuration" statusDotColor="accent">
+      <Table>
+        <TableBody>
+          <Row k="capture — news" v={data?.capture_paths.news_captures ?? "—"} openPath={data?.capture_paths.news_captures} />
+          <Row k="capture — voice" v={data?.capture_paths.voice_notes ?? "—"} openPath={data?.capture_paths.voice_notes} />
+          <Row k="capture — finance imports" v={data?.capture_paths.finance_imports ?? "—"} openPath={data?.capture_paths.finance_imports} />
+          <Row k="capture watcher" v={data ? `every ${data.capture_paths.watcher_interval_seconds}s` : "—"} />
+          <Row k="daily snapshot" v={data ? `${data.snapshot.time} · ${data.snapshot.scheduler}` : "—"} />
+          <Row k="watchlist tiers" v={data ? data.watchlist.tiers.join(" · ") : "—"} />
+          <Row k="watchlist file" v={data?.watchlist.file ?? "—"} openPath={data?.watchlist.file} />
+          <Row
+            k="tailscale"
+            v={data ? (data.tailscale.configured ? "configured" : data.tailscale.note) : "—"}
+          />
+          <Row k="evercore start" v={data?.evercore_start ?? "—"} />
+        </TableBody>
+      </Table>
+      <p className="mt-2 text-xs text-text-label">
+        active config values (read-only) — capture paths &amp; snapshot time are code / task-scheduler constants.
+      </p>
+    </Panel>
+  )
+}
+
+/** Functional dark/light theme toggle (uses the live useTheme hook). */
+function ThemeSection() {
+  const { theme, setTheme } = useTheme()
+  return (
+    <Panel title="theme" statusDotColor="accent">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-6 w-6 rounded-sm border border-border" style={{ background: "#2563EB" }} />
+          <div>
+            <div className="text-sm text-text">cockpit</div>
+            <div className="font-mono text-xs text-text-secondary">accent #2563EB</div>
+          </div>
+        </div>
+        <Toggle<"dark" | "light">
+          value={theme}
+          options={[
+            { value: "dark", label: "dark" },
+            { value: "light", label: "light" },
+          ]}
+          onChange={setTheme}
+        />
+      </div>
+    </Panel>
   )
 }
 

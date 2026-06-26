@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import type {
+  BriefingCard,
   ProjectCard,
   ProjectCreateRequest,
   ProjectWorkspace,
@@ -13,6 +14,14 @@ export function useProjects() {
   return useQuery({
     queryKey: ["projects"],
     queryFn: () => api.get<ProjectCard[]>("/api/projects"),
+  })
+}
+
+/** Latest weekly briefing for the Projects-pillar card (99_System/Briefings/). */
+export function useLatestBriefing() {
+  return useQuery({
+    queryKey: ["briefing", "latest"],
+    queryFn: () => api.get<BriefingCard>("/api/projects/briefing"),
   })
 }
 

@@ -53,6 +53,17 @@ def most_recent_draft(project_id: str) -> Path | None:
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
+def last_activity(project_id: str) -> datetime | None:
+    """Mtime of the most recently modified content file in the project (or None).
+
+    Reuses :func:`most_recent_draft` so it honours the same exclusions (archives,
+    Office lockfiles) and prioritized extensions — the "last touched" signal the
+    Projects pillar card shows.
+    """
+    draft = most_recent_draft(project_id)
+    return datetime.fromtimestamp(draft.stat().st_mtime) if draft else None
+
+
 def key_files(project_id: str, limit: int = 5) -> list[Path]:
     """Top N recently modified prioritized files."""
     root = project_root(project_id)

@@ -4,6 +4,7 @@ import type {
   IdeaCard,
   IdeaCreateRequest,
   IdeaDecisionRequest,
+  KilledIdea,
 } from "@/lib/types"
 
 export interface IdeaStage {
@@ -13,6 +14,8 @@ export interface IdeaStage {
   filename: string
   status: "pending" | "done" | "stale" | "running"
   exists: boolean
+  /** Output integrity: valid doc · refusal/clarification reply · not generated. */
+  quality: "valid" | "corrupted" | "missing"
   mtime: string | null
   content: string
 }
@@ -52,6 +55,13 @@ export function useIdeaWorkspace(name: string | undefined) {
     // launches a detached process, so there is no push channel).
     refetchInterval: (query) =>
       query.state.data?.running_stage ? 4_000 : 15_000,
+  })
+}
+
+export function useKilledIdeas() {
+  return useQuery({
+    queryKey: ["ideas", "killed"],
+    queryFn: () => api.get<KilledIdea[]>("/api/ideas/killed"),
   })
 }
 

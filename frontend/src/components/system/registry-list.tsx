@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { Play, ExternalLink, Archive, RotateCcw, X } from "lucide-react"
+import { Play, ExternalLink, Archive, RotateCcw, X, FileClock, Clock } from "lucide-react"
 import { Panel } from "@/components/ui/panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,12 +29,30 @@ const HEALTH_DOT: Record<RegistryEntry["health"], StatusColor> = {
 
 type KindFilter = "all" | "agent" | "skill"
 
+/** Human cadence label from the registry's ``cadence_days`` (read-only schedule). */
+function scheduleLabel(cadenceDays: number | null | undefined): string {
+  if (cadenceDays == null) return "on demand"
+  if (cadenceDays <= 1) return "daily"
+  if (cadenceDays <= 7) return "weekly"
+  if (cadenceDays <= 31) return "monthly"
+  if (cadenceDays <= 92) return "quarterly"
+  return `every ${cadenceDays}d`
+}
+
 /**
- * Skills & Agents Registry (System §1, N2). The full admin list of every skill
- * + agent: name, kind/domain, description, last-run health, with Run +
- * Disable/Enable. Disabling is soft (archive) — greyed and unrunnable, never lost.
+ * Skills & Agents Registry (System §1, N2 + v3 Background-Runs Tab 2). The full
+ * catalog of every skill + agent grouped by domain: name, kind, description,
+ * last-run health + schedule, with Run · View-output · Disable/Enable. Disabling
+ * is soft (archive) — greyed and unrunnable, never lost.
+ *
+ * ``onViewOutput`` (Background-Runs Tab 2): when given, each entry with a last
+ * run shows a "view output" button that jumps to the Runs tab for that run.
  */
-export function RegistryList() {
+export function RegistryList({
+  onViewOutput,
+}: {
+  onViewOutput?: (runId: string) => void
+} = {}) {
   const { data, isLoading, isError, refetch } = useRegistry()
   const [kind, setKind] = useState<KindFilter>("all")
   const [query, setQuery] = useState("")
@@ -62,6 +80,17 @@ export function RegistryList() {
           a.label.localeCompare(b.label),
       )
   }, [entries, kind, query, showDisabled])
+
+  // Group the (already domain-sorted) filtered list into per-domain sections.
+  const groups = useMemo(() => {
+    const m = new Map<string, RegistryEntry[]>()
+    for (const e of filtered) {
+      const list = m.get(e.domain)
+      if (list) list.push(e)
+      else m.set(e.domain, [e])
+    }
+    return [...m.entries()]
+  }, [filtered])
 
   const agentCount = entries.filter((e) => e.kind === "agent").length
   const skillCount = entries.length - agentCount
@@ -111,9 +140,19 @@ export function RegistryList() {
       ) : filtered.length === 0 ? (
         <p className="text-sm text-text-label">no matching skills or agents</p>
       ) : (
-        <div className="divide-y divide-border">
-          {filtered.map((e) => (
-            <RegistryRow key={e.key} entry={e} />
+        <div className="space-y-4">
+          {groups.map(([domain, rows]) => (
+            <div key={domain}>
+              <div className="mb-1 flex items-center gap-2 border-b border-border pb-1">
+                <span className="label">{domain}</span>
+                <span className="font-mono text-[10px] text-text-label">{rows.length}</span>
+              </div>
+              <div className="divide-y divide-border">
+                {rows.map((e) => (
+                  <RegistryRow key={e.key} entry={e} onViewOutput={onViewOutput} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -121,7 +160,13 @@ export function RegistryList() {
   )
 }
 
-function RegistryRow({ entry }: { entry: RegistryEntry }) {
+function RegistryRow({
+  entry,
+  onViewOutput,
+}: {
+  entry: RegistryEntry
+  onViewOutput?: (runId: string) => void
+}) {
   const run = useRunSkill()
   const disable = useDisableEntry()
   const enable = useEnableEntry()
@@ -162,7 +207,10 @@ function RegistryRow({ entry }: { entry: RegistryEntry }) {
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium text-text normal-case">{entry.label}</span>
               <Tag variant={entry.kind === "agent" ? "accent" : "muted"}>{entry.kind}</Tag>
-              <Tag variant="muted">{entry.domain}</Tag>
+              <Tag variant="muted">
+                <Clock className="h-3 w-3" />
+                {scheduleLabel(entry.cadence_days)}
+              </Tag>
               {entry.disabled && <Tag variant="danger">disabled</Tag>}
             </div>
             <p className="mt-0.5 text-xs text-text-secondary">{entry.description}</p>
@@ -179,6 +227,16 @@ function RegistryRow({ entry }: { entry: RegistryEntry }) {
 
         <div className="flex shrink-0 items-center gap-1.5">
           {!entry.disabled && <RunAction entry={entry} onRun={onRun} pending={run.isPending} />}
+          {onViewOutput && entry.last_run_id && (
+            <Button
+              variant="ghost"
+              size="sm"
+              title="view last output in the runs tab"
+              onClick={() => onViewOutput(entry.last_run_id as string)}
+            >
+              <FileClock className="h-3.5 w-3.5" /> output
+            </Button>
+          )}
           {entry.disabled ? (
             <Button
               variant="secondary"

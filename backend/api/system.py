@@ -10,6 +10,9 @@ from pydantic import BaseModel
 from core import vault
 from core.config import (
     VAULT_PATH, PROJECT_INDEX_FILE, INBOX_PATH, get_logger,
+    NEWS_CAPTURES_PATH, VOICE_NOTES_PATH, FINANCE_IMPORTS_DIR,
+    CAPTURE_WATCHER_INTERVAL_SECONDS, WATCHLIST_UNIVERSE_FILE,
+    EVERCORE_START_DATE, CAPTURE_KNOWN_PROJECTS,
 )
 from core import markdown
 from modules.finance import loader
@@ -50,6 +53,39 @@ def status() -> dict:
             "recent_runs": len(background.list_recent_runs(50)),
         },
         "integrations": diagnostics.run_all(),
+    }
+
+
+@router.get("/config")
+def config() -> dict:
+    """v3 configuration surfaced read-only on the Settings page (spec § f).
+
+    Capture inbox paths + watcher cadence, the daily-snapshot time, the watchlist
+    tier file, and Tailscale status. These are the active config values; most are
+    code/Task-Scheduler constants (editing is out of scope for this phase).
+    """
+    return {
+        "capture_paths": {
+            "news_captures": str(NEWS_CAPTURES_PATH),
+            "voice_notes": str(VOICE_NOTES_PATH),
+            "finance_imports": str(FINANCE_IMPORTS_DIR),
+            "watcher_interval_seconds": CAPTURE_WATCHER_INTERVAL_SECONDS,
+        },
+        "snapshot": {
+            # Daily net-worth snapshot job (spec § c) — Windows Task Scheduler.
+            "time": "18:00",
+            "scheduler": "Windows Task Scheduler (daily)",
+        },
+        "watchlist": {
+            "file": str(WATCHLIST_UNIVERSE_FILE),
+            "tiers": ["Tier 1", "Tier 2", "Tier 3"],
+        },
+        "tailscale": {
+            "configured": False,
+            "note": "Set up in Phase G (Run + connect — Tailscale + PWA).",
+        },
+        "known_projects": CAPTURE_KNOWN_PROJECTS,
+        "evercore_start": EVERCORE_START_DATE,
     }
 
 

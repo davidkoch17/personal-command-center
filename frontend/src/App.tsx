@@ -1,11 +1,10 @@
 import { lazy, Suspense, type ReactNode } from "react"
-import { createBrowserRouter, RouterProvider } from "react-router-dom"
+import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom"
 import { QueryClientProvider } from "@tanstack/react-query"
 import { queryClient } from "@/lib/queryClient"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppShell } from "@/components/layout/app-shell"
 
-import { Home } from "@/pages/home"
 import { Plan } from "@/pages/plan"
 import { Ventures } from "@/pages/ventures"
 import { Projects } from "@/pages/projects"
@@ -17,8 +16,6 @@ import { Money } from "@/pages/money"
 import { Watchlist } from "@/pages/watchlist"
 import { DecisionJournal } from "@/pages/decision-journal"
 import { Brand } from "@/pages/brand"
-import { Career } from "@/pages/career"
-import { Reading } from "@/pages/reading"
 import { BackgroundRuns } from "@/pages/background-runs"
 import { Settings } from "@/pages/settings"
 import { System } from "@/pages/system"
@@ -45,9 +42,6 @@ const WatchlistTicker = lazy(() =>
 const BrandVideo = lazy(() =>
   import("@/pages/workspaces/brand-video").then((m) => ({ default: m.BrandVideo })),
 )
-const CareerWorkspace = lazy(() =>
-  import("@/pages/workspaces/career-workspace").then((m) => ({ default: m.CareerWorkspace })),
-)
 
 function Lazy({ children }: { children: ReactNode }) {
   return (
@@ -67,34 +61,26 @@ const router = createBrowserRouter([
   {
     element: <AppShell />,
     children: [
-      { path: "/", element: <Home /> },
-      // v2 Page 2 — Plan merges Planner + Tasks + Calendar + Daily Priorities.
-      // The standalone Tasks + Calendar routes are removed.
+      // v3 entry point is the Portfolio Hub pillar (Home archived — spec § f).
+      { path: "/", element: <Navigate to="/portfolio" replace /> },
+      // --- v3 sidebar: 2 pillars + Background Runs + Search + Settings --------
+      { path: "/portfolio", element: <Portfolio /> },   // pillar 1 — Portfolio Hub
+      { path: "/projects", element: <Projects /> },      // pillar 2 — Projects
+      { path: "/background-runs", element: <BackgroundRuns /> },
+      { path: "/settings", element: <Settings /> },
+      // --- Refactored / legacy pages: off-sidebar, still reachable by URL -----
+      // (Their content is folded into the two pillars; kept routed so deep-dive
+      // links and the search palette never 404.)
       { path: "/plan", element: <Plan /> },
-      // v2 Page 4 — Ventures merges Projects + Ideas into one boardroom +
-      // per-venture "department" workspaces. The old standalone routes stay
-      // reachable by URL during the v2 transition.
       { path: "/ventures", element: <Ventures /> },
-      { path: "/projects", element: <Projects /> },
       { path: "/ideas", element: <Ideas /> },
       { path: "/inbox", element: <Inbox /> },
-      // v2 Page 3 — Wealth merges Portfolio + Watchlist + Decision Journal +
-      // Money into one hub. The old standalone routes stay reachable by URL
-      // during the v2 transition (deep-dive workspaces are unaffected).
       { path: "/wealth", element: <Wealth /> },
-      { path: "/portfolio", element: <Portfolio /> },
       { path: "/money", element: <Money /> },
       { path: "/watchlist", element: <Watchlist /> },
       { path: "/decision-journal", element: <DecisionJournal /> },
       { path: "/brand", element: <Brand /> },
-      { path: "/career", element: <Career /> },
-      { path: "/reading", element: <Reading /> },
-      // v2 Page 7 — System merges Background Runs + Settings + diagnostics +
-      // the new Skills & Agents Registry. The old standalone routes are kept
-      // reachable by URL during the v2 transition.
       { path: "/system", element: <System /> },
-      { path: "/background-runs", element: <BackgroundRuns /> },
-      { path: "/settings", element: <Settings /> },
       // Hidden dev tool — reachable via direct URL or the Settings link, not the sidebar.
       { path: "/debug-jarvis", element: <DebugJarvis /> },
     ],
@@ -112,7 +98,6 @@ const router = createBrowserRouter([
       { path: "/workspace/money", element: <Lazy><MoneyWorkspace /></Lazy> },
       { path: "/workspace/watchlist/:ticker", element: <Lazy><WatchlistTicker /></Lazy> },
       { path: "/workspace/brand/:id", element: <Lazy><BrandVideo /></Lazy> },
-      { path: "/workspace/career", element: <Lazy><CareerWorkspace /></Lazy> },
     ],
   },
 ])

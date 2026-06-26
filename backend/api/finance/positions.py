@@ -1,4 +1,4 @@
-"""Positions / transactions / holdings endpoints (Phase 15a)."""
+"""Positions / transactions / holdings endpoints (Phase 15a + Phase D)."""
 from __future__ import annotations
 
 import warnings
@@ -6,7 +6,8 @@ import warnings
 from fastapi import APIRouter, HTTPException, Query
 
 from core.config import get_logger
-from modules.finance import positions as pos
+from modules.finance import period_pnl, positions as pos
+from modules.finance import realized
 from modules.finance import risk
 from modules.finance.price_history import get_returns, latest_price_eur
 from modules.finance.positions import Position, Transaction
@@ -115,3 +116,45 @@ def get_holdings() -> dict:
 
     rows.sort(key=lambda r: r["market_value"], reverse=True)
     return {"holdings": rows, "total_market_value": round(total_mv, 2), "count": len(rows)}
+
+
+# --- Phase D: Holdings tab (period P&L + trade log) + Overview (net worth) ----
+
+@router.get("/holdings/pnl")
+def holdings_pnl() -> dict:
+    """Per-position P&L split month / YTD / all-time + the total-band figures.
+
+    Derived from positions_daily.csv + the ledger (contributions-adjusted), so the
+    Holdings table's month/YTD columns line up with the daily snapshot history.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return period_pnl.position_period_pnl()
+
+
+@router.get("/trades/realized")
+def realized_trades() -> dict:
+    """Closed-trade log (FIFO buy/sell matches) + the YTD realized total (Abgeltungsteuer)."""
+    rows = realized.rebuild_realized_trades()
+    rows.sort(key=lambda r: (r.get("date_sold", ""), r.get("ticker", "")), reverse=True)
+    return {
+        "trades": rows,
+        "count": len(rows),
+        "ytd_realized_eur": realized.ytd_realized(),
+        "year": __import__("datetime").date.today().year,
+    }
+
+
+@router.get("/networth/daily")
+def networth_daily(days: int = Query(90, ge=1, le=3650)) -> dict:
+    """Daily net-worth series for the Overview sparkline (default last 90 days)."""
+    series = period_pnl.networth_daily(days)
+    return {"series": series, "count": len(series), "days": days}
+
+
+@router.get("/networth/decomposition")
+def networth_decomposition() -> dict:
+    """This-month net-worth change split into savings vs market P&L (contributions netted)."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return period_pnl.month_decomposition()

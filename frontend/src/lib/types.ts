@@ -50,6 +50,19 @@ export interface ProjectCard {
   folder: string
   flow?: string | null // "A" | "B"
   has_agents?: boolean
+  // Projects pillar enrichment (Phase E)
+  phase?: string | null
+  open_task_count?: number
+  top_task?: string | null
+  last_activity?: string | null // ISO datetime
+}
+
+export interface BriefingCard {
+  date?: string | null // ISO YYYY-MM-DD
+  title: string
+  path?: string
+  excerpt?: string
+  count?: number
 }
 
 export interface ProjectLogEntry {
@@ -102,6 +115,12 @@ export interface IdeaCard {
   stages_complete: number
   progress: number // 0-12
   state: Record<string, unknown>
+  next_stage?: string | null // first missing/stale stage key, null if complete
+}
+
+export interface KilledIdea {
+  name: string
+  reason: string
 }
 
 export interface IdeaCreateRequest {

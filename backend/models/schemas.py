@@ -55,6 +55,20 @@ class ProjectCard(BaseModel):
     folder: str = ""
     flow: Optional[str] = None  # "A" | "B" parsed from README "**Type:** Flow X"
     has_agents: bool = False  # venture has an _agents.json roster
+    # --- Projects pillar enrichment (Phase E, spec § e) ---------------------
+    phase: Optional[str] = None  # short phase label (from the index Status line)
+    open_task_count: int = 0  # open project-tagged tasks in the captures DB
+    top_task: Optional[str] = None  # newest open task for this project
+    last_activity: Optional[datetime] = None  # mtime of the latest content file
+
+
+class BriefingCard(BaseModel):
+    """Latest weekly briefing summary for the small Projects-pillar card."""
+    date: Optional[str] = None  # YYYY-MM-DD parsed from the filename
+    title: str
+    path: str = ""
+    excerpt: str = ""
+    count: int = 0  # total briefings on file
 
 
 class ProjectLogEntry(BaseModel):
@@ -77,6 +91,7 @@ class IdeaCard(BaseModel):
     stages_complete: int
     progress: int  # 0-12
     state: dict = {}
+    next_stage: Optional[str] = None  # first missing/stale stage key, or None if complete
 
 
 class IdeaCreateRequest(BaseModel):

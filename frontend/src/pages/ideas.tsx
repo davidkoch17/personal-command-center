@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { useIdeas, useCreateIdea } from "@/hooks/useIdeas"
+import { useIdeas, useCreateIdea, useKilledIdeas } from "@/hooks/useIdeas"
 import { toast } from "@/lib/toast-store"
 
 export function Ideas() {
@@ -52,14 +52,40 @@ export function Ideas() {
         </div>
       )}
 
-      <Collapsible title="killed" meta="archived">
-        <p className="text-sm text-text-label">
-          killed ideas are archived in the vault; the api lists active ideas only.
-        </p>
-      </Collapsible>
+      <KilledSection />
 
       <NewIdeaDialog open={newOpen} onOpenChange={setNewOpen} />
     </div>
+  )
+}
+
+/** Collapsed killed-ideas archive (98_Ideen/_killed/). */
+function KilledSection() {
+  const { data } = useKilledIdeas()
+  const killed = data ?? []
+  if (killed.length === 0) return null
+
+  return (
+    <Collapsible title="killed" meta={`${killed.length}`}>
+      <ul className="space-y-2">
+        {killed.map((k) => {
+          // Reason files lead with "# Killed <timestamp>" — drop that heading.
+          const reason = k.reason
+            .split("\n")
+            .filter((l) => !l.startsWith("#") && l.trim())
+            .join(" ")
+            .trim()
+          return (
+            <li key={k.name} className="border-b border-border pb-2 last:border-0 last:pb-0">
+              <div className="font-mono text-xs text-text">{k.name}</div>
+              <p className="line-clamp-2 text-sm text-text-label">
+                {reason || "no reason recorded"}
+              </p>
+            </li>
+          )
+        })}
+      </ul>
+    </Collapsible>
   )
 }
 

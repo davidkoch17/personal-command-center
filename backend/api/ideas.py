@@ -37,6 +37,27 @@ def _stage_status(state: dict, stage_key: str) -> str:
     return "stale" if s.get("stale") else "done"
 
 
+def _next_stage(state: dict) -> str | None:
+    """First stage that still needs running (missing or stale), in pipeline order."""
+    for stage_key, _, _ in iv.STAGES:
+        entry = state.get(stage_key)
+        if not entry or entry.get("stale"):
+            return stage_key
+    return None
+
+
+def _stage_quality(exists: bool, content: str) -> str:
+    """Flag a stage's output: ``missing`` · ``corrupted`` (refusal) · ``valid``.
+
+    Reuses the runner's refusal heuristic so the pipeline strip shows the same
+    judgement the runner uses to reject bad output — a corrupted stage is one
+    where a refusal/clarification reply was written instead of a real doc.
+    """
+    if not exists:
+        return "missing"
+    return "corrupted" if iv._looks_like_refusal(content) else "valid"
+
+
 def _resolve(idea_name: str):
     """Return the idea folder if it exists as an active idea, else 404."""
     active = {i["path"].resolve(): i for i in iv.list_ideas()}
@@ -56,9 +77,16 @@ def list_ideas() -> list[IdeaCard]:
             stages_complete=i["stages_complete"],
             progress=min(i["stages_complete"], n_stages),
             state=i.get("state", {}),
+            next_stage=_next_stage(i.get("state", {})),
         )
         for i in iv.list_ideas()
     ]
+
+
+@router.get("/killed")
+def killed_ideas() -> list[dict]:
+    """Killed ideas archived under ``98_Ideen/_killed/`` (collapsed section)."""
+    return [{"name": k["name"], "reason": k["reason"]} for k in iv.list_killed()]
 
 
 @router.post("")
@@ -93,6 +121,7 @@ def idea_workspace(name: str) -> dict:
             "filename": filename,
             "status": _stage_status(state, stage_key),
             "exists": out_path.exists(),
+            "quality": _stage_quality(out_path.exists(), content),
             "mtime": mtime,
             "content": content,
         })

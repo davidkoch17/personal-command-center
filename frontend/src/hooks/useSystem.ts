@@ -35,3 +35,26 @@ export function useClearCache() {
     mutationFn: () => api.post<{ ok: boolean; detail?: string }>("/api/system/clear-cache"),
   })
 }
+
+/** v3 configuration surfaced on the Settings page (GET /api/system/config). */
+export interface SystemConfig {
+  capture_paths: {
+    news_captures: string
+    voice_notes: string
+    finance_imports: string
+    watcher_interval_seconds: number
+  }
+  snapshot: { time: string; scheduler: string }
+  watchlist: { file: string; tiers: string[] }
+  tailscale: { configured: boolean; note: string }
+  known_projects: string[]
+  evercore_start: string
+}
+
+export function useSystemConfig() {
+  return useQuery({
+    queryKey: ["system", "config"],
+    queryFn: () => api.get<SystemConfig>("/api/system/config"),
+    staleTime: 5 * 60_000,
+  })
+}

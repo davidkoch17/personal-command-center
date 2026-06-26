@@ -239,12 +239,41 @@ function stageTitle(stages: IdeaStage[], stageKey: string): string {
 }
 
 // 4. Per-stage output
+const QUALITY_META: Record<IdeaStage["quality"], { color: StatusColor; label: string }> = {
+  valid: { color: "success", label: "valid" },
+  corrupted: { color: "danger", label: "corrupted" },
+  missing: { color: "muted", label: "missing" },
+}
+
 function StageOutput({ name, stage }: { name: string; stage: IdeaStage }) {
   const isMarkdown = stage.filename.toLowerCase().endsWith(".md")
-  const meta = stage.status + (stage.mtime ? ` · ${stage.mtime.slice(0, 10)}` : "")
+  const q = QUALITY_META[stage.quality]
+  const meta =
+    `${q.label} · ${stage.status}` + (stage.mtime ? ` · ${stage.mtime.slice(0, 10)}` : "")
 
   return (
     <Collapsible title={stage.title} meta={meta}>
+      {/* Output integrity flag (spec § e): valid · corrupted (refusal) · missing. */}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <Tag variant={q.color === "muted" ? "muted" : (q.color as "success" | "danger")}>
+          <StatusDot color={q.color} />
+          {q.label}
+        </Tag>
+        {stage.exists && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openInOs(`${name}/${stage.filename}`)}
+          >
+            open output
+          </Button>
+        )}
+      </div>
+      {stage.quality === "corrupted" && (
+        <p className="mb-2 text-xs text-danger">
+          looks like a refusal / clarification reply, not a real stage doc — re-run this stage.
+        </p>
+      )}
       {!stage.exists ? (
         <p className="text-sm text-text-label">not generated yet</p>
       ) : isMarkdown ? (
@@ -252,18 +281,7 @@ function StageOutput({ name, stage }: { name: string; stage: IdeaStage }) {
           {stage.content || "(empty)"}
         </pre>
       ) : (
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs text-text-secondary">
-            {stage.filename}
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => openInOs(`${name}/${stage.filename}`)}
-          >
-            open in os
-          </Button>
-        </div>
+        <span className="font-mono text-xs text-text-secondary">{stage.filename}</span>
       )}
     </Collapsible>
   )
