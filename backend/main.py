@@ -34,18 +34,31 @@ from backend.api import (
 )
 from backend.api import finance
 from modules.briefings import weekly
+from modules.captures import watcher as capture_watcher
+from modules.finance import snapshot_scheduler
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Start background schedulers for the lifetime of the server.
 
-    Weekly briefing (Item #16): fires Sunday 18:00; if the laptop was off at
-    trigger time, the next backend start catches up (see modules/briefings/weekly).
+    Three backend-internal cron loops (all catch up on the next start if the
+    laptop was off at trigger time — see each module):
+    - Weekly briefing (Item #16): fires Sunday 18:00.
+    - Capture watcher (Phase G): polls the OneDrive inbox every 60s and ingests
+      new iOS-Shortcut captures into the captures DB.
+    - Daily snapshot (Phase G): writes the net-worth + per-position rows ~18:00.
+    Folding the capture/snapshot jobs in here means "dashboard running = the
+    capture loop and daily snapshot run" — no separate Windows scheduled tasks.
     """
-    briefing_task = asyncio.create_task(weekly.scheduler_loop())
+    tasks = [
+        asyncio.create_task(weekly.scheduler_loop()),
+        asyncio.create_task(capture_watcher.scheduler_loop()),
+        asyncio.create_task(snapshot_scheduler.scheduler_loop()),
+    ]
     yield
-    briefing_task.cancel()
+    for t in tasks:
+        t.cancel()
 
 
 app = FastAPI(

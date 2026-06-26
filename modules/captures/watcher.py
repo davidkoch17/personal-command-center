@@ -14,6 +14,7 @@ Run as a long-lived job::
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import time
 from pathlib import Path
@@ -86,6 +87,27 @@ def run(interval: int = CAPTURE_WATCHER_INTERVAL_SECONDS) -> None:
         except Exception:  # noqa: BLE001 - keep the loop alive across any failure
             logger.exception("scan_once failed; continuing")
         time.sleep(interval)
+
+
+async def scheduler_loop(interval: int = CAPTURE_WATCHER_INTERVAL_SECONDS) -> None:
+    """Backend-internal capture poller (Phase G), started from the FastAPI lifespan.
+
+    Folds the standalone watcher into the dashboard backend so "dashboard running
+    = captures ingested" — no separate scheduled task. ``scan_once`` does OCR /
+    Whisper / Claude work, so it runs in a worker thread to keep the event loop
+    free. The standalone ``python -m modules.captures.watcher`` entry point still
+    works for running the poller on its own.
+    """
+    logger.info(
+        "capture scheduler started (interval=%ds) watching:\n  %s\n  %s",
+        interval, NEWS_CAPTURES_PATH, VOICE_NOTES_PATH,
+    )
+    while True:
+        try:
+            await asyncio.to_thread(scan_once)
+        except Exception:  # noqa: BLE001 - keep the loop alive across any failure
+            logger.exception("capture scan_once failed; continuing")
+        await asyncio.sleep(interval)
 
 
 def main() -> None:

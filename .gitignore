@@ -28,6 +28,9 @@ data/ff_cache/
 # Item #16 weekly briefing — per-machine scheduler state (last trigger fired).
 data/weekly_briefing_state.json
 
+# Phase G daily snapshot — per-machine scheduler state (last trigger fired).
+data/daily_snapshot_state.json
+
 # System page — Skills & Agents registry soft-disable/archive state (per-machine).
 data/registry_state.json
 
