@@ -1,4 +1,5 @@
 """Detached background process runner for long skill/agent runs."""
+import re
 import subprocess
 import sys
 import json
@@ -16,13 +17,26 @@ def _ensure_dirs():
     BG_LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _slug(label: str) -> str:
+    """Filename-safe label token for the run id.
+
+    Labels routinely contain a colon (e.g. ``"Stock analysis: BABA"``). On NTFS a
+    colon opens an alternate-data-stream (``name:stream``), so an un-sanitised
+    run id silently writes the status/log/bootstrap into ADS streams — and when
+    several runs share a timestamp their base name collides into one file. Keep
+    only filename-safe characters so each run gets its own real files.
+    """
+    token = re.sub(r"[^A-Za-z0-9._-]+", "_", label).strip("_")
+    return token or "run"
+
+
 def launch(module_path: str, callable_name: str, args: list, label: str) -> dict:
     """Launch a detached background Python process.
 
     Returns dict with run_id, pid, log_file, status_file.
     """
     _ensure_dirs()
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + label.replace(" ", "_")
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + _slug(label)
     log_file = BG_LOG_DIR / f"{run_id}.log"
     status_file = BG_LOG_DIR / f"{run_id}.status.json"
 

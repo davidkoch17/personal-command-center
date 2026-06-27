@@ -1,5 +1,5 @@
 ' ===========================================================================
-'  Command Center v2 — silent launcher
+'  Personal Command Center v3 — silent launcher
 '
 '  Run by wscript.exe, this script has NO console of its own, so nothing
 '  flashes on screen. It:
@@ -8,7 +8,8 @@
 '       _backend_only.bat (resolves pythonw, redirects logs), launched hidden.
 '    3. Polls until the backend is healthy (cold start loads finance libs,
 '       can take ~30-50s).
-'    4. Opens the dashboard in the default browser.
+'    4. Opens the dashboard in the default browser at the Portfolio Hub
+'       (the v3 entry point — Home is archived, Portfolio is the landing page).
 '
 '  Pass the argument "backendonly" to start the backend without opening a
 '  browser — used by the on-login autostart shortcut.
@@ -43,8 +44,8 @@ If Not BackendUp() Then
 End If
 
 If Not backendOnly Then
-    ' Open the dashboard in the default browser (no console).
-    sh.Run "http://localhost:8000", 1, False
+    ' Open the dashboard in the default browser at the Portfolio Hub (no console).
+    sh.Run "http://localhost:8000/portfolio", 1, False
 End If
 
 ' ---------------------------------------------------------------------------

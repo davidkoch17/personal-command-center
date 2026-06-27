@@ -11,7 +11,7 @@ skills:
   target_kind: ticker
   schedule: on_demand
   last_run:
-    at: '2026-06-25T11:37:55'
+    at: '2026-06-27T20:36:44'
     status: completed
 - name: earnings_review
   label: Earnings Review
