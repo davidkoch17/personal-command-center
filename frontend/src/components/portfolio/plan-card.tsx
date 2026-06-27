@@ -34,15 +34,24 @@ function recColor(rec?: string | null): "success" | "danger" | "warning" | "mute
 }
 
 function PlanCardBody({ report, livePrice }: { report: ReportSidecar; livePrice?: number | null }) {
-  const price = livePrice ?? report.current_price_at_analysis ?? null
-  const fvLow = report.fair_value_low ?? null
-  const fvHigh = report.fair_value_high ?? null
+  // Portfolio is EUR-everywhere (Phase H): prefer the backend's EUR-converted
+  // fields; fall back to native only if FX was unavailable at serve time.
+  const ccy = report.display_currency ?? "EUR"
+  const price =
+    report.live_price_eur ?? livePrice ?? report.current_price_at_analysis_eur ?? report.current_price_at_analysis ?? null
+  const fvLow = report.fair_value_low_eur ?? report.fair_value_low ?? null
+  const fvHigh = report.fair_value_high_eur ?? report.fair_value_high ?? null
+  const atAnalysis = report.current_price_at_analysis_eur ?? report.current_price_at_analysis ?? null
 
-  // Upside vs LIVE price (recompute when we have a live quote; else use the report's).
-  const upLow = price && fvLow ? (fvLow / price - 1) * 100 : report.upside_low_pct ?? null
-  const upHigh = price && fvHigh ? (fvHigh / price - 1) * 100 : report.upside_high_pct ?? null
+  // Upside vs the LIVE EUR price (server-recomputed; else recompute here; else the report's).
+  const upLow =
+    report.upside_low_pct_eur ?? (price && fvLow ? (fvLow / price - 1) * 100 : report.upside_low_pct ?? null)
+  const upHigh =
+    report.upside_high_pct_eur ?? (price && fvHigh ? (fvHigh / price - 1) * 100 : report.upside_high_pct ?? null)
 
   const scenarios = report.scenarios ?? {}
+  const fromNative =
+    report.native_currency && report.native_currency !== "EUR" ? report.native_currency : null
 
   return (
     <div className="space-y-3 rounded-sm border border-border bg-bg-panel p-3">
@@ -71,10 +80,15 @@ function PlanCardBody({ report, livePrice }: { report: ReportSidecar; livePrice?
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Field label="fair value">
           <span className="font-mono text-sm tabular-nums text-text">
-            {fvLow != null && fvHigh != null
-              ? `${fvLow} – ${fvHigh} ${report.currency ?? ""}`
-              : "—"}
+            {fvLow != null && fvHigh != null ? `${fvLow} – ${fvHigh} ${ccy}` : "—"}
           </span>
+          {fromNative && (
+            <span className="ml-1 text-[10px] text-text-label">
+              from {fromNative}
+              {report.fx_to_eur != null ? ` @ ${report.fx_to_eur.toFixed(3)}` : ""}
+              {report.fx_stale ? " (stale)" : ""}
+            </span>
+          )}
         </Field>
         <Field label="upside (low–high)">
           <span className="font-mono text-sm tabular-nums">
@@ -88,12 +102,10 @@ function PlanCardBody({ report, livePrice }: { report: ReportSidecar; livePrice?
             )}
           </span>
         </Field>
-        <Field label="price (live / @analysis)">
+        <Field label={`price ${ccy} (live / @analysis)`}>
           <span className="font-mono text-sm tabular-nums text-text">
             {price != null ? `${price}` : "—"}
-            {report.current_price_at_analysis != null && (
-              <span className="text-text-label"> / {report.current_price_at_analysis}</span>
-            )}
+            {atAnalysis != null && <span className="text-text-label"> / {atAnalysis}</span>}
           </span>
         </Field>
       </div>
@@ -114,7 +126,7 @@ function PlanCardBody({ report, livePrice }: { report: ReportSidecar; livePrice?
                   </span>
                 </div>
                 <div className="font-mono text-sm tabular-nums text-text">
-                  {s.implied_value != null ? s.implied_value : "—"}
+                  {s.implied_value_eur ?? s.implied_value ?? "—"}
                 </div>
                 {s.note && <div className="mt-0.5 line-clamp-2 text-xs text-text-label">{s.note}</div>}
               </div>

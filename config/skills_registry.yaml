@@ -1,11 +1,11 @@
 _meta:
   description: Declarative catalogue of every skill + agent (Phase C).
-  generated_at: '2026-06-25T11:32:18'
+  generated_at: '2026-06-27T15:58:20'
   note: Regenerate with modules.agents.skills.research.catalog.build_registry_yaml().
 skills:
 - name: stock_analysis
   label: Stock Analysis
-  domain: research
+  domain: research-finance
   type: skill
   runner: background:modules.agents.skills.research.stock_analysis
   target_kind: ticker
@@ -15,7 +15,7 @@ skills:
     status: completed
 - name: earnings_review
   label: Earnings Review
-  domain: research
+  domain: research-finance
   type: skill
   runner: background:modules.agents.skills.research.earnings_review
   target_kind: ticker
@@ -23,7 +23,7 @@ skills:
   last_run: null
 - name: sector_deepdive
   label: Sector Deep-Dive
-  domain: research
+  domain: research-finance
   type: skill
   runner: background:modules.agents.skills.research.sector_deepdive
   target_kind: sector
@@ -31,7 +31,7 @@ skills:
   last_run: null
 - name: peer_comparison
   label: Peer Comparison
-  domain: research
+  domain: research-finance
   type: skill
   runner: background:modules.agents.skills.research.peer_comparison
   target_kind: ticker
@@ -39,7 +39,7 @@ skills:
   last_run: null
 - name: valuation_refresh
   label: Valuation Refresh
-  domain: research
+  domain: research-finance
   type: skill
   runner: background:modules.agents.skills.research.valuation_refresh
   target_kind: ticker
@@ -47,7 +47,7 @@ skills:
   last_run: null
 - name: macro_brief
   label: Macro Brief
-  domain: research
+  domain: research-finance
   type: skill
   runner: background:modules.agents.skills.research.macro_brief
   target_kind: none
@@ -55,7 +55,7 @@ skills:
   last_run: null
 - name: short_thesis
   label: Short Thesis
-  domain: research
+  domain: research-finance
   type: skill
   runner: background:modules.agents.skills.research.short_thesis
   target_kind: ticker
@@ -63,7 +63,7 @@ skills:
   last_run: null
 - name: insider_scan
   label: Insider / Ownership Scan
-  domain: research
+  domain: research-finance
   type: skill
   runner: background:modules.agents.skills.research.insider_scan
   target_kind: ticker
@@ -71,7 +71,7 @@ skills:
   last_run: null
 - name: thirteen_f_tracker
   label: 13F Tracker
-  domain: research
+  domain: research-finance
   type: skill
   runner: background:modules.agents.skills.research.thirteen_f_tracker
   target_kind: ticker_or_fund
@@ -79,7 +79,7 @@ skills:
   last_run: null
 - name: market_researcher
   label: Market Researcher
-  domain: research
+  domain: research-finance
   type: agent
   runner: skill:market_researcher
   target_kind: null
@@ -87,7 +87,7 @@ skills:
   last_run: null
 - name: earnings_reviewer
   label: Earnings Reviewer
-  domain: wealth
+  domain: research-finance
   type: agent
   runner: skill:earnings_reviewer
   target_kind: ticker
@@ -95,7 +95,7 @@ skills:
   last_run: null
 - name: valuation_reviewer
   label: Valuation Reviewer
-  domain: wealth
+  domain: future-agents
   type: agent
   runner: page:/workspace/portfolio
   target_kind: null
@@ -103,7 +103,7 @@ skills:
   last_run: null
 - name: model_builder
   label: Model Builder
-  domain: wealth
+  domain: future-agents
   type: agent
   runner: page:/workspace/portfolio
   target_kind: null
@@ -111,7 +111,7 @@ skills:
   last_run: null
 - name: idea_validator
   label: Idea Validator
-  domain: ventures
+  domain: validation
   type: agent
   runner: page:/ideas
   target_kind: null
@@ -119,7 +119,7 @@ skills:
   last_run: null
 - name: ask_about_project
   label: Ask About Project
-  domain: ventures
+  domain: validation
   type: agent
   runner: page:/projects
   target_kind: null
@@ -127,7 +127,7 @@ skills:
   last_run: null
 - name: ask_anything
   label: Ask Anything
-  domain: system
+  domain: briefing/voice
   type: agent
   runner: skill:ask_anything
   target_kind: question
@@ -135,7 +135,7 @@ skills:
   last_run: null
 - name: daily_priorities
   label: Daily Priorities
-  domain: plan
+  domain: briefing/voice
   type: agent
   runner: page:/
   target_kind: null
@@ -143,7 +143,7 @@ skills:
   last_run: null
 - name: planner_ai
   label: Planner AI
-  domain: plan
+  domain: briefing/voice
   type: agent
   runner: page:/planner
   target_kind: null
@@ -151,7 +151,7 @@ skills:
   last_run: null
 - name: weekly_briefing
   label: Weekly Briefing
-  domain: system
+  domain: briefing/voice
   type: agent
   runner: scheduled
   target_kind: null
@@ -159,7 +159,7 @@ skills:
   last_run: null
 - name: generate_thesis_statement
   label: Generate Thesis Statement
-  domain: wealth
+  domain: research-finance
   type: skill
   runner: skill:generate_thesis_statement
   target_kind: ticker
@@ -167,7 +167,7 @@ skills:
   last_run: null
 - name: summarize_filing
   label: Summarize Filing
-  domain: wealth
+  domain: research-finance
   type: skill
   runner: page:/watchlist
   target_kind: null
@@ -175,7 +175,7 @@ skills:
   last_run: null
 - name: compare_to_peers
   label: Compare to Peers
-  domain: wealth
+  domain: research-finance
   type: skill
   runner: page:/watchlist
   target_kind: null
@@ -183,7 +183,7 @@ skills:
   last_run: null
 - name: portfolio_scenario
   label: Portfolio Scenario
-  domain: wealth
+  domain: research-finance
   type: skill
   runner: skill:portfolio_scenario
   target_kind: scenario_description
@@ -191,7 +191,7 @@ skills:
   last_run: null
 - name: why_is_x_moving
   label: Why Is X Moving
-  domain: wealth
+  domain: research-finance
   type: skill
   runner: skill:why_is_x_moving
   target_kind: ticker
@@ -199,7 +199,7 @@ skills:
   last_run: null
 - name: rebalance_suggestor
   label: Rebalance Suggestor
-  domain: wealth
+  domain: research-finance
   type: skill
   runner: page:/portfolio
   target_kind: null
@@ -207,7 +207,7 @@ skills:
   last_run: null
 - name: add_hypothesis
   label: Add Hypothesis
-  domain: wealth
+  domain: research-finance
   type: skill
   runner: page:/watchlist
   target_kind: null
@@ -215,7 +215,7 @@ skills:
   last_run: null
 - name: quarterly_portfolio_review
   label: Quarterly Portfolio Review
-  domain: wealth
+  domain: research-finance
   type: skill
   runner: skill:quarterly_portfolio_review
   target_kind: null
@@ -223,7 +223,7 @@ skills:
   last_run: null
 - name: tax_scenario
   label: Tax Scenario
-  domain: wealth
+  domain: net worth
   type: skill
   runner: skill:tax_scenario
   target_kind: scenario_description
@@ -231,7 +231,7 @@ skills:
   last_run: null
 - name: forecast_cash_flow
   label: Forecast Cash Flow
-  domain: wealth
+  domain: net worth
   type: skill
   runner: skill:forecast_cash_flow
   target_kind: scenario_description
@@ -239,7 +239,7 @@ skills:
   last_run: null
 - name: find_expense_optimizations
   label: Find Expense Optimizations
-  domain: wealth
+  domain: net worth
   type: skill
   runner: skill:find_expense_optimizations
   target_kind: null
@@ -247,7 +247,7 @@ skills:
   last_run: null
 - name: quarterly_money_review
   label: Quarterly Money Review
-  domain: wealth
+  domain: net worth
   type: skill
   runner: skill:quarterly_money_review
   target_kind: null
@@ -255,7 +255,7 @@ skills:
   last_run: null
 - name: tax_deductible_review
   label: Tax Deductible Review
-  domain: wealth
+  domain: net worth
   type: skill
   runner: skill:tax_deductible_review
   target_kind: null
@@ -263,7 +263,7 @@ skills:
   last_run: null
 - name: bill_forecaster
   label: Bill Forecaster
-  domain: wealth
+  domain: net worth
   type: skill
   runner: skill:bill_forecaster
   target_kind: null

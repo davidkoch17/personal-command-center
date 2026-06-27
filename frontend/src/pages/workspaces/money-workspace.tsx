@@ -53,8 +53,8 @@ export function MoneyWorkspace() {
       <div className="mx-auto max-w-[1400px] space-y-5">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">money workspace</h1>
-          <Link to="/money" className="font-mono text-xs text-text-secondary hover:text-accent">
-            ← money
+          <Link to="/portfolio?tab=overview" className="font-mono text-xs text-text-secondary hover:text-accent">
+            ← net worth
           </Link>
         </div>
 

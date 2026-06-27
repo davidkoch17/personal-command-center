@@ -27,6 +27,52 @@ logger = get_logger(__name__)
 # cadence_days -> human schedule label for the YAML.
 _SCHEDULE = {1: "daily", 7: "weekly", 30: "monthly", 90: "quarterly", 365: "yearly"}
 
+# --- v3 domain taxonomy (Phase H regroup 2026-06-27) -------------------------
+# The old v2 taxonomy (research / wealth / ventures / plan / system) predates the
+# 2-pillar v3 layout. Regroup every skill/agent into the v3 domains. Brand stays
+# its own live domain (Projects pillar); Career is kept as-is (pages archived but
+# the Evercore-prep skills are retained, per David 2026-06-27). Per-name mapping
+# wins; anything unmapped falls back to its source domain via _V3_DOMAIN_BY_SOURCE.
+_V3_DOMAIN_BY_NAME = {
+    # research-finance — equity/markets research + portfolio analytics
+    "stock_analysis": "research-finance", "earnings_review": "research-finance",
+    "sector_deepdive": "research-finance", "peer_comparison": "research-finance",
+    "valuation_refresh": "research-finance", "macro_brief": "research-finance",
+    "short_thesis": "research-finance", "insider_scan": "research-finance",
+    "thirteen_f_tracker": "research-finance", "market_researcher": "research-finance",
+    "earnings_reviewer": "research-finance", "generate_thesis_statement": "research-finance",
+    "summarize_filing": "research-finance", "compare_to_peers": "research-finance",
+    "portfolio_scenario": "research-finance", "why_is_x_moving": "research-finance",
+    "rebalance_suggestor": "research-finance", "add_hypothesis": "research-finance",
+    "quarterly_portfolio_review": "research-finance",
+    # net worth — personal finance / cash / tax
+    "tax_scenario": "net worth", "forecast_cash_flow": "net worth",
+    "find_expense_optimizations": "net worth", "quarterly_money_review": "net worth",
+    "tax_deductible_review": "net worth", "bill_forecaster": "net worth",
+    # validation — idea / venture validation
+    "idea_validator": "validation", "ask_about_project": "validation",
+    # briefing / voice — briefings, daily priorities, planner + ask agents
+    "weekly_briefing": "briefing/voice", "daily_priorities": "briefing/voice",
+    "planner_ai": "briefing/voice", "ask_anything": "briefing/voice",
+    # future-agents — Anthropic finance agents not yet wired (placeholder runners)
+    "valuation_reviewer": "future-agents", "model_builder": "future-agents",
+}
+# Source-domain fallback for any skill added later without an explicit entry.
+_V3_DOMAIN_BY_SOURCE = {
+    "research": "research-finance",
+    "wealth": "research-finance",
+    "ventures": "validation",
+    "plan": "briefing/voice",
+    "system": "briefing/voice",
+    "brand": "brand",     # Personal Brand stays a live Projects-pillar domain
+    "career": "career",   # kept as-is (Evercore prep, pages archived)
+}
+
+
+def _v3_domain(name: str, source_domain: str) -> str:
+    """Map a skill/agent to its v3 domain (per-name first, else source fallback)."""
+    return _V3_DOMAIN_BY_NAME.get(name) or _V3_DOMAIN_BY_SOURCE.get(source_domain, source_domain)
+
 # Research skills run via the generic launcher (POST /api/skills/<name>/run),
 # which calls background.launch — the SAME runner infra as Idea Validation.
 _RESEARCH_RUNNER = "background:modules.agents.skills.research.{callable}"
@@ -45,7 +91,7 @@ def _research_entries() -> list[dict]:
         entries.append({
             "name": key,
             "label": skill.label,
-            "domain": "research",
+            "domain": _v3_domain(key, "research"),
             "type": "skill",
             "runner": _RESEARCH_RUNNER.format(callable=key),
             "target_kind": skill.target_kind,
@@ -72,7 +118,7 @@ def _inapp_entries() -> list[dict]:
         entries.append({
             "name": e["key"],
             "label": e["label"],
-            "domain": e["domain"],
+            "domain": _v3_domain(e["key"], e["domain"]),
             "type": e["kind"],
             "runner": runner,
             "target_kind": e["prompt_arg"] or None,

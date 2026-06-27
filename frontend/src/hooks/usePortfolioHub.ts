@@ -255,7 +255,19 @@ export interface ReportSidecar {
   upside_low_pct?: number | null
   upside_high_pct?: number | null
   thesis_oneliner?: string | null
-  scenarios?: Record<string, { prob?: number; implied_value?: number; note?: string }>
+  scenarios?: Record<string, { prob?: number; implied_value?: number; implied_value_eur?: number; note?: string }>
+  // EUR-display layer (Phase H): backend converts native valuation fields at
+  // current FX so Portfolio stays EUR-everywhere. Absent if FX was unavailable.
+  native_currency?: string | null
+  display_currency?: string | null
+  fx_to_eur?: number | null
+  fx_stale?: boolean
+  live_price_eur?: number | null
+  fair_value_low_eur?: number | null
+  fair_value_high_eur?: number | null
+  current_price_at_analysis_eur?: number | null
+  upside_low_pct_eur?: number | null
+  upside_high_pct_eur?: number | null
   monitorables?: string[]
   thesis_break_triggers?: string[]
   catalysts?: { label: string; date?: string }[]

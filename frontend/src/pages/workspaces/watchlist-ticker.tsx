@@ -54,7 +54,7 @@ export function WatchlistTicker() {
     <div className="min-h-screen bg-bg text-text p-6">
       <div className="mx-auto max-w-[1200px] space-y-5">
         <div className="flex items-center justify-between">
-          <Link to="/watchlist" className="font-mono text-xs text-text-secondary hover:text-accent">
+          <Link to="/portfolio?tab=watchlist" className="font-mono text-xs text-text-secondary hover:text-accent">
             ← watchlist
           </Link>
           {ticker && <span className="font-mono text-xs text-text-label">{ticker}</span>}

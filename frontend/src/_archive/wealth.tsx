@@ -23,7 +23,7 @@ import {
   CategoryDonut,
   NetWorthTrendLine,
 } from "@/components/charts/finance-charts"
-import { Watchlist } from "@/pages/watchlist"
+import { Watchlist } from "@/_archive/watchlist"
 import {
   usePortfolioSnapshot,
   usePortfolioPerformance,

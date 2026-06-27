@@ -8,19 +8,16 @@ import { onOpenSearch } from "@/lib/search-bus"
 import { openInOs } from "@/lib/open-in-os"
 import { cn } from "@/lib/utils"
 
-/** Flat page list for quick-nav. v3 pillars first, then routed legacy pages.
- *  Archived pages (home / career / reading) are intentionally omitted. */
+/** Flat page list for quick-nav. v3 pillars first, then the live legacy pages.
+ *  Archived/folded pages (home / career / reading / plan / ventures / wealth /
+ *  system / money / inbox / watchlist) are intentionally omitted — money, inbox
+ *  and watchlist now live as Portfolio Hub tabs, not standalone routes. */
 const PAGES: { to: string; label: string }[] = [
   { to: "/portfolio", label: "portfolio" },
   { to: "/projects", label: "projects" },
   { to: "/background-runs", label: "background runs" },
   { to: "/settings", label: "settings" },
-  { to: "/plan", label: "plan" },
-  { to: "/ventures", label: "ventures" },
   { to: "/ideas", label: "ideas" },
-  { to: "/inbox", label: "inbox" },
-  { to: "/money", label: "money" },
-  { to: "/watchlist", label: "watchlist" },
   { to: "/brand", label: "brand" },
 ]
 

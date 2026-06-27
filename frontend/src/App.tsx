@@ -5,20 +5,13 @@ import { queryClient } from "@/lib/queryClient"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppShell } from "@/components/layout/app-shell"
 
-import { Plan } from "@/pages/plan"
-import { Ventures } from "@/pages/ventures"
 import { Projects } from "@/pages/projects"
 import { Ideas } from "@/pages/ideas"
-import { Inbox } from "@/pages/inbox"
-import { Wealth } from "@/pages/wealth"
 import { Portfolio } from "@/pages/portfolio"
-import { Money } from "@/pages/money"
-import { Watchlist } from "@/pages/watchlist"
 import { DecisionJournal } from "@/pages/decision-journal"
 import { Brand } from "@/pages/brand"
 import { BackgroundRuns } from "@/pages/background-runs"
 import { Settings } from "@/pages/settings"
-import { System } from "@/pages/system"
 import { DebugJarvis } from "@/pages/debug-jarvis"
 import { Chat } from "@/pages/chat"
 
@@ -69,18 +62,21 @@ const router = createBrowserRouter([
       { path: "/background-runs", element: <BackgroundRuns /> },
       { path: "/settings", element: <Settings /> },
       // --- Refactored / legacy pages: off-sidebar, still reachable by URL -----
-      // (Their content is folded into the two pillars; kept routed so deep-dive
+      // (Live deep-dive surfaces folded under the two pillars; kept routed so
       // links and the search palette never 404.)
-      { path: "/plan", element: <Plan /> },
-      { path: "/ventures", element: <Ventures /> },
-      { path: "/ideas", element: <Ideas /> },
-      { path: "/inbox", element: <Inbox /> },
-      { path: "/wealth", element: <Wealth /> },
-      { path: "/money", element: <Money /> },
-      { path: "/watchlist", element: <Watchlist /> },
+      { path: "/ideas", element: <Ideas /> },               // Projects → Ideas pipeline
       { path: "/decision-journal", element: <DecisionJournal /> },
-      { path: "/brand", element: <Brand /> },
-      { path: "/system", element: <System /> },
+      { path: "/brand", element: <Brand /> },               // Projects → Personal Brand
+      // --- v2 standalone pages folded into Portfolio Hub tabs (Phase H) -------
+      // Pages archived to _archive/; legacy deep-links redirect to the tab so no
+      // reachable route duplicates a Portfolio tab.
+      { path: "/watchlist", element: <Navigate to="/portfolio?tab=watchlist" replace /> },
+      { path: "/money", element: <Navigate to="/portfolio?tab=overview" replace /> },
+      { path: "/inbox", element: <Navigate to="/portfolio?tab=captures" replace /> },
+      // /plan /ventures /wealth /system: v2 super-pages archived (Phase H). Their
+      // content lives in the two pillars + Background Runs + Settings; the task /
+      // calendar / iCal BACKEND that /plan fronted stays (api/planner, api/tasks,
+      // api/calendar) — only the duplicate page route is removed.
       // Hidden dev tool — reachable via direct URL or the Settings link, not the sidebar.
       { path: "/debug-jarvis", element: <DebugJarvis /> },
     ],

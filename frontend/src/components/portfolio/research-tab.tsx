@@ -155,6 +155,18 @@ function ReportsLibrary() {
                     <span className="font-mono text-xs text-text-label">{r.analysis_date}</span>
                     <span className="text-text-secondary">{r.skill_label ?? r.skill ?? "report"}</span>
                     {r.recommendation && <Tag variant={recVariant(r.recommendation)}>{r.recommendation}</Tag>}
+                    {r.fair_value_low_eur != null && r.fair_value_high_eur != null && (
+                      <span className="font-mono text-xs text-text-label">
+                        FV €{r.fair_value_low_eur}–{r.fair_value_high_eur}
+                        {r.upside_high_pct_eur != null && (
+                          <span className={r.upside_high_pct_eur >= 0 ? "text-success" : "text-danger"}>
+                            {" "}
+                            ({r.upside_high_pct_eur >= 0 ? "+" : ""}
+                            {r.upside_high_pct_eur}%)
+                          </span>
+                        )}
+                      </span>
+                    )}
                     {r.report_path && (
                       <button
                         type="button"

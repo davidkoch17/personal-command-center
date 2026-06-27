@@ -73,10 +73,10 @@ export function ProjectWorkspace() {
       <div className="mx-auto max-w-[1100px] space-y-5">
         <div className="flex items-center justify-between">
           <Link
-            to="/ventures"
+            to="/projects"
             className="font-mono text-xs text-text-secondary hover:text-accent"
           >
-            ← ventures
+            ← projects
           </Link>
           {id && (
             <span className="font-mono text-xs text-text-label">id: {id}</span>
