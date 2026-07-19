@@ -65,6 +65,30 @@ def networth_history_endpoint() -> dict:
     return {"history": series, "count": len(series), "latest": latest, "change_since_start": change}
 
 
+@router.get("/available-months")
+def available_months() -> dict:
+    """Months that have transaction data, sorted ascending."""
+    return {"months": money.available_months()}
+
+
+@router.get("/report/{month}")
+def monthly_report(month: str) -> dict:
+    """Full P&L for one month: income breakdown, expenses by category, transaction list."""
+    income = money.monthly_income(month)
+    by_cat = money.monthly_expenses_by_category(month)
+    total_exp = round(sum(c["amount"] for c in by_cat), 2)
+    net = round(income["total"] - total_exp, 2)
+    rate = round(net / income["total"], 4) if income["total"] else None
+    return {
+        "month": month,
+        "income": income,
+        "expenses": {"by_category": by_cat, "total": total_exp},
+        "net": net,
+        "savings_rate": rate,
+        "transactions": money.monthly_transactions(month),
+    }
+
+
 @router.get("/cashflow")
 def cashflow(months: int = Query(12, ge=1)) -> dict:
     """Income / expenses / savings per month (most recent ``months``)."""

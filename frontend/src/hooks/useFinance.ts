@@ -337,6 +337,52 @@ export function usePortfolioAllocations() {
   })
 }
 
+export interface MonthlyReportIncome {
+  salary: number
+  other: number
+  total: number
+}
+
+export interface MonthlyReportCategory {
+  category: string
+  amount: number
+}
+
+export interface MonthlyReportTransaction {
+  date: string
+  description: string
+  amount: number
+  category: string
+  card: string
+  notes: string
+}
+
+export interface MonthlyReportResponse {
+  month: string
+  income: MonthlyReportIncome
+  expenses: { by_category: MonthlyReportCategory[]; total: number }
+  net: number
+  savings_rate: number | null
+  transactions: MonthlyReportTransaction[]
+}
+
+export function useMoneyAvailableMonths() {
+  return useQuery({
+    queryKey: ["money", "available-months"],
+    queryFn: () => api.get<{ months: string[] }>("/api/money/available-months"),
+    staleTime: 60_000,
+  })
+}
+
+export function useMoneyReport(month: string | null) {
+  return useQuery({
+    queryKey: ["money", "report", month],
+    queryFn: () => api.get<MonthlyReportResponse>(`/api/money/report/${month}`),
+    enabled: !!month,
+    staleTime: 30_000,
+  })
+}
+
 export function useMoneyCashflow(months = 12) {
   return useQuery({
     queryKey: ["money", "cashflow", months],

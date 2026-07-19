@@ -28,11 +28,12 @@ import {
   useMoneySnapshot,
   useMoneyCashflow,
   useMoneyCategories,
+  useMoneyAvailableMonths,
+  useMoneyReport,
 } from "@/hooks/useFinance"
 import { useProjects } from "@/hooks/useProjects"
 import { useRunSkill, useTaxScenario } from "@/hooks/useSkills"
 import { categoryNames, lastCategoryBreakdown } from "@/lib/money"
-import { openInOs } from "@/lib/open-in-os"
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/lib/toast-store"
 
@@ -66,7 +67,7 @@ export function MoneyWorkspace() {
             <TabsTrigger value="forecast">forecast</TabsTrigger>
             <TabsTrigger value="budget">budget</TabsTrigger>
             <TabsTrigger value="tax">tax</TabsTrigger>
-            <TabsTrigger value="transactions">transactions</TabsTrigger>
+            <TabsTrigger value="transactions">expense report</TabsTrigger>
           </TabsList>
 
           {/* 1. Cash flow */}
@@ -118,17 +119,9 @@ export function MoneyWorkspace() {
             <TaxTab />
           </TabsContent>
 
-          {/* 7. Transactions */}
+          {/* 7. Expense Report */}
           <TabsContent value="transactions">
-            <Panel title="transactions ledger" statusDotColor="muted">
-              <p className="mb-3 text-sm text-text-label">
-                full ledger endpoint pending — finance_tracker.xlsx transactions sheet
-                is not yet exposed via the api.
-              </p>
-              <Button variant="secondary" size="sm" onClick={() => openInOs("Finance_Tracker.xlsx")}>
-                open in excel
-              </Button>
-            </Panel>
+            <ExpenseReportTab />
           </TabsContent>
         </Tabs>
       </div>
@@ -293,6 +286,240 @@ function BudgetTab({
       </Table>
       <p className="mt-2 text-xs text-text-label">budget-target persistence pending (backend phase)</p>
     </Panel>
+  )
+}
+
+// 7. Expense Report
+const CATEGORY_COLORS: Record<string, string> = {
+  Shopping: "bg-purple-500",
+  Restaurants: "bg-orange-400",
+  Transport: "bg-blue-400",
+  Travel: "bg-cyan-400",
+  Entertainment: "bg-pink-400",
+  Groceries: "bg-green-400",
+  Subscriptions: "bg-yellow-400",
+  Utilities: "bg-gray-400",
+  Health: "bg-red-400",
+  Rent: "bg-indigo-500",
+  Other: "bg-text-label",
+}
+
+function ExpenseReportTab() {
+  const { data: monthsData, isLoading: monthsLoading } = useMoneyAvailableMonths()
+  const months = monthsData?.months ?? []
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
+  const [catFilter, setCatFilter] = useState<string>("all")
+
+  // Auto-select latest month once loaded
+  const effectiveMonth = selectedMonth ?? (months.length ? months[months.length - 1] : null)
+
+  const { data: report, isLoading: reportLoading } = useMoneyReport(effectiveMonth)
+
+  const totalExpenses = report?.expenses.total ?? 0
+  const totalIncome = report?.income.total ?? 0
+  const net = report?.net ?? 0
+
+  const filteredTx = (report?.transactions ?? []).filter(
+    (t) => catFilter === "all" || t.category === catFilter,
+  )
+
+  if (monthsLoading) return <Skeleton className="h-96" />
+
+  return (
+    <div className="space-y-4">
+      {/* Month picker */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-text-label">month</span>
+        <div className="flex flex-wrap gap-1">
+          {months.map((m) => (
+            <button
+              key={m}
+              onClick={() => { setSelectedMonth(m); setCatFilter("all") }}
+              className={`rounded px-2 py-0.5 font-mono text-xs transition-colors ${
+                m === effectiveMonth
+                  ? "bg-accent text-bg"
+                  : "bg-surface text-text-secondary hover:bg-border"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {reportLoading && <Skeleton className="h-64" />}
+
+      {report && (
+        <>
+          {/* Top KPIs */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Panel title="income" statusDotColor="success" className="!py-3">
+              <NumberDisplay value={totalIncome} format="currency" emphasized />
+            </Panel>
+            <Panel title="expenses" statusDotColor="danger" className="!py-3">
+              <NumberDisplay value={totalExpenses} format="currency" emphasized />
+            </Panel>
+            <Panel title="net" statusDotColor={net >= 0 ? "success" : "danger"} className="!py-3">
+              <NumberDisplay value={net} format="currency" emphasized signed />
+            </Panel>
+            <Panel title="savings rate" statusDotColor="accent" className="!py-3">
+              <NumberDisplay
+                value={report.savings_rate != null ? report.savings_rate * 100 : null}
+                format="percent"
+                emphasized
+                signed
+              />
+            </Panel>
+          </div>
+
+          {/* Income breakdown + Expense by category side by side */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Income */}
+            <Panel title="revenue" statusDotColor="success">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>source</TableHead>
+                    <TableHead className="text-right">amount</TableHead>
+                    <TableHead className="text-right">share</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[
+                    { label: "salary", amount: report.income.salary },
+                    { label: "other income", amount: report.income.other },
+                  ]
+                    .filter((r) => r.amount > 0)
+                    .map((r) => (
+                      <TableRow key={r.label}>
+                        <TableCell className="text-text">{r.label}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(r.amount)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-text-label">
+                          {totalIncome ? `${((r.amount / totalIncome) * 100).toFixed(0)}%` : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  <TableRow className="border-t border-border font-semibold">
+                    <TableCell>total</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {formatCurrency(totalIncome)}
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </Panel>
+
+            {/* Expenses by category */}
+            <Panel title="expenses by category" statusDotColor="danger">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>category</TableHead>
+                    <TableHead className="text-right">amount</TableHead>
+                    <TableHead className="text-right">share</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.expenses.by_category.map((c) => {
+                    const pct = totalExpenses ? (c.amount / totalExpenses) * 100 : 0
+                    const color = CATEGORY_COLORS[c.category] ?? CATEGORY_COLORS.Other
+                    return (
+                      <TableRow
+                        key={c.category}
+                        className="cursor-pointer hover:bg-surface"
+                        onClick={() =>
+                          setCatFilter((f) => (f === c.category ? "all" : c.category))
+                        }
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className={`h-2 w-2 rounded-full ${color}`} />
+                            <span className="text-text">{c.category}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(c.amount)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="h-1.5 w-16 rounded-full bg-border">
+                              <div
+                                className={`h-full rounded-full ${color}`}
+                                style={{ width: `${Math.min(pct, 100)}%` }}
+                              />
+                            </div>
+                            <span className="w-8 text-right font-mono text-xs text-text-label">
+                              {pct.toFixed(0)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  <TableRow className="border-t border-border font-semibold">
+                    <TableCell>total</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {formatCurrency(totalExpenses)}
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableBody>
+              </Table>
+              <p className="mt-1 text-xs text-text-label">click a row to filter transactions below</p>
+            </Panel>
+          </div>
+
+          {/* Transaction ledger */}
+          <Panel
+            title={catFilter === "all" ? "all transactions" : `transactions · ${catFilter}`}
+            meta={`${filteredTx.length} rows`}
+            statusDotColor="muted"
+          >
+            {catFilter !== "all" && (
+              <button
+                onClick={() => setCatFilter("all")}
+                className="mb-2 text-xs text-accent hover:underline"
+              >
+                ← clear filter
+              </button>
+            )}
+            <div className="max-h-96 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>date</TableHead>
+                    <TableHead>description</TableHead>
+                    <TableHead>category</TableHead>
+                    <TableHead>card</TableHead>
+                    <TableHead className="text-right">amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredTx.map((t, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-mono text-xs text-text-label">{t.date}</TableCell>
+                      <TableCell className="max-w-[220px] truncate text-sm">{t.description}</TableCell>
+                      <TableCell>
+                        <span className="rounded bg-surface px-1.5 py-0.5 text-xs text-text-secondary">
+                          {t.category}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs text-text-label">{t.card}</TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {formatCurrency(t.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Panel>
+        </>
+      )}
+    </div>
   )
 }
 
