@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom"
 import {
   Wallet,
+  PiggyBank,
   FolderKanban,
   Activity,
   Search,
@@ -22,14 +23,16 @@ interface NavGroup {
   links: NavLinkDef[]
 }
 
-// v3 sidebar (Dashboard_v3_Build_Spec § f): exactly the two pillars +
-// Background Runs + Search + Settings. Everything else is folded into a pillar
-// and stays reachable by URL only (no sidebar entry).
+// v3 sidebar (Dashboard_v3_Build_Spec § f) originally locked exactly two
+// pillars; Cash Flow was added as a deliberate third (income/expense ledger,
+// separate domain from Portfolio's net worth/holdings). Everything else is
+// folded into a pillar and stays reachable by URL only (no sidebar entry).
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "pillars",
     links: [
       { to: "/portfolio", label: "portfolio", icon: Wallet },
+      { to: "/cashflow", label: "cash flow", icon: PiggyBank },
       { to: "/projects", label: "projects", icon: FolderKanban },
     ],
   },

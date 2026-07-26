@@ -7,24 +7,39 @@ import { NumberDisplay } from "@/components/ui/number-display"
 import { DecisionAlerts } from "@/components/finance/decision-alerts"
 import { AXIS_PROPS, CHART_COLORS, GRID_PROPS } from "@/components/charts/theme"
 import { CockpitTooltip } from "@/components/charts/cockpit-tooltip"
-import { useMoneySnapshot, useMoneyAvailableMonths, useMoneyReport, type MonthlyReportCategory } from "@/hooks/useFinance"
+import {
+  useMoneySnapshot,
+  useMoneyAvailableMonths,
+  useMoneyReport,
+  useMoneyAllocation,
+  useNetWorthHistory,
+  type MonthlyReportCategory,
+} from "@/hooks/useFinance"
 import { useNetWorthDaily, useNetWorthDecomposition } from "@/hooks/usePortfolioHub"
 import { formatCurrency } from "@/lib/utils"
-
-// Notgroschen (emergency buffer) Phase-1 target — see wealth_config Mehrkontenmodell.
-const NOTGROSCHEN_TARGET = 4000
 
 export function OverviewTab() {
   const snap = useMoneySnapshot()
   const daily = useNetWorthDaily(90)
-  const decomp = useNetWorthDecomposition()
+  const nwHistory = useNetWorthHistory()
+  const months = useMoneyAvailableMonths()
+  const latestMonth = months.data?.months.at(-1) ?? null
+  const alloc = useMoneyAllocation(latestMonth)
 
-  const netWorth = decomp.data?.net_worth_now ?? snap.data?.net_worth ?? null
-  const mom = decomp.data?.mom_delta ?? null
-  const cash = snap.data?.cash_balance ?? null
+  // Excel is the net-worth source of truth app-wide (see money.latest_net_worth()
+  // docstring) — the live-ledger-priced daily/decomposition endpoints below are
+  // chart/analytics only and must never supply the headline figure.
+  const netWorth = snap.data?.net_worth ?? null
+  const history = nwHistory.data?.history ?? []
+  const lastMonth = history.at(-1)
+  const prevMonth = history.at(-2)
+  const mom =
+    lastMonth?.total != null && prevMonth?.total != null
+      ? Math.round((lastMonth.total - prevMonth.total) * 100) / 100
+      : null
   const runway = snap.data?.runway_months ?? null
-  const notgroschenPct =
-    cash != null ? Math.min(100, Math.round((cash / NOTGROSCHEN_TARGET) * 100)) : null
+  const reserve = alloc.data?.reserve
+  const notgroschenPct = reserve?.percent_filled ?? null
 
   return (
     <div className="space-y-5">
@@ -33,25 +48,29 @@ export function OverviewTab() {
         <MetricPanel
           label="net worth"
           value={
-            decomp.isLoading && snap.isLoading ? (
+            snap.isLoading ? (
               <Skeleton className="h-7 w-32" />
             ) : (
               <NumberDisplay value={netWorth} format="currency" emphasized animate />
             )
           }
-          caption={decomp.data?.as_of ? `as of ${decomp.data.as_of}` : "live"}
+          caption={
+            snap.data?.net_worth_breakdown?.month
+              ? `excel · as of ${snap.data.net_worth_breakdown.month}`
+              : "excel"
+          }
         />
         <MetricPanel
           label="this month (Δ net worth)"
           dotColor={mom == null ? "muted" : mom >= 0 ? "success" : "danger"}
           value={
-            decomp.isLoading ? (
+            nwHistory.isLoading ? (
               <Skeleton className="h-7 w-24" />
             ) : (
               <NumberDisplay value={mom} format="currency" signed />
             )
           }
-          caption={decomp.data?.month ?? undefined}
+          caption={mom != null && lastMonth ? `excel · ${lastMonth.month}` : "excel · not enough history"}
         />
         <MetricPanel
           label="runway"
@@ -71,7 +90,7 @@ export function OverviewTab() {
           label="notgroschen"
           dotColor={notgroschenPct == null ? "muted" : notgroschenPct >= 100 ? "success" : "warning"}
           value={
-            snap.isLoading ? (
+            alloc.isLoading ? (
               <Skeleton className="h-7 w-20" />
             ) : notgroschenPct == null ? (
               <span className="text-text-label">—</span>
@@ -79,14 +98,19 @@ export function OverviewTab() {
               <span className="font-mono font-medium tabular-nums">{notgroschenPct}%</span>
             )
           }
-          caption={`${formatCurrency(cash)} of ${formatCurrency(NOTGROSCHEN_TARGET)} buffer`}
+          caption={
+            reserve?.reserve_balance == null
+              ? `not recorded yet · target ${formatCurrency(reserve?.target ?? null)}`
+              : `${formatCurrency(reserve.reserve_balance)} of ${formatCurrency(reserve.target)} buffer`
+          }
         />
       </div>
 
-      {/* 90-day net-worth sparkline */}
+      {/* 90-day net-worth sparkline — live-ledger-priced chart trend, NOT the
+          Excel-sourced headline above; the two can legitimately differ. */}
       <Panel
         title="net worth — last 90 days"
-        meta={daily.data ? `${daily.data.count} snapshots` : undefined}
+        meta={daily.data ? `${daily.data.count} snapshots (live-priced trend)` : undefined}
         statusDotColor="accent"
       >
         {daily.isLoading ? (
@@ -160,7 +184,7 @@ function ThisMonthDecomposition() {
               hint="price-driven, contributions netted"
             />
             <DriverCard
-              label="Δ net worth"
+              label="Δ net worth (live-priced)"
               value={data.mom_delta ?? null}
               hint="savings + investments"
               emphasized
@@ -178,6 +202,10 @@ function ThisMonthDecomposition() {
               </span>
             )}
           </div>
+          <p className="text-xs text-text-label">
+            this breakdown is priced off the live daily ledger, not the Excel headline above — the
+            two are expected to diverge (see the "net worth" KPI for the authoritative figure).
+          </p>
         </div>
       )}
     </Panel>

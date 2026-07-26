@@ -161,6 +161,27 @@ class TaxScenarioRequest(BaseModel):
     save_to_project: Optional[str] = None
 
 
+class ContributionOverrideRequest(BaseModel):
+    # None clears the override for that month, reverting to the estimate/explicit source.
+    value: Optional[float] = None
+
+
+# --- Cash Flow pillar ---------------------------------------------------------
+class ReserveBalanceRequest(BaseModel):
+    value: float
+
+
+class CashflowGoalRequest(BaseModel):
+    # None clears the goal.
+    value: Optional[float] = None
+
+
+class CashflowBudgetRequest(BaseModel):
+    category: str
+    # None clears that category's target.
+    value: Optional[float] = None
+
+
 # --- Watchlist --------------------------------------------------------------
 class WatchlistAddRequest(BaseModel):
     ticker: str

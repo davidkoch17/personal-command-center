@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/app-shell"
 import { Projects } from "@/pages/projects"
 import { Ideas } from "@/pages/ideas"
 import { Portfolio } from "@/pages/portfolio"
+import { CashFlow } from "@/pages/cashflow"
 import { DecisionJournal } from "@/pages/decision-journal"
 import { Brand } from "@/pages/brand"
 import { BackgroundRuns } from "@/pages/background-runs"
@@ -56,9 +57,10 @@ const router = createBrowserRouter([
     children: [
       // v3 entry point is the Portfolio Hub pillar (Home archived — spec § f).
       { path: "/", element: <Navigate to="/portfolio" replace /> },
-      // --- v3 sidebar: 2 pillars + Background Runs + Search + Settings --------
+      // --- v3 sidebar: 3 pillars + Background Runs + Search + Settings --------
       { path: "/portfolio", element: <Portfolio /> },   // pillar 1 — Portfolio Hub
-      { path: "/projects", element: <Projects /> },      // pillar 2 — Projects
+      { path: "/cashflow", element: <CashFlow /> },      // pillar 2 — Cash Flow
+      { path: "/projects", element: <Projects /> },      // pillar 3 — Projects
       { path: "/background-runs", element: <BackgroundRuns /> },
       { path: "/settings", element: <Settings /> },
       // --- Refactored / legacy pages: off-sidebar, still reachable by URL -----

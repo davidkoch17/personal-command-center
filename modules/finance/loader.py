@@ -52,6 +52,11 @@ def income_vs_expenses() -> pd.DataFrame:
     return _read("Income_vs_Expenses", header_row=4)
 
 
+def income() -> pd.DataFrame:
+    """Columns: Date, Month, Source, Type, Amount (€), Notes."""
+    return _read("Income", header_row=4)
+
+
 def source_mtime() -> str | None:
     """Last-modified timestamp of the tracker file, for footer display."""
     from datetime import datetime

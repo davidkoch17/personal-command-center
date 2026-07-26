@@ -17,6 +17,22 @@ P&L definitions (locked in the v3 spec § d):
 "Contributions-adjusted" isolates the price-driven gain: money moved into a
 position mid-period would otherwise masquerade as a gain. Net contribution for a
 ticker over a window = Σ buys(qty·price+fees) − Σ sells(qty·price−fees).
+
+.. important:: **This module is a chart/analytics layer, not the source of
+   truth for "net worth."** ``networth_daily.csv`` is built by re-pricing the
+   ledger (``positions.json``/``transactions.jsonl``) against *live yfinance
+   quotes* every day — a fast-moving, intraday-accurate but ledger-dependent
+   number. The authoritative net worth is Excel (David hand-records it monthly
+   in the ``Net_Worth`` sheet): ``modules.finance.money.latest_net_worth()``
+   (served by ``GET /api/money/snapshot``) and its monthly trend in
+   ``modules.finance.networth_history``. The two *will* disagree — a stale or
+   incomplete ledger, an unrealized-vs-realized timing difference, or simply
+   yfinance pricing something Excel hasn't been updated for yet — and that's
+   expected, not a bug, precisely because they're built from different data.
+   Never surface a number from this module (``networth_daily`` /
+   ``month_decomposition``) as *the* net worth; use it only for the daily
+   trend line and the savings-vs-market-P&L breakdown, both clearly scoped to
+   "this is priced off the live ledger" in their own docstrings/UI captions.
 """
 from __future__ import annotations
 
@@ -42,23 +58,29 @@ def _f(value: object) -> float:
         return 0.0
 
 
-def _month_start(on: date) -> date:
+def month_start(on: date) -> date:
     return on.replace(day=1)
 
 
-def _year_start(on: date) -> date:
+def year_start(on: date) -> date:
     return on.replace(month=1, day=1)
 
 
 # --- positions_daily access --------------------------------------------------
-def _positions_daily() -> list[dict]:
-    """All positions_daily rows, sorted by date ascending."""
+def positions_daily_rows() -> list[dict]:
+    """All positions_daily rows, sorted by date ascending.
+
+    Public (not module-private) because :mod:`modules.finance.tr_contributions`
+    reuses it, together with :func:`value_asof` / :func:`net_contributions_between`
+    below, to compute a historical month's market P&L the same way this module
+    does for "this month" — see that module's docstring for why.
+    """
     rows = read_rows(POSITIONS_DAILY_CSV)
     return sorted(rows, key=lambda r: r.get("date", ""))
 
 
-def _value_asof(rows_by_ticker: dict[str, list[dict]], ticker: str,
-                cutoff: date, *, strictly_before: bool) -> Optional[float]:
+def value_asof(rows_by_ticker: dict[str, list[dict]], ticker: str,
+               cutoff: date, *, strictly_before: bool) -> Optional[float]:
     """value_eur for ``ticker`` on the latest snapshot before/at ``cutoff``.
 
     ``strictly_before=True`` finds the last snapshot dated < cutoff (i.e. the
@@ -76,17 +98,22 @@ def _value_asof(rows_by_ticker: dict[str, list[dict]], ticker: str,
     return best
 
 
-def _net_contributions(ticker: str, since: date) -> float:
-    """Net cash put into ``ticker`` on/after ``since`` (buys + , sells -)."""
+def net_contributions_between(ticker: str, start: date, end: date) -> float:
+    """Net cash put into ``ticker`` in ``[start, end)`` (buys +, sells -)."""
     total = 0.0
     for t in list_transactions():
-        if t.ticker.upper() != ticker.upper() or t.date < since:
+        if t.ticker.upper() != ticker.upper() or not (start <= t.date < end):
             continue
         if t.action == "buy":
             total += t.quantity * t.price + t.fees
         elif t.action == "sell":
             total -= t.quantity * t.price - t.fees
     return total
+
+
+def net_contributions(ticker: str, since: date) -> float:
+    """Net cash put into ``ticker`` on/after ``since`` (buys +, sells -)."""
+    return net_contributions_between(ticker, since, date.max)
 
 
 def position_period_pnl(on: Optional[date] = None) -> dict:
@@ -96,13 +123,13 @@ def position_period_pnl(on: Optional[date] = None) -> dict:
     table and the daily snapshot. Crypto + equities are unified (all EUR).
     """
     on = on or date.today()
-    rows = _positions_daily()
+    rows = positions_daily_rows()
     by_ticker: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
         by_ticker[r.get("ticker", "")].append(r)
 
     held = current_holdings()
-    m_start, y_start = _month_start(on), _year_start(on)
+    m_start, y_start = month_start(on), year_start(on)
 
     out_rows: list[dict] = []
     for ticker, qty in held.items():
@@ -112,10 +139,10 @@ def position_period_pnl(on: Optional[date] = None) -> dict:
         price = _f(latest.get("price_eur")) if latest else None
         basis = _f(latest.get("cost_basis_eur")) if latest else 0.0
 
-        v_month = _value_asof(by_ticker, ticker, m_start, strictly_before=True) or 0.0
-        v_year = _value_asof(by_ticker, ticker, y_start, strictly_before=True) or 0.0
-        contrib_m = _net_contributions(ticker, m_start)
-        contrib_y = _net_contributions(ticker, y_start)
+        v_month = value_asof(by_ticker, ticker, m_start, strictly_before=True) or 0.0
+        v_year = value_asof(by_ticker, ticker, y_start, strictly_before=True) or 0.0
+        contrib_m = net_contributions(ticker, m_start)
+        contrib_y = net_contributions(ticker, y_start)
 
         pnl_all = value - basis
         pnl_month = value - v_month - contrib_m
@@ -152,13 +179,18 @@ def position_period_pnl(on: Optional[date] = None) -> dict:
         "pnl_month_total": round(sum(r["pnl_month"] for r in out_rows), 2),
         "pnl_ytd_total": round(sum(r["pnl_ytd"] for r in out_rows), 2),
         "pnl_all_total": round(sum(r["pnl_all"] for r in out_rows), 2),
-        "as_of": (out_rows and _positions_daily()[-1].get("date")) or on.isoformat(),
+        "as_of": (out_rows and positions_daily_rows()[-1].get("date")) or on.isoformat(),
     }
 
 
 # --- net-worth daily series + decomposition ----------------------------------
 def networth_daily(days: int = 90) -> list[dict]:
-    """Last ``days`` rows of networth_daily.csv (date + net_worth_eur + parts)."""
+    """Last ``days`` rows of networth_daily.csv — **chart trend only**.
+
+    Live-ledger-priced (see module docstring), not the authoritative net worth;
+    the UI must caption this series as a trend line, never as "current net
+    worth" — that figure is ``money.latest_net_worth()`` (Excel).
+    """
     rows = sorted(read_rows(NETWORTH_DAILY_CSV), key=lambda r: r.get("date", ""))
     trimmed = rows[-days:] if days and len(rows) > days else rows
     return [
@@ -221,13 +253,19 @@ def month_decomposition(on: Optional[date] = None) -> dict:
     savings + investments reconcile to the net-worth MoM delta (contributions net
     out). When the IvE sheet is unavailable, savings is derived as
     ``mom_delta - investments`` so the two still sum, and ``savings_source`` says so.
+
+    ``mom_delta`` here is the live-ledger delta (see module docstring) — an
+    analytical "what moved it" breakdown, not the headline MoM figure. The UI
+    must caption it as such; the authoritative month-over-month net-worth
+    change is the difference between the last two ``networth_history.history()``
+    entries (Excel), which can legitimately differ from this one.
     """
     on = on or date.today()
     rows = sorted(read_rows(NETWORTH_DAILY_CSV), key=lambda r: r.get("date", ""))
     if not rows:
         return {"available": False, "reason": "no networth_daily.csv history yet"}
 
-    m_start = _month_start(on)
+    m_start = month_start(on)
     latest = rows[-1]
     baseline = _nw_row_asof(rows, m_start, strictly_before=True) or rows[0]
 

@@ -147,14 +147,23 @@ def realized_trades() -> dict:
 
 @router.get("/networth/daily")
 def networth_daily(days: int = Query(90, ge=1, le=3650)) -> dict:
-    """Daily net-worth series for the Overview sparkline (default last 90 days)."""
+    """Daily net-worth series for the Overview sparkline (default last 90 days).
+
+    Chart/trend data only, live-ledger-priced — NOT the authoritative net
+    worth (that's ``GET /api/money/snapshot``, Excel-sourced). See
+    ``modules.finance.period_pnl`` module docstring for why they can diverge.
+    """
     series = period_pnl.networth_daily(days)
     return {"series": series, "count": len(series), "days": days}
 
 
 @router.get("/networth/decomposition")
 def networth_decomposition() -> dict:
-    """This-month net-worth change split into savings vs market P&L (contributions netted)."""
+    """This-month net-worth change split into savings vs market P&L (contributions netted).
+
+    Live-ledger-priced analytics, not the authoritative net-worth headline —
+    see ``GET /api/money/snapshot`` for that and ``period_pnl.py`` for why.
+    """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return period_pnl.month_decomposition()

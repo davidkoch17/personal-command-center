@@ -32,6 +32,24 @@ Action = Literal["buy", "sell", "dividend", "split", "deposit", "withdraw"]
 # not move the position quantity.
 _QUANTITY_ACTIONS = {"buy", "sell"}
 
+# Position types actually custodied in the Trade Republic brokerage account.
+# Crypto (Kraken) and cash (tracked via the Excel Bank sheet / a TR cash line)
+# live outside it, so a TR statement is never authoritative for them — a
+# ticker of one of those types "not listed on this statement" must not be read
+# as "sold". Shared by tr_statement_parser.reconcile_holdings and
+# tr_contributions.monthly_contribution, which both need to scope to "what
+# could plausibly be on a TR statement" before diffing against one.
+BROKERAGE_TYPES = {"equity", "etf"}
+
+# Canonical pseudo-ticker for the TR account's un-invested cash sub-position.
+# ``deposit``/``withdraw`` transactions record money moving in/out of the
+# depot as a whole rather than into a specific instrument, so they're booked
+# against this ticker rather than a real one. Nothing writes these yet — the
+# TR statement parser (tr_statement_parser.py) only reconciles the equity
+# holdings table so far, not a statement's cash-movements section — but
+# tr_contributions.monthly_contribution already prefers them when present.
+CASH_TICKER = "EUR_CASH"
+
 
 class Position(BaseModel):
     """Static metadata for a tradeable instrument (not the quantity held)."""

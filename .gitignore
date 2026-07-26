@@ -38,6 +38,15 @@ data/registry_state.json
 # reference data (insurance / PKV / accounts). Per-machine, never committed.
 data/networth_snapshots.json
 data/wealth_config.json
+
+# TR contribution manual-override store (personal, per-machine).
+data/contribution_overrides.json
+
+# Cash Flow pillar — ledger + reserve/goal/budget stores (personal, per-machine).
+data/cashflow_transactions.jsonl
+data/cashflow_reserve_balance.json
+data/cashflow_goal.json
+data/cashflow_budget.json
 .venv/
 venv/
 .DS_Store

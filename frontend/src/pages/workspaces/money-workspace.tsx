@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tag } from "@/components/ui/tag"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -22,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { IncomeExpenseBar, CategoryDonut, CategoryTrendLine } from "@/components/charts/finance-charts"
+import { IncomeExpenseBar, CategoryDonut, CategoryTrendLine, AllocationBar } from "@/components/charts/finance-charts"
 import { TaxIntegrationPanels } from "@/components/finance/tax-panel"
 import {
   useMoneySnapshot,
@@ -30,11 +31,16 @@ import {
   useMoneyCategories,
   useMoneyAvailableMonths,
   useMoneyReport,
+  useMoneyAllocation,
+  useSetContributionOverride,
+  type ActualContribution,
+  type AllocationReserveStatus,
+  type AllocationSplitRecommendation,
 } from "@/hooks/useFinance"
 import { useProjects } from "@/hooks/useProjects"
 import { useRunSkill, useTaxScenario } from "@/hooks/useSkills"
 import { categoryNames, lastCategoryBreakdown } from "@/lib/money"
-import { formatCurrency } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 import { toast } from "@/lib/toast-store"
 
 const YEAR_END_CHECKLIST = [
@@ -62,6 +68,7 @@ export function MoneyWorkspace() {
         <Tabs defaultValue="cashflow">
           <TabsList>
             <TabsTrigger value="cashflow">cash flow</TabsTrigger>
+            <TabsTrigger value="allocation">reserve & allocation</TabsTrigger>
             <TabsTrigger value="categories">categories</TabsTrigger>
             <TabsTrigger value="networth">net worth</TabsTrigger>
             <TabsTrigger value="forecast">forecast</TabsTrigger>
@@ -80,6 +87,11 @@ export function MoneyWorkspace() {
               )}
             </Panel>
             <SavingsRatePanel cashflow={cashflow.data?.cashflow ?? []} loading={cashflow.isLoading} />
+          </TabsContent>
+
+          {/* 1b. Reserve & allocation */}
+          <TabsContent value="allocation">
+            <ReserveAllocationTab />
           </TabsContent>
 
           {/* 2. Categories */}
@@ -151,6 +163,385 @@ function SavingsRatePanel({
           </div>
         ))}
       </div>
+    </Panel>
+  )
+}
+
+// 1b. Reserve & allocation — surplus split (Notgroschen target + 70/30 waterfall)
+// and actual-vs-recommended TR contribution tracking. Data: /api/money/allocation/{month}.
+function ReserveAllocationTab() {
+  const months = useMoneyAvailableMonths()
+  const allMonths = months.data?.months ?? []
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
+
+  const idx = selectedIdx !== null ? selectedIdx : allMonths.length - 1
+  const month = allMonths[idx] ?? null
+  const prevMonth = idx > 0 ? allMonths[idx - 1] : null
+
+  const alloc = useMoneyAllocation(month)
+  const prevAlloc = useMoneyAllocation(prevMonth)
+
+  const monthLabel = month
+    ? new Date(month + "-01").toLocaleString("en-US", { month: "long", year: "numeric" })
+    : undefined
+  const canPrev = idx > 0
+  const canNext = idx < allMonths.length - 1
+
+  const data = alloc.data
+  const prevData = prevAlloc.data
+  const reserveFull = (data?.reserve.percent_filled ?? 0) >= 100 && data?.split_recommendation.to_reserve === 0
+
+  return (
+    <div className="space-y-4">
+      {/* Month picker (same prev/next idiom as the Overview monthly P&L panel) */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSelectedIdx(Math.max(0, idx - 1))}
+            disabled={!canPrev}
+            className="rounded px-1.5 py-0.5 text-xs text-text-label hover:text-text-secondary disabled:opacity-30 transition-colors"
+          >
+            ←
+          </button>
+          <span className="font-mono text-xs text-text-secondary tabular-nums min-w-[110px] text-center">
+            {monthLabel ?? "—"}
+          </span>
+          <button
+            onClick={() => setSelectedIdx(Math.min(allMonths.length - 1, idx + 1))}
+            disabled={!canNext}
+            className="rounded px-1.5 py-0.5 text-xs text-text-label hover:text-text-secondary disabled:opacity-30 transition-colors"
+          >
+            →
+          </button>
+        </div>
+      </div>
+
+      {(months.isLoading || alloc.isLoading) ? (
+        <Skeleton className="h-96" />
+      ) : !data ? (
+        <Panel title="reserve & allocation" statusDotColor="muted">
+          <p className="text-sm text-text-label">no data for this month.</p>
+        </Panel>
+      ) : (
+        <>
+          {/* KPI row: real income, expenses, investable surplus, savings rate — each vs last month */}
+          <div className="grid gap-3 sm:grid-cols-4">
+            <KpiTile
+              label="real income"
+              value={data.investable_income}
+              previous={prevData?.investable_income}
+              format="currency"
+            />
+            <KpiTile
+              label="expenses"
+              value={data.expenses.total}
+              previous={prevData?.expenses.total}
+              format="currency"
+              invert
+            />
+            <KpiTile
+              label="investable surplus"
+              value={data.investable_surplus}
+              previous={prevData?.investable_surplus}
+              format="currency"
+            />
+            <KpiTile
+              label="savings rate"
+              value={data.savings_rate}
+              previous={prevData?.savings_rate}
+              format="percent"
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ReserveGauge reserve={data.reserve} />
+            <SplitPanel
+              surplus={data.investable_surplus}
+              split={data.split_recommendation}
+              reserveFull={reserveFull}
+            />
+          </div>
+
+          <ContributionPanel
+            month={data.month}
+            contribution={data.actual_contribution}
+            toInvest={data.split_recommendation.to_invest}
+            delta={data.contribution_vs_recommended}
+          />
+
+          <IncomeByTypePanel incomeByType={data.income_by_type} />
+        </>
+      )}
+    </div>
+  )
+}
+
+function KpiTile({
+  label,
+  value,
+  previous,
+  format,
+  invert,
+}: {
+  label: string
+  value: number | null
+  previous: number | null | undefined
+  format: "currency" | "percent"
+  invert?: boolean
+}) {
+  const delta = value != null && previous != null ? value - previous : null
+  const deltaUp = delta != null && delta > 0
+  const deltaDown = delta != null && delta < 0
+  const good = invert ? deltaDown : deltaUp
+  const bad = invert ? deltaUp : deltaDown
+  const deltaColor = delta == null ? "text-text-label" : good ? "text-success" : bad ? "text-danger" : "text-text-label"
+
+  return (
+    <Panel title={label} statusDotColor="accent" className="!py-3">
+      <NumberDisplay
+        value={format === "percent" && value != null ? value * 100 : value}
+        format={format}
+        emphasized
+      />
+      <div className={cn("mt-1 font-mono text-xs tabular-nums", deltaColor)}>
+        {delta == null ? (
+          <span className="text-text-label">vs last mo —</span>
+        ) : format === "percent" ? (
+          `vs last mo ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)} pp`
+        ) : (
+          `vs last mo ${delta >= 0 ? "+" : ""}${formatCurrency(delta)}`
+        )}
+      </div>
+    </Panel>
+  )
+}
+
+function ReserveGauge({ reserve }: { reserve: AllocationReserveStatus }) {
+  const balance = reserve.reserve_balance
+  const pct = reserve.percent_filled
+  const full = (pct ?? 0) >= 100
+
+  return (
+    <Panel
+      title="reserve (notgroschen)"
+      meta={`target ${formatCurrency(reserve.target)}`}
+      statusDotColor={balance == null ? "muted" : full ? "success" : "warning"}
+    >
+      {balance == null ? (
+        <p className="text-sm text-text-label">
+          no Reserve Balance recorded yet — add it to the Bank sheet's "Reserve Balance (€)" column.
+        </p>
+      ) : (
+        <div className="space-y-2.5">
+          <NumberDisplay value={balance} format="currency" emphasized className="text-2xl" />
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-bg-muted">
+            <div
+              className={cn("h-full rounded-full transition-[width]", full ? "bg-success" : "bg-accent")}
+              style={{ width: `${Math.min(100, pct ?? 0)}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-text-label">
+            <span>{pct}% filled</span>
+            <span>
+              {full || !reserve.remaining_to_target
+                ? "fully funded"
+                : `${formatCurrency(reserve.remaining_to_target)} remaining`}
+            </span>
+          </div>
+        </div>
+      )}
+    </Panel>
+  )
+}
+
+function SplitPanel({
+  surplus,
+  split,
+  reserveFull,
+}: {
+  surplus: number
+  split: AllocationSplitRecommendation
+  reserveFull: boolean
+}) {
+  const total = split.to_reserve + split.to_invest
+  const reservePct = total > 0 ? Math.round((split.to_reserve / total) * 100) : 0
+  const investPct = total > 0 ? 100 - reservePct : 0
+
+  return (
+    <Panel title="this month's recommended split" statusDotColor="accent">
+      {surplus <= 0 ? (
+        <p className="text-sm text-text-label">no surplus this month — nothing to split.</p>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-sm border border-border bg-bg-panel px-3 py-2">
+              <div className="label mb-1">→ reserve</div>
+              <NumberDisplay value={split.to_reserve} format="currency" emphasized className="text-lg" />
+            </div>
+            <div className="rounded-sm border border-border bg-bg-panel px-3 py-2">
+              <div className="label mb-1">→ investments</div>
+              <NumberDisplay value={split.to_invest} format="currency" emphasized className="text-lg" />
+            </div>
+          </div>
+          {total > 0 && (
+            <div className="flex h-2 w-full overflow-hidden rounded-full bg-bg-muted">
+              {reservePct > 0 && <div className="h-full bg-warning" style={{ width: `${reservePct}%` }} />}
+              {investPct > 0 && <div className="h-full bg-accent" style={{ width: `${investPct}%` }} />}
+            </div>
+          )}
+          <p className="text-xs text-text-label">
+            {reserveFull
+              ? "reserve full → 100% to investments"
+              : `${reservePct}% reserve / ${investPct}% investments (70/30 waterfall until the reserve fills)`}
+          </p>
+        </div>
+      )}
+    </Panel>
+  )
+}
+
+function ContributionPanel({
+  month,
+  contribution,
+  toInvest,
+  delta,
+}: {
+  month: string
+  contribution: ActualContribution
+  toInvest: number
+  delta: number | null
+}) {
+  const setOverride = useSetContributionOverride()
+  const [overrideInput, setOverrideInput] = useState("")
+
+  const chartData =
+    contribution.value != null
+      ? [
+          { type: "recommended", value: toInvest },
+          { type: "actual", value: contribution.value },
+        ]
+      : null
+
+  function saveOverride() {
+    const parsed = parseFloat(overrideInput)
+    if (!Number.isFinite(parsed)) return
+    setOverride.mutate(
+      { month, value: parsed },
+      {
+        onSuccess: () => {
+          setOverrideInput("")
+          toast.success("contribution override saved", month)
+        },
+        onError: (e) => toast.error("failed to save override", String(e)),
+      },
+    )
+  }
+
+  return (
+    <Panel
+      title="actual TR contribution vs recommended"
+      statusDotColor={contribution.reliable ? "accent" : "warning"}
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-sm border border-border bg-bg-panel px-3 py-2">
+            <div className="label mb-1">recommended</div>
+            <NumberDisplay value={toInvest} format="currency" emphasized className="text-lg" />
+          </div>
+          <div className="rounded-sm border border-border bg-bg-panel px-3 py-2">
+            <div className="label mb-1 flex items-center gap-1.5">
+              actual
+              {contribution.source && (
+                <Tag variant={contribution.source === "manual_override" ? "warning" : "accent"}>
+                  {contribution.source.replace("_", " ")}
+                </Tag>
+              )}
+            </div>
+            <NumberDisplay value={contribution.value} format="currency" emphasized className="text-lg" />
+          </div>
+          <div className="rounded-sm border border-border bg-bg-panel px-3 py-2">
+            <div className="label mb-1">delta (actual − recommended)</div>
+            <NumberDisplay value={delta} format="currency" signed className="text-lg" />
+          </div>
+        </div>
+
+        {chartData && <AllocationBar data={chartData} />}
+
+        {contribution.flags.length > 0 && (
+          <div className="space-y-1 rounded-sm border border-warning/30 bg-warning/10 px-3 py-2">
+            {contribution.flags.map((f, i) => (
+              <p key={i} className="text-xs text-text-secondary">
+                ⚠ {f}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {!contribution.reliable && (
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <div className="label mb-1">manual override (€)</div>
+              <Input
+                mono
+                type="number"
+                value={overrideInput}
+                onChange={(e) => setOverrideInput(e.target.value)}
+                placeholder="e.g. 500"
+              />
+            </div>
+            <Button size="sm" onClick={saveOverride} disabled={!overrideInput.trim() || setOverride.isPending}>
+              save
+            </Button>
+          </div>
+        )}
+
+        <p className="text-xs text-text-label">
+          depends on the TR statement parser being verified against a real statement — treat
+          "estimated" values as best-effort, not fact, until then.
+        </p>
+      </div>
+    </Panel>
+  )
+}
+
+// Types that count toward investable surplus (core/config.py INVESTABLE_INCOME_TYPES).
+// Display-only classification — the actual investable_income sum always comes
+// from the backend; this just decides which badge a row gets.
+const INVESTABLE_INCOME_TYPES = new Set(["salary", "freelance"])
+
+function IncomeByTypePanel({ incomeByType }: { incomeByType: Record<string, number> }) {
+  const entries = Object.entries(incomeByType).sort((a, b) => b[1] - a[1])
+  const total = entries.reduce((s, [, v]) => s + v, 0)
+
+  return (
+    <Panel title="income by type" meta="salary/freelance count toward surplus" statusDotColor="accent">
+      {entries.length === 0 ? (
+        <p className="text-sm text-text-label">no income recorded this month.</p>
+      ) : (
+        <div className="space-y-2">
+          {entries.map(([type, amount]) => {
+            const pct = total > 0 ? (amount / total) * 100 : 0
+            const investable = INVESTABLE_INCOME_TYPES.has(type)
+            return (
+              <div key={type} className="flex items-center gap-2 text-xs">
+                <span className="w-28 shrink-0 text-text-secondary">{type}</span>
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-muted">
+                  <div
+                    className={cn("h-full rounded-full", investable ? "bg-accent" : "bg-text-label")}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="w-16 shrink-0 text-right font-mono tabular-nums text-text-secondary">
+                  {formatCurrency(amount)}
+                </span>
+                <Tag variant={investable ? "accent" : "muted"} className="shrink-0">
+                  {investable ? "surplus" : "pass-through"}
+                </Tag>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </Panel>
   )
 }

@@ -6,9 +6,9 @@ import json
 from fastapi import APIRouter, Query
 
 from backend.api._helpers import df_records, clean_dict
-from backend.models.schemas import TaxScenarioRequest
+from backend.models.schemas import ContributionOverrideRequest, TaxScenarioRequest
 from core.config import DATA_DIR, get_logger
-from modules.finance import money, networth_history
+from modules.finance import money, networth_history, tr_contributions
 from modules.agents import background
 
 logger = get_logger(__name__)
@@ -25,7 +25,14 @@ WEALTH_CONFIG_FILE = DATA_DIR / "wealth_config.json"
 
 @router.get("/snapshot")
 def snapshot() -> dict:
-    """Cash balance, net worth (with breakdown), monthly burn, and runway."""
+    """Cash balance, net worth (with breakdown), monthly burn, and runway.
+
+    ``net_worth`` here is the app-wide authoritative figure (Excel-sourced,
+    via ``money.latest_net_worth()``) — every "net worth" headline in the UI
+    must read from this field, not from the live-ledger-priced
+    ``/api/finance/networth/*`` endpoints (chart/analytics only; see
+    ``modules.finance.period_pnl``'s docstring for why the two can diverge).
+    """
     cash = money.current_cash_balance()
     nw = clean_dict(money.latest_net_worth())
     burn = money.monthly_fixed_estimate()
@@ -87,6 +94,52 @@ def monthly_report(month: str) -> dict:
         "savings_rate": rate,
         "transactions": money.monthly_transactions(month),
     }
+
+
+@router.get("/allocation/{month}")
+def allocation(month: str) -> dict:
+    """Income-by-type, expenses, investable surplus, savings rate, reserve status,
+    the recommended reserve/invest split, and — dependent on the TR statement
+    parser being verified (see ``tr_contributions`` module docstring) — the
+    actual TR contribution for the month vs. that recommendation."""
+    by_cat = money.monthly_expenses_by_category(month)
+    total_exp = round(sum(c["amount"] for c in by_cat), 2)
+    split = money.split_recommendation(month)
+    contribution = tr_contributions.monthly_contribution(month)
+    contribution_vs_recommended = (
+        round(contribution["value"] - split["to_invest"], 2)
+        if contribution["value"] is not None else None
+    )
+    return {
+        "month": month,
+        "income_by_type": money.monthly_income_by_type(month),
+        "investable_income": money.investable_income(month),
+        "expenses": {"by_category": by_cat, "total": total_exp},
+        "investable_surplus": split["surplus"],
+        "savings_rate": split["savings_rate"],
+        "reserve": split["reserve"],
+        "split_recommendation": {
+            "to_reserve": split["to_reserve"],
+            "to_invest": split["to_invest"],
+        },
+        # actual_contribution.value is None (with .flags explaining why) when TR
+        # data for the month is missing/unreliable — see tr_contributions.py.
+        # Positive vs_recommended = invested more than recommended; negative = less.
+        "actual_contribution": contribution,
+        "contribution_vs_recommended": contribution_vs_recommended,
+    }
+
+
+@router.post("/allocation/{month}/contribution-override")
+def set_contribution_override(month: str, override: ContributionOverrideRequest) -> dict:
+    """Manually set (or, with ``value: null``, clear) a month's TR contribution.
+
+    For months ``monthly_contribution()`` flags unreliable (missing/estimate-
+    flagged TR snapshots, stale post-close pricing, etc.) — David enters the
+    real figure by hand instead of trusting a guess.
+    """
+    tr_contributions.set_override(month, override.value)
+    return {"ok": True, "month": month, "value": override.value}
 
 
 @router.get("/cashflow")

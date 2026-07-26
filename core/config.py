@@ -38,6 +38,11 @@ POSITIONS_FILE = DATA_DIR / "positions.json"
 TRANSACTIONS_FILE = DATA_DIR / "transactions.jsonl"
 PRICE_CACHE_DIR = DATA_DIR / "price_cache"
 
+# Manual override for a month's TR contribution figure (modules/finance/
+# tr_contributions.py), for months where the inferred estimate is flagged
+# unreliable and David enters the real number by hand.
+CONTRIBUTION_OVERRIDES_FILE = DATA_DIR / "contribution_overrides.json"
+
 # --- Phase B: net worth + history -------------------------------------------
 # Excel import drops live in the vault inbox; the parser maps them to the
 # generated finance CSVs below. The CSVs (like positions.json/transactions.jsonl)
@@ -137,6 +142,39 @@ BRAND_VIDEOS_PATH = BRAND_PATH / "03_Video_Ideas"
 
 # Default save target for generic tax scenarios (real-estate ones go to Immos, etc.).
 STEUERN_SCENARIOS_PATH = VAULT_PATH / "2_Personal" / "03_Steuern" / "Scenarios"
+
+# --- Surplus split (Mehrkontenmodell Phase 1/2) ------------------------------
+# Moved here from frontend/src/components/portfolio/overview-tab.tsx, which
+# still hardcodes its own copy — remove that copy once the surplus-split
+# logic is wired up to read from this config instead.
+NOTGROSCHEN_TARGET = 4000            # emergency-buffer (Tagesgeld) target, €
+SPLIT_RATIO_TO_RESERVE = 0.70        # share of surplus routed to the reserve; remainder -> investments
+INVESTABLE_INCOME_TYPES = ["salary", "freelance"]   # Income sheet Types that count as surplus
+
+# --- Cash Flow pillar (modules/finance/cashflow.py) --------------------------
+# Ledger-backed income/expense tracker, fed by David handing Claude raw bank/
+# card statements, receipts, and screenshots directly (parsed + appended, not
+# an in-app upload flow) — replaces manual Excel Transactions/Income entry as
+# the source of truth for this pillar. Net worth / holdings stay Excel-sourced
+# (modules.finance.money) and are untouched by this store.
+CASHFLOW_TRANSACTIONS_FILE = DATA_DIR / "cashflow_transactions.jsonl"
+# Manual monthly snapshot of the Notgroschen (Tagesgeld reserve) account
+# balance — David reports the figure by hand (no automated bank feed yet),
+# replacing the old Excel Bank sheet's "Reserve Balance (€)" column.
+CASHFLOW_RESERVE_BALANCE_FILE = DATA_DIR / "cashflow_reserve_balance.json"
+CASHFLOW_GOAL_FILE = DATA_DIR / "cashflow_goal.json"          # {"monthly_savings_goal": float}
+CASHFLOW_BUDGET_FILE = DATA_DIR / "cashflow_budget.json"      # {category: target_amount}
+
+CASHFLOW_EXPENSE_CATEGORIES = [
+    "Rent", "Groceries", "Dining", "Transport", "Travel", "Subscriptions",
+    "Utilities", "Insurance", "Health", "Shopping", "Entertainment",
+    "Taxes & Fees", "Other",
+]
+CASHFLOW_INCOME_CATEGORIES = ["Salary", "Freelance", "Reimbursement", "Gift", "Interest", "Other"]
+# Income categories that count as real earned surplus for the reserve/invest
+# split — excludes reimbursements/gifts/interest, which are money moving or
+# being made whole rather than new investable income.
+CASHFLOW_INVESTABLE_INCOME_CATEGORIES = ["Salary", "Freelance"]
 
 
 # --- Info-barrier mode (Evercore) -------------------------------------------

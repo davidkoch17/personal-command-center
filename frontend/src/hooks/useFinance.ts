@@ -405,6 +405,75 @@ export function useMoneySnapshot() {
   })
 }
 
+// --- Reserve & allocation (surplus split, TR contribution tracking) --------
+
+export interface AllocationReserveStatus {
+  month: string
+  reserve_balance: number | null
+  target: number
+  percent_filled: number | null
+  remaining_to_target: number | null
+}
+
+export interface AllocationSplitRecommendation {
+  to_reserve: number
+  to_invest: number
+}
+
+export interface ContributionEstimate {
+  value: number | null
+  reliable: boolean
+  flags: string[]
+  depot_value_change: number | null
+  market_pnl: number | null
+}
+
+export interface ActualContribution {
+  month: string
+  value: number | null
+  source: "explicit_deposits" | "manual_override" | "estimated" | null
+  reliable: boolean
+  flags: string[]
+  estimate: ContributionEstimate
+}
+
+export interface MoneyAllocationResponse {
+  month: string
+  income_by_type: Record<string, number>
+  investable_income: number
+  expenses: { by_category: MonthlyReportCategory[]; total: number }
+  investable_surplus: number
+  savings_rate: number | null
+  reserve: AllocationReserveStatus
+  split_recommendation: AllocationSplitRecommendation
+  // Dependent on the TR statement parser being verified — value/source may be
+  // null (see ActualContribution.flags) until then, or until an override is set.
+  actual_contribution: ActualContribution
+  contribution_vs_recommended: number | null
+}
+
+export function useMoneyAllocation(month: string | null) {
+  return useQuery({
+    queryKey: ["money", "allocation", month],
+    queryFn: () => api.get<MoneyAllocationResponse>(`/api/money/allocation/${month}`),
+    enabled: !!month,
+    staleTime: 30_000,
+  })
+}
+
+export function useSetContributionOverride() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ month, value }: { month: string; value: number | null }) =>
+      api.post<{ ok: boolean; month: string; value: number | null }>(
+        `/api/money/allocation/${month}/contribution-override`,
+        { value },
+      ),
+    onSuccess: (_data, variables) =>
+      qc.invalidateQueries({ queryKey: ["money", "allocation", variables.month] }),
+  })
+}
+
 export function useWatchlist(prices = false) {
   return useQuery({
     queryKey: ["watchlist", { prices }],

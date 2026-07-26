@@ -1,6 +1,7 @@
 """Money / cash / expense analysis from Finance_Tracker.xlsx."""
 import pandas as pd
-from modules.finance.loader import transactions, bank, net_worth, income_vs_expenses
+from core.config import INVESTABLE_INCOME_TYPES, NOTGROSCHEN_TARGET, SPLIT_RATIO_TO_RESERVE
+from modules.finance.loader import transactions, bank, net_worth, income_vs_expenses, income
 
 
 def transactions_normalized() -> pd.DataFrame:
@@ -11,6 +12,33 @@ def transactions_normalized() -> pd.DataFrame:
     if "Amount (€)" in df.columns:
         df["Amount (€)"] = pd.to_numeric(df["Amount (€)"], errors="coerce")
     return df.dropna(subset=["Date", "Amount (€)"]) if "Date" in df.columns else df
+
+
+def income_normalized() -> pd.DataFrame:
+    """Income sheet, typed. Not yet consumed by any calculation."""
+    df = income()
+    if df.empty:
+        return df
+    if "Amount (€)" in df.columns:
+        df["Amount (€)"] = pd.to_numeric(df["Amount (€)"], errors="coerce")
+    return df.dropna(subset=["Date", "Amount (€)"]) if "Date" in df.columns else df
+
+
+def current_reserve_balance() -> float | None:
+    """Latest recorded Reserve Balance (€) from the Bank sheet, if any month has one.
+
+    Mirrors ``current_cash_balance()``'s "latest real month row" logic. Not yet
+    consumed by any calculation (e.g. the Notgroschen split) — just exposed.
+    """
+    b = bank()
+    if b.empty or "Reserve Balance (€)" not in b.columns:
+        return None
+    if "Month" in b.columns:
+        b = b[b["Month"].astype(str).str.match(r"^\d{4}-\d{2}$")]
+    valid = b.dropna(subset=["Reserve Balance (€)"])
+    if valid.empty:
+        return None
+    return float(valid.iloc[-1]["Reserve Balance (€)"])
 
 
 def monthly_spending_by_category() -> pd.DataFrame:
@@ -44,6 +72,14 @@ def latest_net_worth() -> dict:
     Falls back to the Net_Worth summary sheet only when raw sheets are unavailable.
     Raw computation is preferred because openpyxl writes don't recalculate formulas,
     leaving the Net_Worth sheet's cached totals stale after Python updates.
+
+    **This is the app-wide authoritative net worth** (Excel is the source of
+    truth) — served by ``GET /api/money/snapshot`` and surfaced as the
+    headline figure everywhere. ``modules.finance.period_pnl``'s
+    ``networth_daily``/``month_decomposition`` are a *separate*, live-ledger
+    -priced layer used only for chart trends and P&L analytics; they can and
+    do disagree with this number (see that module's docstring for why) and
+    must never be substituted for it.
     """
     from modules.finance.loader import investments_tr, investments_crypto
 
@@ -210,6 +246,94 @@ def monthly_expenses_by_category(month: str) -> list[dict]:
         {"category": row["Category"], "amount": round(float(row["Amount (€)"]), 2)}
         for _, row in grouped.iterrows()
     ]
+
+
+def monthly_income_by_type(month: str) -> dict:
+    """Income grouped by Type for a given month, from the Income sheet."""
+    df = income_normalized()
+    if df.empty or "Month" not in df.columns or "Type" not in df.columns:
+        return {}
+    sub = df[df["Month"].astype(str) == month]
+    if sub.empty:
+        return {}
+    grouped = sub.groupby("Type")["Amount (€)"].sum()
+    return {str(k): round(float(v), 2) for k, v in grouped.items()}
+
+
+def investable_income(month: str) -> float:
+    """Sum of income whose Type counts as surplus (salary + freelance).
+
+    Excludes reimbursements, transfers, and other — those aren't real earned
+    surplus, just money moving or being made whole.
+    """
+    by_type = monthly_income_by_type(month)
+    return round(sum(v for t, v in by_type.items() if t in INVESTABLE_INCOME_TYPES), 2)
+
+
+def reserve_status(month: str) -> dict:
+    """Latest recorded Reserve Balance as of ``month``, vs. the Notgroschen target.
+
+    David records the Bank sheet's Reserve Balance column by hand and not
+    necessarily every month, so this uses the most recent value on or before
+    ``month`` rather than requiring an exact match.
+    """
+    b = bank()
+    balance: float | None = None
+    if not b.empty and "Reserve Balance (€)" in b.columns and "Month" in b.columns:
+        b = b[b["Month"].astype(str).str.match(r"^\d{4}-\d{2}$")]
+        b = b[b["Month"].astype(str) <= month]
+        valid = b.dropna(subset=["Reserve Balance (€)"])
+        if not valid.empty:
+            balance = float(valid.iloc[-1]["Reserve Balance (€)"])
+    percent_filled = (
+        round(min(100.0, balance / NOTGROSCHEN_TARGET * 100), 1) if balance is not None else None
+    )
+    remaining_to_target = round(max(0.0, NOTGROSCHEN_TARGET - balance), 2) if balance is not None else None
+    return {
+        "month": month,
+        "reserve_balance": balance,
+        "target": NOTGROSCHEN_TARGET,
+        "percent_filled": percent_filled,
+        "remaining_to_target": remaining_to_target,
+    }
+
+
+def investable_surplus(month: str) -> float:
+    """investable_income(month) - total expenses(month)."""
+    by_cat = monthly_expenses_by_category(month)
+    total_expenses = sum(c["amount"] for c in by_cat)
+    return round(investable_income(month) - total_expenses, 2)
+
+
+def split_recommendation(month: str) -> dict:
+    """Waterfall: fill the reserve to target first, then invest the rest.
+
+    Negative or zero surplus routes nothing anywhere (to_reserve = to_invest = 0)
+    rather than recommending a "negative" allocation.
+    """
+    surplus = investable_surplus(month)
+    reserve = reserve_status(month)
+    balance = reserve["reserve_balance"] or 0.0
+
+    if surplus <= 0:
+        to_reserve, to_invest = 0.0, 0.0
+    elif balance < NOTGROSCHEN_TARGET:
+        to_reserve = round(min(surplus * SPLIT_RATIO_TO_RESERVE, NOTGROSCHEN_TARGET - balance), 2)
+        to_invest = round(surplus - to_reserve, 2)
+    else:
+        to_reserve, to_invest = 0.0, round(surplus, 2)
+
+    income_total = investable_income(month)
+    savings_rate = round(surplus / income_total, 4) if income_total else None
+
+    return {
+        "month": month,
+        "surplus": surplus,
+        "to_reserve": to_reserve,
+        "to_invest": to_invest,
+        "reserve": reserve,
+        "savings_rate": savings_rate,
+    }
 
 
 def monthly_transactions(month: str) -> list[dict]:

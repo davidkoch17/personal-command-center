@@ -21,10 +21,20 @@ NAME_TICKER_MAP = {
 
 
 def latest_snapshot_tr() -> pd.DataFrame:
-    """Return only the most recent snapshot date's TR positions."""
+    """Return only the most recent snapshot *month*'s TR positions.
+
+    Filters by ``Month`` rather than the exact ``Snapshot Date``: rows for the
+    same month are often dated differently (e.g. a cash-balance row confirmed
+    a few days after the depot positions), so an exact-date filter can drop
+    real current holdings — it previously left only a same-month cash row and
+    silently excluded that month's equity positions.
+    """
     df = investments_tr()
     if df.empty or "Snapshot Date" not in df.columns:
         return df
+    if "Month" in df.columns:
+        latest_month = df["Month"].max()
+        return df[df["Month"] == latest_month].copy()
     latest_date = df["Snapshot Date"].max()
     return df[df["Snapshot Date"] == latest_date].copy()
 
