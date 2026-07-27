@@ -35,7 +35,10 @@ export function ReviewQueue() {
   if (needsReview.isLoading || entries.length === 0) return null
 
   function draftFor(e: CashflowNeedsReviewEntry): string {
-    return drafts[e.id] ?? (isCategoryQuestion(e.question) ? e.category : e.notes ?? "")
+    // Category questions default to blank (forces an explicit pick, since the
+    // entry's existing category is usually just a placeholder like
+    // "Uncategorized"); free-text questions prefill with any existing note.
+    return drafts[e.id] ?? (isCategoryQuestion(e.question) ? "" : e.notes ?? "")
   }
 
   function resolveEntry(e: CashflowNeedsReviewEntry) {
@@ -80,7 +83,7 @@ export function ReviewQueue() {
                 {isCategoryQuestion(e.question) ? (
                   <Select value={draftFor(e)} onValueChange={(v) => setDrafts((d) => ({ ...d, [e.id]: v }))}>
                     <SelectTrigger className="h-8 w-48">
-                      <SelectValue />
+                      <SelectValue placeholder="choose a category…" />
                     </SelectTrigger>
                     <SelectContent>
                       {options.map((c) => (
