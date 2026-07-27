@@ -47,6 +47,9 @@ data/cashflow_transactions.jsonl
 data/cashflow_reserve_balance.json
 data/cashflow_goal.json
 data/cashflow_budget.json
+
+# Reconciliation checkpoint log (personal financial snapshots, per-machine).
+data/checkpoints.jsonl
 .venv/
 venv/
 .DS_Store

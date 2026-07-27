@@ -176,6 +176,13 @@ CASHFLOW_INCOME_CATEGORIES = ["Salary", "Freelance", "Reimbursement", "Gift", "I
 # being made whole rather than new investable income.
 CASHFLOW_INVESTABLE_INCOME_CATEGORIES = ["Salary", "Freelance"]
 
+# --- System checkpoints (modules/system/checkpoints.py) -----------------------
+# Durable "we are here" markers recorded when a period (e.g. a month) is
+# reconciled and closed out — so a future session can answer "where did we
+# leave off" without re-deriving it from the ledgers.
+CHECKPOINTS_FILE = DATA_DIR / "checkpoints.jsonl"
+CHECKPOINTS_NOTE = SYSTEM_PATH / "Command_Center_Checkpoints.md"
+
 
 # --- Info-barrier mode (Evercore) -------------------------------------------
 # Once David starts at Evercore, personal investing in advised names/sectors is

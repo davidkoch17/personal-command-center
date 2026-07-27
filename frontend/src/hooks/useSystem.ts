@@ -58,3 +58,19 @@ export function useSystemConfig() {
     staleTime: 5 * 60_000,
   })
 }
+
+/** A recorded "we are here" marker (modules/system/checkpoints.py). */
+export interface Checkpoint {
+  timestamp: string
+  label: string
+  notes: string
+  snapshot: Record<string, unknown>
+}
+
+export function useCheckpoints() {
+  return useQuery({
+    queryKey: ["system", "checkpoints"],
+    queryFn: () => api.get<{ checkpoints: Checkpoint[]; latest: Checkpoint | null }>("/api/system/checkpoints"),
+    staleTime: 30_000,
+  })
+}

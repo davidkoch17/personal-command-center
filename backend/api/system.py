@@ -20,6 +20,7 @@ from modules.integrations import diagnostics
 from modules.brand import videos
 from modules.agents.skills.idea_validator import runner as iv
 from modules.agents import background
+from modules.system import checkpoints as checkpoints_mod
 
 router = APIRouter()
 
@@ -93,6 +94,13 @@ def config() -> dict:
 def clear_cache() -> dict:
     """No server-side cache layer yet — provided for frontend parity. Always ok."""
     return {"ok": True, "detail": "No server-side cache to clear."}
+
+
+@router.get("/checkpoints")
+def checkpoints() -> dict:
+    """Reconciliation checkpoints, most recent first — see modules.system.checkpoints."""
+    log = checkpoints_mod.list_checkpoints()
+    return {"checkpoints": log, "latest": log[0] if log else None}
 
 
 class OpenRequest(BaseModel):

@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { DiagnosticRow } from "@/components/settings/diagnostic-row"
-import { useSystemStatus, useClearCache, useSystemConfig } from "@/hooks/useSystem"
+import { useSystemStatus, useClearCache, useSystemConfig, useCheckpoints } from "@/hooks/useSystem"
 import { useDiagnostics } from "@/hooks/useDiagnostics"
 import { useFinanceDiagnostics } from "@/hooks/useFinance"
 import { useTheme } from "@/hooks/useTheme"
@@ -56,6 +56,9 @@ export function Settings() {
           </TableBody>
         </Table>
       </Panel>
+
+      {/* 1a. Last reconciliation checkpoint */}
+      <CheckpointSection />
 
       {/* 1b. v3 configuration (capture paths · snapshot · watchlist · tailscale) */}
       <V3ConfigSection />
@@ -109,6 +112,31 @@ export function Settings() {
         </Table>
       </Panel>
     </div>
+  )
+}
+
+/** Most recent reconciliation checkpoint (modules/system/checkpoints.py) — the
+ * durable "we are here" marker so a new session knows where things stand. */
+function CheckpointSection() {
+  const { data, isLoading } = useCheckpoints()
+  const latest = data?.latest
+
+  return (
+    <Panel title="last checkpoint" statusDotColor={latest ? "success" : "muted"}>
+      {isLoading ? (
+        <Skeleton className="h-10" />
+      ) : !latest ? (
+        <p className="text-sm text-text-label">no checkpoint recorded yet.</p>
+      ) : (
+        <div className="space-y-1">
+          <div className="text-sm text-text">{latest.label}</div>
+          <div className="font-mono text-xs text-text-secondary">
+            {latest.timestamp.replace("T", " ")}
+          </div>
+          {latest.notes && <p className="text-xs text-text-label">{latest.notes}</p>}
+        </div>
+      )}
+    </Panel>
   )
 }
 
