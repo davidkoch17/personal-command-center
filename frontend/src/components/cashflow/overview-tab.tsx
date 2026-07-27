@@ -13,6 +13,7 @@ import {
   type CashflowGoalProgress,
 } from "@/hooks/useCashflow"
 import { MonthPicker } from "./month-picker"
+import { ReviewQueue } from "./review-queue"
 import { cn, formatCurrency } from "@/lib/utils"
 
 export function OverviewTab() {
@@ -27,6 +28,8 @@ export function OverviewTab() {
   return (
     <div className="space-y-4">
       <MonthPicker months={months} month={month} onChange={setSelected} />
+
+      <ReviewQueue />
 
       {monthsQ.isLoading || summary.isLoading ? (
         <Skeleton className="h-96" />

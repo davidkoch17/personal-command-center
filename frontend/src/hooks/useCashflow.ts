@@ -74,6 +74,30 @@ export interface CashflowActualContribution {
   estimate: CashflowContributionEstimate
 }
 
+export interface CashflowNeedsReviewEntry {
+  id: string
+  date: string
+  direction: "income" | "expense"
+  amount: number
+  category: string
+  account: string | null
+  description: string
+  source_file: string | null
+  notes: string | null
+  needs_review: boolean
+  question: string | null
+}
+
+export interface CashflowResolveRequest {
+  date?: string
+  direction?: "income" | "expense"
+  amount?: number
+  category?: string
+  account?: string | null
+  description?: string
+  notes?: string | null
+}
+
 export interface CashflowReserveResponse {
   month: string
   investable_income: number
@@ -161,6 +185,15 @@ export function useCashflowBudget() {
   })
 }
 
+export function useCashflowNeedsReview() {
+  return useQuery({
+    queryKey: ["cashflow", "needs-review"],
+    queryFn: () =>
+      api.get<{ entries: CashflowNeedsReviewEntry[]; count: number }>("/api/cashflow/needs-review"),
+    staleTime: 30_000,
+  })
+}
+
 // --- Mutations -----------------------------------------------------------------
 
 export function useSetReserveBalance() {
@@ -193,6 +226,20 @@ export function useSetCashflowBudget() {
       api.post<{ ok: boolean; budget: Record<string, number> }>("/api/cashflow/budget", { category, value }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cashflow", "budget"] })
+    },
+  })
+}
+
+export function useResolveCashflowEntry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...fields }: CashflowResolveRequest & { id: string }) =>
+      api.post<{ ok: boolean; entry: CashflowNeedsReviewEntry }>(
+        `/api/cashflow/needs-review/${encodeURIComponent(id)}/resolve`,
+        fields,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cashflow"] })
     },
   })
 }
