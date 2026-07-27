@@ -12,7 +12,7 @@ import { useRecordTransaction, type TransactionRequest } from "@/hooks/useFinanc
 import { isoDate } from "@/lib/utils"
 import { toast } from "@/lib/toast-store"
 
-const ACTIONS = ["buy", "sell", "dividend", "deposit", "withdraw", "split"] as const
+export const ACTIONS = ["buy", "sell", "dividend", "deposit", "withdraw", "split"] as const
 
 /**
  * Log-transaction form (POST /api/finance/transactions). Used inline on the

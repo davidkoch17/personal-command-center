@@ -311,13 +311,77 @@ export function useRecordTransaction() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (req: TransactionRequest) =>
-      api.post<{ ok: boolean; ticker: string; action: string }>(
+      api.post<{ ok: boolean; id: string; ticker: string; action: string }>(
         "/api/finance/transactions",
         req,
       ),
     onSuccess: () => {
-      // A new transaction changes holdings, buckets, performance + risk.
+      // A new transaction changes holdings, buckets, performance + risk (["finance"])
+      // as well as the Portfolio Hub's holdings-pnl / realized-trades / net-worth
+      // queries, which live in a separate ["hub"] key namespace (usePortfolioHub.ts).
       qc.invalidateQueries({ queryKey: ["finance"] })
+      qc.invalidateQueries({ queryKey: ["hub"] })
+    },
+  })
+}
+
+/** One row of the editable transaction ledger (mirrors the backend Transaction model). */
+export interface FinanceTransaction {
+  id: string
+  date: string
+  ticker: string
+  action: "buy" | "sell" | "dividend" | "split" | "deposit" | "withdraw"
+  quantity: number
+  price: number
+  currency: string
+  fees: number
+  notes: string | null
+}
+
+export interface FinanceTransactionsResponse {
+  transactions: FinanceTransaction[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export function useFinanceTransactions(params: { ticker?: string; limit?: number } = {}) {
+  const { ticker, limit = 200 } = params
+  const qs = new URLSearchParams({ limit: String(limit) })
+  if (ticker) qs.set("ticker", ticker)
+  return useQuery({
+    queryKey: ["finance", "transactions", { ticker, limit }],
+    queryFn: () => api.get<FinanceTransactionsResponse>(`/api/finance/transactions?${qs.toString()}`),
+    staleTime: STALE.positions,
+  })
+}
+
+export type TransactionUpdateRequest = Partial<TransactionRequest>
+
+export function useUpdateTransaction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...fields }: TransactionUpdateRequest & { id: string }) =>
+      api.patch<{ ok: boolean; transaction: FinanceTransaction }>(
+        `/api/finance/transactions/${encodeURIComponent(id)}`,
+        fields,
+      ),
+    // Edits can change holdings, cost basis, and (if backdated) historical P&L.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance"] })
+      qc.invalidateQueries({ queryKey: ["hub"] })
+    },
+  })
+}
+
+export function useDeleteTransaction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<{ ok: boolean; id: string }>(`/api/finance/transactions/${encodeURIComponent(id)}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance"] })
+      qc.invalidateQueries({ queryKey: ["hub"] })
     },
   })
 }

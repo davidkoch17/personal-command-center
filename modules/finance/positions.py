@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import date
+from datetime import date as _date  # alias for TransactionUpdate.date — see comment there
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -86,7 +87,12 @@ class TransactionUpdate(BaseModel):
     clearing ``notes``) still comes through.
     """
 
-    date: Optional[date] = None
+    # Under `from __future__ import annotations`, pydantic resolves this
+    # forward-referenced "Optional[date]" using the class's own namespace —
+    # and `date: ... = None` below binds the class attribute `date` to the
+    # literal `None`, shadowing the `date` type and making the field resolve
+    # to NoneType-only. The `_date` alias sidesteps that self-shadowing.
+    date: Optional[_date] = None
     ticker: Optional[str] = None
     action: Optional[Action] = None
     quantity: Optional[float] = None

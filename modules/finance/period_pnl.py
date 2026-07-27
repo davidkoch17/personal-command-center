@@ -179,7 +179,7 @@ def position_period_pnl(on: Optional[date] = None) -> dict:
         "pnl_month_total": round(sum(r["pnl_month"] for r in out_rows), 2),
         "pnl_ytd_total": round(sum(r["pnl_ytd"] for r in out_rows), 2),
         "pnl_all_total": round(sum(r["pnl_all"] for r in out_rows), 2),
-        "as_of": (out_rows and positions_daily_rows()[-1].get("date")) or on.isoformat(),
+        "as_of": rows[-1].get("date") if rows else on.isoformat(),
     }
 
 

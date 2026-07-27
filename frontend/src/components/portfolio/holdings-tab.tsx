@@ -1,14 +1,38 @@
 import { useState } from "react"
+import { Check, Pencil, Trash2, X } from "lucide-react"
 import { Panel } from "@/components/ui/panel"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { MetricPanel } from "@/components/finance/metric-panel"
 import { NumberDisplay } from "@/components/ui/number-display"
-import { TransactionForm } from "@/components/finance/transaction-form"
-import { type TransactionRequest } from "@/hooks/useFinance"
+import { TransactionForm, ACTIONS } from "@/components/finance/transaction-form"
+import {
+  useDeleteTransaction,
+  useFinanceTransactions,
+  useUpdateTransaction,
+  type FinanceTransaction,
+  type TransactionRequest,
+} from "@/hooks/useFinance"
 import { useHoldingsPnl, useRealizedTrades, type PnlPosition } from "@/hooks/usePortfolioHub"
 import { DecisionLogDialog, type DecisionPrefill } from "./decision-log"
 import { cn, formatCurrency } from "@/lib/utils"
+import { toast } from "@/lib/toast-store"
 
 export function HoldingsTab() {
   const pnl = useHoldingsPnl()
@@ -57,6 +81,9 @@ export function HoldingsTab() {
           <HoldingsPnlTable rows={pnl.data.positions} />
         )}
       </Panel>
+
+      {/* Editable transaction ledger — full buy/sell/dividend/etc. history */}
+      <TransactionLedger />
 
       {/* 2) Trade log (closed trades) */}
       <TradeLog />
@@ -211,6 +238,281 @@ function TradeLog() {
               {formatCurrency(data.ytd_realized_eur)}
             </span>
           </div>
+        </>
+      )}
+    </Panel>
+  )
+}
+
+type TransactionDraft = {
+  date: string
+  ticker: string
+  action: (typeof ACTIONS)[number]
+  quantity: string
+  price: string
+  currency: string
+  fees: string
+  notes: string
+}
+
+function draftFrom(t: FinanceTransaction): TransactionDraft {
+  return {
+    date: t.date,
+    ticker: t.ticker,
+    action: t.action,
+    quantity: String(t.quantity),
+    price: String(t.price),
+    currency: t.currency,
+    fees: String(t.fees),
+    notes: t.notes ?? "",
+  }
+}
+
+/** Full editable buy/sell/dividend/etc. ledger — click a row to edit inline, or delete it.
+ *  Backdated edits/deletes trigger the backend's historical backfill (see positions.py). */
+function TransactionLedger() {
+  const txns = useFinanceTransactions({ limit: 200 })
+  const update = useUpdateTransaction()
+  const del = useDeleteTransaction()
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draft, setDraft] = useState<TransactionDraft | null>(null)
+  // Arm/confirm delete (click trash once to arm, again to confirm) instead of a
+  // native window.confirm(), which blocks the page until dismissed.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
+  function startEdit(t: FinanceTransaction) {
+    setEditingId(t.id)
+    setDraft(draftFrom(t))
+    setConfirmDeleteId(null)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setDraft(null)
+  }
+
+  function saveEdit(id: string) {
+    if (!draft) return
+    update.mutate(
+      {
+        id,
+        date: draft.date,
+        ticker: draft.ticker.trim().toUpperCase(),
+        action: draft.action,
+        quantity: Number(draft.quantity),
+        price: Number(draft.price),
+        currency: draft.currency,
+        fees: draft.fees ? Number(draft.fees) : 0,
+        notes: draft.notes.trim() || null,
+      },
+      {
+        onSuccess: () => {
+          toast.success("transaction updated")
+          cancelEdit()
+        },
+        onError: (e) => toast.error("could not update transaction", String(e)),
+      },
+    )
+  }
+
+  function handleDeleteClick(t: FinanceTransaction) {
+    if (confirmDeleteId !== t.id) {
+      setConfirmDeleteId(t.id)
+      return
+    }
+    setConfirmDeleteId(null)
+    del.mutate(t.id, {
+      onSuccess: () => toast.success("transaction deleted"),
+      onError: (e) => toast.error("could not delete transaction", String(e)),
+    })
+  }
+
+  return (
+    <Panel
+      title="transaction ledger"
+      meta={txns.data ? `${txns.data.total} entries` : undefined}
+      statusDotColor="muted"
+    >
+      {txns.isLoading ? (
+        <Skeleton className="h-48" />
+      ) : txns.isError ? (
+        <p className="text-sm text-text-secondary">could not load transactions. backend on :8000?</p>
+      ) : !txns.data?.transactions.length ? (
+        <p className="text-sm text-text-label">no transactions logged yet.</p>
+      ) : (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>date</TableHead>
+                <TableHead>ticker</TableHead>
+                <TableHead>action</TableHead>
+                <TableHead className="text-right">qty</TableHead>
+                <TableHead className="text-right">price</TableHead>
+                <TableHead>ccy</TableHead>
+                <TableHead className="text-right">fees</TableHead>
+                <TableHead>notes</TableHead>
+                <TableHead className="text-right">edit</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {txns.data.transactions.map((t) =>
+                editingId === t.id && draft ? (
+                  <TableRow key={t.id}>
+                    <TableCell>
+                      <Input
+                        type="date"
+                        mono
+                        className="h-7 w-32"
+                        value={draft.date}
+                        onChange={(e) => setDraft((d) => d && { ...d, date: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        mono
+                        className="h-7 w-20"
+                        value={draft.ticker}
+                        onChange={(e) => setDraft((d) => d && { ...d, ticker: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={draft.action}
+                        onValueChange={(v) => setDraft((d) => d && { ...d, action: v as TransactionDraft["action"] })}
+                      >
+                        <SelectTrigger className="h-7 w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ACTIONS.map((a) => (
+                            <SelectItem key={a} value={a}>
+                              {a}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        mono
+                        className="h-7 w-20 text-right"
+                        value={draft.quantity}
+                        onChange={(e) => setDraft((d) => d && { ...d, quantity: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        mono
+                        className="h-7 w-20 text-right"
+                        value={draft.price}
+                        onChange={(e) => setDraft((d) => d && { ...d, price: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={draft.currency}
+                        onValueChange={(v) => setDraft((d) => d && { ...d, currency: v })}
+                      >
+                        <SelectTrigger className="h-7 w-16">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["EUR", "USD", "GBP"].map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        mono
+                        className="h-7 w-16 text-right"
+                        value={draft.fees}
+                        onChange={(e) => setDraft((d) => d && { ...d, fees: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        className="h-7 w-32"
+                        value={draft.notes}
+                        onChange={(e) => setDraft((d) => d && { ...d, notes: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => saveEdit(t.id)}
+                          disabled={update.isPending}
+                          title="save"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={cancelEdit} title="cancel">
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <TableRow key={t.id} className="cursor-pointer" onClick={() => startEdit(t)}>
+                    <TableCell className="text-xs text-text-label">{t.date}</TableCell>
+                    <TableCell className="text-text">{t.ticker}</TableCell>
+                    <TableCell className="text-text-secondary">{t.action}</TableCell>
+                    <TableCell className="text-right">
+                      {t.quantity.toLocaleString("en-US", { maximumFractionDigits: 8 })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <NumberDisplay value={t.price} format="currency" />
+                    </TableCell>
+                    <TableCell className="text-text-label">{t.currency}</TableCell>
+                    <TableCell className="text-right text-text-label">
+                      {t.fees ? formatCurrency(t.fees) : "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[10rem] truncate text-xs text-text-secondary">
+                      {t.notes || "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {confirmDeleteId === t.id && (
+                          <span className="text-xs text-danger">confirm?</span>
+                        )}
+                        <Pencil className="h-3.5 w-3.5 text-text-disabled" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            "h-7 w-7",
+                            confirmDeleteId === t.id
+                              ? "text-danger"
+                              : "text-text-label hover:text-danger",
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteClick(t)
+                          }}
+                          title={confirmDeleteId === t.id ? "click again to confirm delete" : "delete"}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ),
+              )}
+            </TableBody>
+          </Table>
+          <p className="mt-2 text-xs text-text-label">
+            click a row to edit inline. backdated changes recompute the daily P&L history.
+          </p>
         </>
       )}
     </Panel>
