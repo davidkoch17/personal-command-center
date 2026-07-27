@@ -5,7 +5,7 @@ Mounted in ``backend/main.py`` under the ``/api/finance`` prefix. The legacy
 
 Routes:
 - ``/api/finance/positions``           (GET, POST)
-- ``/api/finance/transactions``        (GET, POST)
+- ``/api/finance/transactions``        (GET, POST, PATCH /{id}, DELETE /{id})
 - ``/api/finance/holdings``            (GET)
 - ``/api/finance/prices/{ticker}``     (GET)
 - ``/api/finance/returns/{ticker}``    (GET)

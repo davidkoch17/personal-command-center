@@ -14,10 +14,11 @@ The legacy ``portfolio.py`` stays in place; new code uses this module.
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import date
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.config import POSITIONS_FILE, TRANSACTIONS_FILE, get_logger
 
@@ -66,6 +67,7 @@ class Position(BaseModel):
 class Transaction(BaseModel):
     """A single dated event against a ticker. Quantities/prices in ``currency``."""
 
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     date: date
     ticker: str
     action: Action
@@ -73,6 +75,24 @@ class Transaction(BaseModel):
     price: float
     currency: str = "USD"
     fees: float = 0.0
+    notes: Optional[str] = None
+
+
+class TransactionUpdate(BaseModel):
+    """Partial edit payload for :func:`update_transaction` (all fields optional).
+
+    Callers should build this with ``exclude_unset=True`` so an omitted field
+    leaves the existing value untouched, while an explicit ``null`` (e.g.
+    clearing ``notes``) still comes through.
+    """
+
+    date: Optional[date] = None
+    ticker: Optional[str] = None
+    action: Optional[Action] = None
+    quantity: Optional[float] = None
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    fees: Optional[float] = None
     notes: Optional[str] = None
 
 
@@ -138,6 +158,53 @@ def record_transaction(t: Transaction) -> None:
     with TRANSACTIONS_FILE.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(payload) + "\n")
     logger.info("Recorded %s %s %s @ %s", t.action, t.quantity, t.ticker, t.price)
+
+
+def _write_all_transactions(txns: list[Transaction]) -> None:
+    """Rewrite the entire JSONL log from ``txns`` (used by update/delete)."""
+    TRANSACTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for t in txns:
+        payload = t.model_dump()
+        payload["date"] = t.date.isoformat()
+        lines.append(json.dumps(payload))
+    TRANSACTIONS_FILE.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def update_transaction(id: str, **fields) -> Optional[Transaction]:
+    """Edit one transaction in place (by ``id``), rewriting the JSONL log.
+
+    ``fields`` overrides the existing row's values (typically built from
+    ``TransactionUpdate(...).model_dump(exclude_unset=True)``); ``id`` itself
+    is never overridden. Returns the updated :class:`Transaction`, or ``None``
+    if no transaction with that id exists.
+    """
+    fields.pop("id", None)
+    txns = list_transactions()
+    for i, t in enumerate(txns):
+        if t.id == id:
+            merged = {**t.model_dump(), **fields, "id": id}
+            updated = Transaction(**merged)
+            txns[i] = updated
+            _write_all_transactions(txns)
+            logger.info("Updated transaction %s (%s %s %s @ %s)",
+                        id, updated.action, updated.quantity, updated.ticker, updated.price)
+            return updated
+    return None
+
+
+def delete_transaction(id: str) -> bool:
+    """Remove one transaction by ``id``, rewriting the JSONL log.
+
+    Returns ``True`` if a row was removed, ``False`` if no such id existed.
+    """
+    txns = list_transactions()
+    remaining = [t for t in txns if t.id != id]
+    if len(remaining) == len(txns):
+        return False
+    _write_all_transactions(remaining)
+    logger.info("Deleted transaction %s", id)
+    return True
 
 
 def transactions_for(ticker: str) -> list[Transaction]:

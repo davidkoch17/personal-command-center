@@ -2,19 +2,31 @@
 from __future__ import annotations
 
 import warnings
+from datetime import date as date_cls
 
 from fastapi import APIRouter, HTTPException, Query
 
 from core.config import get_logger
-from modules.finance import period_pnl, positions as pos
+from modules.finance import backfill, period_pnl, positions as pos
 from modules.finance import realized
 from modules.finance import risk
 from modules.finance.price_history import get_returns, latest_price_eur
-from modules.finance.positions import Position, Transaction
+from modules.finance.positions import Position, Transaction, TransactionUpdate
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+def _maybe_backfill(txn_date: date_cls) -> None:
+    """Recompute positions_daily.csv (+ net worth) when a backdated txn changes history.
+
+    Same-day transactions are already covered by the live daily snapshot, so
+    only trigger the (slower, yfinance-backed) full backfill when the edit
+    reaches into the past.
+    """
+    if txn_date != date_cls.today():
+        backfill.run_backfill()
 
 
 @router.get("/positions")
@@ -60,7 +72,35 @@ def post_transaction(transaction: Transaction) -> dict:
     except Exception as exc:  # noqa: BLE001
         logger.exception("Failed to record transaction")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "ticker": transaction.ticker, "action": transaction.action}
+    _maybe_backfill(transaction.date)
+    return {"ok": True, "id": transaction.id, "ticker": transaction.ticker, "action": transaction.action}
+
+
+@router.patch("/transactions/{id}")
+def patch_transaction(id: str, update: TransactionUpdate) -> dict:
+    """Edit one transaction in place (partial update) and rewrite the ledger."""
+    fields = update.model_dump(exclude_unset=True)
+    try:
+        updated = pos.update_transaction(id, **fields)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to update transaction %s", id)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"Transaction {id} not found")
+    _maybe_backfill(updated.date)
+    return {"ok": True, "transaction": {**updated.model_dump(), "date": updated.date.isoformat()}}
+
+
+@router.delete("/transactions/{id}")
+def delete_transaction_endpoint(id: str) -> dict:
+    """Remove one transaction from the ledger by id."""
+    existing = next((t for t in pos.list_transactions() if t.id == id), None)
+    removed = pos.delete_transaction(id)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"Transaction {id} not found")
+    if existing is not None:
+        _maybe_backfill(existing.date)
+    return {"ok": True, "id": id}
 
 
 @router.get("/holdings")

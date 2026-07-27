@@ -57,7 +57,14 @@ def _traded_tickers() -> list[str]:
 
 
 def backfill_positions() -> list[dict]:
-    """Reconstruct per-position daily rows for every traded ticker. Returns rows."""
+    """Reconstruct per-position daily rows for every traded ticker. Returns rows.
+
+    Only *upserts* rows for tickers currently in ``_traded_tickers()`` — if a
+    ticker's last remaining transaction is deleted (see
+    ``positions.delete_transaction``), its existing historical rows here are
+    not purged. Harmless for net worth (nothing still holds/prices it going
+    forward) but stale rows can linger; not handled by this step.
+    """
     rows: list[dict] = []
     for ticker in _traded_tickers():
         start = first_transaction_date(ticker)
