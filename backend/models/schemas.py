@@ -182,6 +182,19 @@ class CashflowBudgetRequest(BaseModel):
     value: Optional[float] = None
 
 
+class CashflowResolveRequest(BaseModel):
+    """Answer payload for one flagged ledger entry (all fields optional — only
+    send what David's answer actually changes; ``needs_review`` always clears)."""
+
+    date: Optional[date] = None
+    direction: Optional[Literal["income", "expense"]] = None
+    amount: Optional[float] = None
+    category: Optional[str] = None
+    account: Optional[str] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
+
+
 # --- Watchlist --------------------------------------------------------------
 class WatchlistAddRequest(BaseModel):
     ticker: str

@@ -13,17 +13,25 @@ Storage (repo ``data/`` dir, gitignored, never the vault):
 - ``cashflow_reserve_balance.json`` — manual monthly Notgroschen balance snapshot.
 - ``cashflow_goal.json`` — David's monthly savings-goal target.
 - ``cashflow_budget.json`` — per-category budget targets.
+
+Needs-review convention: when Claude ingests bank/card data on David's behalf
+and is genuinely unsure how to categorize or classify a transaction, it should
+set ``needs_review=True`` with a specific ``question`` on that entry rather
+than guessing — David resolves these in-app via the needs-review queue. This
+is for small ongoing uncertainties; a big batch catch-up (e.g. a backlog of
+statements) still warrants its own one-off review doc instead.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.config import (
     CASHFLOW_BUDGET_FILE,
@@ -44,6 +52,7 @@ Direction = Literal["income", "expense"]
 class CashflowEntry(BaseModel):
     """A single dated income or expense line."""
 
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     date: date
     direction: Direction
     amount: float                      # positive magnitude
@@ -52,6 +61,8 @@ class CashflowEntry(BaseModel):
     description: str = ""
     source_file: Optional[str] = None
     notes: Optional[str] = None
+    needs_review: bool = False
+    question: Optional[str] = None     # why it's flagged, e.g. "Groceries or Dining?"
 
 
 # --- Ledger (cashflow_transactions.jsonl) ------------------------------------
@@ -101,6 +112,45 @@ def add_entries(entries: list[CashflowEntry]) -> dict:
             skipped += 1
     logger.info("cashflow ledger: +%d entries, %d duplicates skipped", added, skipped)
     return {"added": added, "skipped": skipped}
+
+
+def _write_all_entries(entries: list[CashflowEntry]) -> None:
+    """Rewrite the entire JSONL ledger from ``entries`` (used by :func:`resolve_entry`)."""
+    CASHFLOW_TRANSACTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for e in entries:
+        payload = e.model_dump()
+        payload["date"] = e.date.isoformat()
+        lines.append(json.dumps(payload))
+    CASHFLOW_TRANSACTIONS_FILE.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def needs_review_entries() -> list[CashflowEntry]:
+    """All ledger entries currently flagged for review, sorted by date."""
+    return [e for e in list_entries() if e.needs_review]
+
+
+def resolve_entry(id: str, **fields) -> Optional[CashflowEntry]:
+    """Apply an answer to one flagged entry (by ``id``) and clear its review flag.
+
+    ``fields`` overrides the existing row's values (typically built from
+    ``CashflowResolveRequest(...).model_dump(exclude_unset=True)``); ``id``
+    itself is never overridden, and ``needs_review`` always clears regardless
+    of what's passed. Returns the updated entry, or ``None`` if no entry with
+    that id exists.
+    """
+    fields.pop("id", None)
+    fields["needs_review"] = False
+    entries = list_entries()
+    for i, e in enumerate(entries):
+        if e.id == id:
+            merged = {**e.model_dump(), **fields, "id": id}
+            updated = CashflowEntry(**merged)
+            entries[i] = updated
+            _write_all_entries(entries)
+            logger.info("Resolved cashflow entry %s (category=%s)", id, updated.category)
+            return updated
+    return None
 
 
 def clear_all() -> int:

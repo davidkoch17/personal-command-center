@@ -3,9 +3,14 @@ income/expense tracker). Independent of money.py's Excel-sourced net-worth/
 investing endpoints; the two domains stay deliberately separate."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from backend.models.schemas import CashflowBudgetRequest, CashflowGoalRequest, ReserveBalanceRequest
+from backend.models.schemas import (
+    CashflowBudgetRequest,
+    CashflowGoalRequest,
+    CashflowResolveRequest,
+    ReserveBalanceRequest,
+)
 from core.config import CASHFLOW_EXPENSE_CATEGORIES, CASHFLOW_INCOME_CATEGORIES, get_logger
 from modules.finance import cashflow, tr_contributions
 
@@ -92,6 +97,27 @@ def set_goal(req: CashflowGoalRequest) -> dict:
     """Set (or, with ``value: null``, clear) the monthly savings-goal target."""
     cashflow.set_savings_goal(req.value)
     return {"ok": True, "monthly_savings_goal": req.value}
+
+
+@router.get("/needs-review")
+def needs_review() -> dict:
+    """Ledger entries currently flagged for review (question + full row), for
+    the in-app needs-review queue that replaces the ad-hoc questions doc."""
+    rows = cashflow.needs_review_entries()
+    return {
+        "entries": [{**e.model_dump(), "date": e.date.isoformat()} for e in rows],
+        "count": len(rows),
+    }
+
+
+@router.post("/needs-review/{id}/resolve")
+def resolve_needs_review(id: str, req: CashflowResolveRequest) -> dict:
+    """Apply David's answer to one flagged entry and clear its review flag."""
+    fields = req.model_dump(exclude_unset=True)
+    updated = cashflow.resolve_entry(id, **fields)
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"Cashflow entry {id} not found")
+    return {"ok": True, "entry": {**updated.model_dump(), "date": updated.date.isoformat()}}
 
 
 @router.get("/budget")
