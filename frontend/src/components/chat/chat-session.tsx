@@ -375,7 +375,7 @@ function ChatHeader({
 function EmptyState({ page }: { page: string | null }) {
   return (
     <div className="mt-24 text-center">
-      <p className="text-lg font-semibold">talk to claude code</p>
+      <p className="text-lg font-semibold capitalize">talk to claude code</p>
       <p className="mt-1 text-sm text-text-secondary">
         ask anything about your vault, finances, projects, or this codebase.
         {page ? ` you're here from ${page}.` : ""}

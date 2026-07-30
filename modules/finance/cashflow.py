@@ -19,7 +19,11 @@ and is genuinely unsure how to categorize or classify a transaction, it should
 set ``needs_review=True`` with a specific ``question`` on that entry rather
 than guessing — David resolves these in-app via the needs-review queue. This
 is for small ongoing uncertainties; a big batch catch-up (e.g. a backlog of
-statements) still warrants its own one-off review doc instead.
+statements) still warrants its own one-off review doc instead. The frontend
+decides whether to render a category dropdown or a free-text field by
+checking whether ``question`` contains the word "category" (case-insensitive)
+— phrase category questions accordingly, e.g. "which category: Groceries or
+Dining?", not just "Groceries or Dining?".
 """
 from __future__ import annotations
 
@@ -62,7 +66,7 @@ class CashflowEntry(BaseModel):
     source_file: Optional[str] = None
     notes: Optional[str] = None
     needs_review: bool = False
-    question: Optional[str] = None     # why it's flagged, e.g. "Groceries or Dining?"
+    question: Optional[str] = None     # why it's flagged, e.g. "which category: Groceries or Dining?"
 
 
 # --- Ledger (cashflow_transactions.jsonl) ------------------------------------

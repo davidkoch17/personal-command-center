@@ -3,8 +3,9 @@ import * as TabsPrimitive from "@radix-ui/react-tabs"
 import { cn } from "@/lib/utils"
 
 /**
- * Radix tabs styled for Cockpit: lowercase triggers, accent underline on the
- * active tab. Compose as Tabs > TabsList(>TabsTrigger…) + TabsContent…
+ * Radix tabs styled for Cockpit: capitalized triggers (matches Panel title
+ * casing), accent underline on the active tab. Compose as
+ * Tabs > TabsList(>TabsTrigger…) + TabsContent…
  */
 export const Tabs = TabsPrimitive.Root
 
@@ -30,7 +31,7 @@ export const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "relative -mb-px rounded-t-sm border-b-2 border-transparent px-3 py-2 text-sm lowercase",
+      "relative -mb-px rounded-t-sm border-b-2 border-transparent px-3 py-2 text-sm capitalize",
       "text-text-secondary transition-colors hover:text-text",
       "data-[state=active]:border-accent data-[state=active]:text-accent",
       "focus-visible:outline-none disabled:text-text-disabled",

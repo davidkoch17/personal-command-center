@@ -142,7 +142,7 @@ function IdeasEntry() {
       <div className="flex items-start justify-between gap-2">
         <span className="flex items-center gap-2 text-sm font-medium text-text">
           <Lightbulb className="h-4 w-4 text-accent" />
-          idea validation pipeline
+          <span className="capitalize">idea validation pipeline</span>
         </span>
         <ArrowUpRight className="h-4 w-4 shrink-0 text-text-label group-hover:text-accent transition-colors" />
       </div>
