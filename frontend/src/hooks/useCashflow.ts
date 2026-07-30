@@ -86,6 +86,7 @@ export interface CashflowNeedsReviewEntry {
   notes: string | null
   needs_review: boolean
   question: string | null
+  question_type: "category" | "freetext"
 }
 
 export interface CashflowResolveRequest {

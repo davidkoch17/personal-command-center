@@ -12,13 +12,6 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import { toast } from "@/lib/toast-store"
 
-/** True when the question is about which category the entry belongs in
- * (renders a category dropdown) rather than some other ambiguity (renders a
- * free-text field instead). */
-function isCategoryQuestion(question: string | null): boolean {
-  return !!question && /categor/i.test(question)
-}
-
 /**
  * "Needs review" queue — flagged cashflow ledger entries Claude wasn't sure
  * how to categorize/classify while ingesting a statement. Replaces the old
@@ -38,12 +31,12 @@ export function ReviewQueue() {
     // Category questions default to blank (forces an explicit pick, since the
     // entry's existing category is usually just a placeholder like
     // "Uncategorized"); free-text questions prefill with any existing note.
-    return drafts[e.id] ?? (isCategoryQuestion(e.question) ? "" : e.notes ?? "")
+    return drafts[e.id] ?? (e.question_type === "category" ? "" : e.notes ?? "")
   }
 
   function resolveEntry(e: CashflowNeedsReviewEntry) {
     const value = draftFor(e).trim()
-    const fields = isCategoryQuestion(e.question) ? { category: value } : { notes: value }
+    const fields = e.question_type === "category" ? { category: value } : { notes: value }
     resolve.mutate(
       { id: e.id, ...fields },
       {
@@ -80,7 +73,7 @@ export function ReviewQueue() {
               </div>
               <p className="mt-2 text-sm text-warning">{e.question}</p>
               <div className="mt-2 flex items-center gap-2">
-                {isCategoryQuestion(e.question) ? (
+                {e.question_type === "category" ? (
                   <Select value={draftFor(e)} onValueChange={(v) => setDrafts((d) => ({ ...d, [e.id]: v }))}>
                     <SelectTrigger className="h-8 w-48">
                       <SelectValue placeholder="choose a category…" />
