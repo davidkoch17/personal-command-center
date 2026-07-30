@@ -85,6 +85,20 @@ function openMaximised(url: string): Window | null {
 }
 
 /**
+ * getScreenDetails() is gated behind a permission prompt. If it has never been
+ * granted, the browser shows an easy-to-miss address-bar prompt and the
+ * returned promise hangs until the user answers it — without this timeout,
+ * trySecondScreen (and the fallback below) would stall forever on a first
+ * click instead of opening a window.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ])
+}
+
+/**
  * Open (or focus) the chat window. `page` is the dashboard path the user opened
  * it from, forwarded so the chat is context-aware.
  */
@@ -94,7 +108,7 @@ export async function openChatWindow(page?: string): Promise<Window | null> {
     return chatWin
   }
   const url = `/chat${page ? `?page=${encodeURIComponent(page)}` : ""}`
-  const win = (await trySecondScreen(url)) ?? openMaximised(url)
+  const win = (await withTimeout(trySecondScreen(url), 1500)) ?? openMaximised(url)
   if (win) win.focus()
   chatWin = win
   return win
