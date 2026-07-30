@@ -29,3 +29,5 @@ Pillow>=10.0
 # pdfplumber pulls in pypdfium2, which it uses to rasterize scanned pages for
 # the OCR fallback — no poppler/ImageMagick system install needed.
 pdfplumber>=0.11
+
+pytest>=8.0
