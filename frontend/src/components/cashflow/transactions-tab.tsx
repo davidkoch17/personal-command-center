@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { NumberDisplay } from "@/components/ui/number-display"
 import {
   Table,
@@ -14,19 +15,20 @@ import { useCashflowMonths, useCashflowSummary, useCashflowTransactions } from "
 import { MonthPicker } from "./month-picker"
 import { formatCurrency } from "@/lib/utils"
 
+// One accent hue family (blue/sky tints) — no categorical "rainbow".
 const CATEGORY_COLORS: Record<string, string> = {
-  Rent: "bg-indigo-500",
-  Groceries: "bg-green-400",
-  Dining: "bg-orange-400",
-  Transport: "bg-blue-400",
-  Travel: "bg-cyan-400",
-  Subscriptions: "bg-yellow-400",
-  Utilities: "bg-gray-400",
-  Insurance: "bg-pink-400",
-  Health: "bg-red-400",
-  Shopping: "bg-purple-500",
-  Entertainment: "bg-teal-400",
-  "Taxes & Fees": "bg-amber-500",
+  Rent: "bg-blue-600",
+  Groceries: "bg-blue-400",
+  Dining: "bg-sky-400",
+  Transport: "bg-blue-500",
+  Travel: "bg-sky-500",
+  Subscriptions: "bg-blue-300",
+  Utilities: "bg-sky-300",
+  Insurance: "bg-blue-700",
+  Health: "bg-sky-600",
+  Shopping: "bg-blue-800",
+  Entertainment: "bg-sky-700",
+  "Taxes & Fees": "bg-blue-200",
   Other: "bg-text-label",
 }
 
@@ -65,7 +67,7 @@ export function TransactionsTab() {
         <Skeleton className="h-64" />
       ) : !summary.data ? (
         <Panel title="transactions" statusDotColor="muted">
-          <p className="text-sm text-text-label">no data for this month.</p>
+          <EmptyState message="no data for this month." />
         </Panel>
       ) : (
         <>
@@ -136,7 +138,7 @@ export function TransactionsTab() {
                     return (
                       <TableRow
                         key={c.category}
-                        className="cursor-pointer hover:bg-surface"
+                        className="cursor-pointer hover:bg-bg-panel-hover"
                         onClick={() => setCatFilter((f) => (f === c.category ? "all" : c.category))}
                       >
                         <TableCell>
@@ -198,7 +200,7 @@ export function TransactionsTab() {
                       <TableCell className="font-mono text-xs text-text-label">{t.date}</TableCell>
                       <TableCell className="max-w-[220px] truncate text-sm">{t.description}</TableCell>
                       <TableCell>
-                        <span className="rounded bg-surface px-1.5 py-0.5 text-xs text-text-secondary">
+                        <span className="rounded bg-bg-panel-hover px-1.5 py-0.5 text-xs text-text-secondary">
                           {t.category}
                         </span>
                       </TableCell>

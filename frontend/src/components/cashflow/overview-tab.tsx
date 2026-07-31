@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -35,9 +36,7 @@ export function OverviewTab() {
         <Skeleton className="h-96" />
       ) : !summary.data ? (
         <Panel title="overview" statusDotColor="muted">
-          <p className="text-sm text-text-label">
-            no data yet — hand me a bank/card statement, receipt, or screenshot and I'll add it to the ledger.
-          </p>
+          <EmptyState message="no data yet — hand me a bank/card statement, receipt, or screenshot and I'll add it to the ledger." />
         </Panel>
       ) : (
         <>
@@ -105,7 +104,7 @@ function GoalPanel({ goal }: { goal: CashflowGoalProgress }) {
         </div>
       ) : goal.goal == null ? (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-text-label">no savings goal set yet.</p>
+          <EmptyState message="no savings goal set yet." />
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
             set goal
           </Button>
@@ -118,7 +117,7 @@ function GoalPanel({ goal }: { goal: CashflowGoalProgress }) {
               target {formatCurrency(goal.goal)} · edit
             </button>
           </div>
-          <div className="h-2.5 w-full overflow-hidden rounded-full bg-bg-muted">
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-border">
             <div
               className={cn("h-full rounded-full transition-[width]", goal.on_track ? "bg-success" : "bg-warning")}
               style={{ width: `${Math.min(100, pct)}%` }}

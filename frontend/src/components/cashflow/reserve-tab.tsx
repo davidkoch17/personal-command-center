@@ -3,6 +3,7 @@ import { Panel } from "@/components/ui/panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Tag } from "@/components/ui/tag"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { AllocationBar } from "@/components/charts/finance-charts"
@@ -39,7 +40,7 @@ export function ReserveTab() {
         <Skeleton className="h-96" />
       ) : !data || !month ? (
         <Panel title="reserve & allocation" statusDotColor="muted">
-          <p className="text-sm text-text-label">no data for this month.</p>
+          <EmptyState message="no data for this month." />
         </Panel>
       ) : (
         <>
@@ -102,7 +103,7 @@ function ReserveGauge({ reserve, month }: { reserve: CashflowReserveStatus; mont
         </div>
       ) : balance == null ? (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-text-label">no reserve balance recorded yet.</p>
+          <EmptyState message="no reserve balance recorded yet." />
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
             record balance
           </Button>
@@ -115,7 +116,7 @@ function ReserveGauge({ reserve, month }: { reserve: CashflowReserveStatus; mont
               edit
             </button>
           </div>
-          <div className="h-2.5 w-full overflow-hidden rounded-full bg-bg-muted">
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-border">
             <div
               className={cn("h-full rounded-full transition-[width]", full ? "bg-success" : "bg-accent")}
               style={{ width: `${Math.min(100, pct ?? 0)}%` }}
@@ -149,7 +150,7 @@ function SplitPanel({
   return (
     <Panel title="this month's recommended split" statusDotColor="accent">
       {surplus <= 0 ? (
-        <p className="text-sm text-text-label">no surplus this month — nothing to split.</p>
+        <EmptyState message="no surplus this month — nothing to split." />
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -163,7 +164,7 @@ function SplitPanel({
             </div>
           </div>
           {total > 0 && (
-            <div className="flex h-2 w-full overflow-hidden rounded-full bg-bg-muted">
+            <div className="flex h-2 w-full overflow-hidden rounded-full bg-border">
               {reservePct > 0 && <div className="h-full bg-warning" style={{ width: `${reservePct}%` }} />}
               {investPct > 0 && <div className="h-full bg-accent" style={{ width: `${investPct}%` }} />}
             </div>
@@ -286,7 +287,7 @@ function IncomeByTypePanel({ incomeByType }: { incomeByType: Record<string, numb
   return (
     <Panel title="income by category" meta="salary/freelance count toward surplus" statusDotColor="accent">
       {entries.length === 0 ? (
-        <p className="text-sm text-text-label">no income recorded this month.</p>
+        <EmptyState message="no income recorded this month." />
       ) : (
         <div className="space-y-2">
           {entries.map(([category, amount]) => {
@@ -295,7 +296,7 @@ function IncomeByTypePanel({ incomeByType }: { incomeByType: Record<string, numb
             return (
               <div key={category} className="flex items-center gap-2 text-xs">
                 <span className="w-28 shrink-0 text-text-secondary">{category}</span>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-muted">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
                   <div
                     className={cn("h-full rounded-full", investable ? "bg-accent" : "bg-text-label")}
                     style={{ width: `${pct}%` }}

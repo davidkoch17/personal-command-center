@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Tag } from "@/components/ui/tag"
 import {
   Dialog,
@@ -171,7 +172,7 @@ export function DecisionLogPanel() {
       {isLoading ? (
         <Skeleton className="h-24" />
       ) : !data?.decisions.length ? (
-        <p className="text-sm text-text-label">no decisions logged yet.</p>
+        <EmptyState message="no decisions logged yet." />
       ) : (
         <ul className="space-y-1.5">
           {data.decisions.map((d) => (

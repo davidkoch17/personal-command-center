@@ -334,7 +334,7 @@ function ReserveGauge({ reserve }: { reserve: AllocationReserveStatus }) {
       ) : (
         <div className="space-y-2.5">
           <NumberDisplay value={balance} format="currency" emphasized className="text-2xl" />
-          <div className="h-2.5 w-full overflow-hidden rounded-full bg-bg-muted">
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-border">
             <div
               className={cn("h-full rounded-full transition-[width]", full ? "bg-success" : "bg-accent")}
               style={{ width: `${Math.min(100, pct ?? 0)}%` }}
@@ -384,7 +384,7 @@ function SplitPanel({
             </div>
           </div>
           {total > 0 && (
-            <div className="flex h-2 w-full overflow-hidden rounded-full bg-bg-muted">
+            <div className="flex h-2 w-full overflow-hidden rounded-full bg-border">
               {reservePct > 0 && <div className="h-full bg-warning" style={{ width: `${reservePct}%` }} />}
               {investPct > 0 && <div className="h-full bg-accent" style={{ width: `${investPct}%` }} />}
             </div>
@@ -525,7 +525,7 @@ function IncomeByTypePanel({ incomeByType }: { incomeByType: Record<string, numb
             return (
               <div key={type} className="flex items-center gap-2 text-xs">
                 <span className="w-28 shrink-0 text-text-secondary">{type}</span>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-muted">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
                   <div
                     className={cn("h-full rounded-full", investable ? "bg-accent" : "bg-text-label")}
                     style={{ width: `${pct}%` }}
@@ -681,17 +681,18 @@ function BudgetTab({
 }
 
 // 7. Expense Report
+// One accent hue family (blue/sky tints) — no categorical "rainbow".
 const CATEGORY_COLORS: Record<string, string> = {
-  Shopping: "bg-purple-500",
-  Restaurants: "bg-orange-400",
-  Transport: "bg-blue-400",
-  Travel: "bg-cyan-400",
-  Entertainment: "bg-pink-400",
-  Groceries: "bg-green-400",
-  Subscriptions: "bg-yellow-400",
-  Utilities: "bg-gray-400",
-  Health: "bg-red-400",
-  Rent: "bg-indigo-500",
+  Shopping: "bg-blue-800",
+  Restaurants: "bg-sky-400",
+  Transport: "bg-blue-500",
+  Travel: "bg-sky-500",
+  Entertainment: "bg-sky-700",
+  Groceries: "bg-blue-400",
+  Subscriptions: "bg-blue-300",
+  Utilities: "bg-sky-300",
+  Health: "bg-sky-600",
+  Rent: "bg-blue-600",
   Other: "bg-text-label",
 }
 
@@ -729,7 +730,7 @@ function ExpenseReportTab() {
               className={`rounded px-2 py-0.5 font-mono text-xs transition-colors ${
                 m === effectiveMonth
                   ? "bg-accent text-bg"
-                  : "bg-surface text-text-secondary hover:bg-border"
+                  : "bg-bg-panel-hover text-text-secondary hover:bg-border"
               }`}
             >
               {m}
@@ -820,7 +821,7 @@ function ExpenseReportTab() {
                     return (
                       <TableRow
                         key={c.category}
-                        className="cursor-pointer hover:bg-surface"
+                        className="cursor-pointer hover:bg-bg-panel-hover"
                         onClick={() =>
                           setCatFilter((f) => (f === c.category ? "all" : c.category))
                         }
@@ -894,7 +895,7 @@ function ExpenseReportTab() {
                       <TableCell className="font-mono text-xs text-text-label">{t.date}</TableCell>
                       <TableCell className="max-w-[220px] truncate text-sm">{t.description}</TableCell>
                       <TableCell>
-                        <span className="rounded bg-surface px-1.5 py-0.5 text-xs text-text-secondary">
+                        <span className="rounded bg-bg-panel-hover px-1.5 py-0.5 text-xs text-text-secondary">
                           {t.category}
                         </span>
                       </TableCell>

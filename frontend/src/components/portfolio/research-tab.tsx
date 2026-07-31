@@ -3,6 +3,7 @@ import { Panel } from "@/components/ui/panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Tag } from "@/components/ui/tag"
 import {
   Select,
@@ -140,7 +141,7 @@ function ReportsLibrary() {
       {isLoading ? (
         <Skeleton className="h-32" />
       ) : !groups.length ? (
-        <p className="text-sm text-text-label">no reports yet. run a stock analysis above.</p>
+        <EmptyState message="no reports yet. run a stock analysis above." />
       ) : (
         <div className="space-y-4">
           {groups.map(([key, reports]) => (
@@ -198,9 +199,7 @@ function HypothesisTracker() {
       {isLoading ? (
         <Skeleton className="h-24" />
       ) : !data?.hypotheses.length ? (
-        <p className="text-sm text-text-label">
-          no hypotheses in {data?.source ?? "Hypothesis_Tracker.md"} yet.
-        </p>
+        <EmptyState message={`no hypotheses in ${data?.source ?? "Hypothesis_Tracker.md"} yet.`} />
       ) : (
         <ul className="space-y-2">
           {data.hypotheses.map((h, i) => (

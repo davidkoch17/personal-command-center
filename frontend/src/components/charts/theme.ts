@@ -1,25 +1,30 @@
-/** Cockpit chart palette + shared axis/grid styling for Recharts. */
+/**
+ * Cockpit chart palette + shared axis/grid styling for Recharts. Grid/axis
+ * reference the same theme variables as everything else (rgb(var(--x))
+ * resolves at paint time) so charts stay correct across light/dark instead of
+ * being tuned for one theme only.
+ */
 export const CHART_COLORS = {
   accent: "#2563EB",
   success: "#10B981",
   danger: "#EF4444",
   warning: "#F59E0B",
-  grid: "#1F262E",
-  axis: "#8A929E",
+  grid: "rgb(var(--color-border))",
+  axis: "rgb(var(--color-text-label))",
 } as const
 
-/** A small categorical ramp (accent-led) for donuts / multi-series charts. */
+/** One accent hue family, light→dark tints — no more categorical "rainbow". */
 export const CHART_SERIES = [
   "#2563EB",
-  "#10B981",
-  "#F59E0B",
-  "#8A929E",
+  "#3B82F6",
+  "#60A5FA",
   "#1D4ED8",
-  "#6366F1",
-  "#14B8A6",
-  "#EF4444",
-  "#A855F7",
-  "#5C6470",
+  "#93C5FD",
+  "#0EA5E9",
+  "#1E40AF",
+  "#7DD3FC",
+  "#0369A1",
+  "#BFDBFE",
 ] as const
 
 export const AXIS_PROPS = {

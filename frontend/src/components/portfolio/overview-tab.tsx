@@ -2,6 +2,7 @@ import { useState } from "react"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { MetricPanel } from "@/components/finance/metric-panel"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { DecisionAlerts } from "@/components/finance/decision-alerts"
@@ -116,7 +117,7 @@ export function OverviewTab() {
         {daily.isLoading ? (
           <Skeleton className="h-48" />
         ) : !daily.data?.series.length ? (
-          <p className="text-sm text-text-label">no daily snapshots yet — the 18:00 job seeds this.</p>
+          <EmptyState message="no daily snapshots yet — the 18:00 job seeds this." />
         ) : (
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={daily.data.series} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
@@ -169,7 +170,7 @@ function ThisMonthDecomposition() {
       {isLoading ? (
         <Skeleton className="h-24" />
       ) : !data?.available ? (
-        <p className="text-sm text-text-label">{data?.reason ?? "not enough history yet"}</p>
+        <EmptyState message={data?.reason ?? "not enough history yet"} />
       ) : (
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -234,18 +235,18 @@ function DriverCard({
   )
 }
 
-// Category accent colors — same palette as MoneyWorkspace ExpenseReportTab.
+// One accent hue family (blue/sky tints) — no categorical "rainbow".
 const CAT_COLOR: Record<string, string> = {
-  Rent: "bg-indigo-500",
-  Shopping: "bg-purple-500",
-  Restaurants: "bg-orange-400",
-  Transport: "bg-blue-400",
-  Travel: "bg-cyan-400",
-  Entertainment: "bg-pink-400",
-  Groceries: "bg-green-400",
-  Subscriptions: "bg-yellow-400",
-  Utilities: "bg-gray-400",
-  Health: "bg-red-400",
+  Rent: "bg-blue-600",
+  Shopping: "bg-blue-800",
+  Restaurants: "bg-sky-400",
+  Transport: "bg-blue-500",
+  Travel: "bg-sky-500",
+  Entertainment: "bg-sky-700",
+  Groceries: "bg-blue-400",
+  Subscriptions: "bg-blue-300",
+  Utilities: "bg-sky-300",
+  Health: "bg-sky-600",
 }
 
 function CategoryBar({ cat, max }: { cat: MonthlyReportCategory; max: number }) {
@@ -254,7 +255,7 @@ function CategoryBar({ cat, max }: { cat: MonthlyReportCategory; max: number }) 
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className="w-24 shrink-0 text-text-secondary truncate">{cat.category}</span>
-      <div className="flex-1 h-1.5 rounded-full bg-bg-muted overflow-hidden">
+      <div className="flex-1 h-1.5 rounded-full bg-border overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
       <span className="w-16 text-right tabular-nums text-text-secondary shrink-0">
@@ -324,7 +325,7 @@ function MonthlyPnlPanel() {
       {report.isLoading || months.isLoading ? (
         <Skeleton className="h-32" />
       ) : !report.data ? (
-        <p className="text-sm text-text-label">no data — update Finance_Tracker.xlsx to populate.</p>
+        <EmptyState message="no data — update Finance_Tracker.xlsx to populate." />
       ) : (
         <div className="space-y-4">
           {/* 4 KPI chips */}

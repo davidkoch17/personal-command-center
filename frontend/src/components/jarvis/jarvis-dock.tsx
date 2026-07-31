@@ -16,7 +16,7 @@ export function JarvisDock() {
       onClick={() => void openChatWindow(location.pathname)}
       aria-label="open claude chat"
       title="open claude chat (new window)"
-      className="no-print group fixed right-0 top-1/2 z-40 flex -translate-y-1/2 items-center overflow-hidden rounded-l-xl border border-r-0 border-border bg-bg-panel/95 shadow-lg backdrop-blur transition-colors hover:border-accent/50 hover:bg-bg-panel-hover"
+      className="no-print group fixed right-3 top-1/2 z-40 flex -translate-y-1/2 items-center overflow-hidden rounded-xl border border-border bg-bg-panel/95 shadow-lg backdrop-blur transition-colors hover:border-accent/50 hover:bg-bg-panel-hover focus-visible:border-accent/50"
     >
       <span className="flex h-11 w-11 items-center justify-center text-accent transition-transform group-hover:scale-110">
         <Sparkles className="h-[18px] w-[18px]" />

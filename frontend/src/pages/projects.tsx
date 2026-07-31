@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Collapsible } from "@/components/ui/collapsible"
 import { StageStrip } from "@/components/cards/stage-strip"
 import { ProjectCard } from "@/components/cards/project-card"
@@ -149,7 +150,7 @@ function IdeasEntry() {
       {isLoading ? (
         <Skeleton className="h-16" />
       ) : ideas.length === 0 ? (
-        <p className="text-sm text-text-label">no ideas in the pipeline yet.</p>
+        <EmptyState icon={Lightbulb} message="no ideas in the pipeline yet." />
       ) : (
         <div className="space-y-2">
           <div className="flex items-center gap-3 text-xs text-text-secondary">
@@ -188,7 +189,7 @@ function BriefingCardPanel() {
       {isLoading ? (
         <Skeleton className="h-16" />
       ) : !data || !data.path ? (
-        <p className="text-sm text-text-label">no briefings on file yet.</p>
+        <EmptyState icon={FileText} message="no briefings on file yet." />
       ) : (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-text">

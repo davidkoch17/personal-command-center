@@ -36,7 +36,7 @@ export function IncomeExpenseBar({
         <CartesianGrid {...GRID_PROPS} />
         <XAxis dataKey="month" {...AXIS_PROPS} />
         <YAxis {...AXIS_PROPS} width={48} />
-        <Tooltip content={<CockpitTooltip />} cursor={{ fill: "#161C25" }} />
+        <Tooltip content={<CockpitTooltip />} cursor={{ fill: "rgb(var(--color-bg-panel-hover))" }} />
         <Legend wrapperStyle={LEGEND_STYLE} />
         <Bar dataKey="income" name="income" fill={CHART_COLORS.success} radius={[2, 2, 0, 0]} />
         <Bar dataKey="expenses" name="expenses" fill={CHART_COLORS.danger} radius={[2, 2, 0, 0]} />
@@ -71,7 +71,7 @@ export function CategoryDonut({
           innerRadius="55%"
           outerRadius="80%"
           paddingAngle={2}
-          stroke="#0A0E13"
+          stroke="rgb(var(--color-bg))"
         >
           {data.map((_, i) => (
             <Cell key={i} fill={CHART_SERIES[i % CHART_SERIES.length]} />
@@ -100,7 +100,7 @@ export function AllocationBar({
         <CartesianGrid {...GRID_PROPS} horizontal={false} vertical />
         <XAxis type="number" {...AXIS_PROPS} />
         <YAxis type="category" dataKey="type" {...AXIS_PROPS} width={90} />
-        <Tooltip content={<CockpitTooltip />} cursor={{ fill: "#161C25" }} />
+        <Tooltip content={<CockpitTooltip />} cursor={{ fill: "rgb(var(--color-bg-panel-hover))" }} />
         <Bar dataKey="value" name="value" fill={CHART_COLORS.accent} radius={[0, 2, 2, 0]} />
       </ComposedChart>
     </ResponsiveContainer>

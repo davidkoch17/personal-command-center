@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Tag } from "@/components/ui/tag"
 import { useConnectedNews, type Capture } from "@/hooks/usePortfolioHub"
 import { cn } from "@/lib/utils"
@@ -27,7 +28,7 @@ export function ConnectedNews({ ticker, enabled }: { ticker: string; enabled: bo
       <div>
         <div className="label mb-1">connected news · {data.count}</div>
         {data.captures.length === 0 ? (
-          <p className="text-xs text-text-label">no captures linked to {ticker} yet.</p>
+          <EmptyState message={`no captures linked to ${ticker} yet.`} className="text-xs" />
         ) : (
           <ul className="space-y-2">
             {data.captures.map((c) => (
@@ -45,7 +46,7 @@ function SectorSummaryCard({ sectors }: { sectors: { sector: string; count: numb
     <div className="rounded-sm border border-border bg-bg-panel px-3 py-2">
       <div className="label mb-1.5">sector summary</div>
       {sectors.length === 0 ? (
-        <p className="text-xs text-text-label">no sector-tagged captures yet.</p>
+        <EmptyState message="no sector-tagged captures yet." className="text-xs" />
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {sectors.map((s) => (

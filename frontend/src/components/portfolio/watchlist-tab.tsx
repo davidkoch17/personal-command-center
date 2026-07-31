@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Tag } from "@/components/ui/tag"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { useWatchlist, type WatchlistEntry } from "@/hooks/useFinance"
@@ -63,7 +64,7 @@ function GlobalRadarCard() {
       {isLoading ? (
         <Skeleton className="h-12" />
       ) : !data?.sectors.length ? (
-        <p className="text-sm text-text-label">no captures linked yet — the capture pipeline feeds this.</p>
+        <EmptyState message="no captures linked yet — the capture pipeline feeds this." />
       ) : (
         <div className="flex flex-wrap gap-2">
           {data.sectors.map((s) => (

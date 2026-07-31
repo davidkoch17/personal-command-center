@@ -3,6 +3,7 @@ import { Check, Pencil, Trash2, X } from "lucide-react"
 import { Panel } from "@/components/ui/panel"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -76,7 +77,7 @@ export function HoldingsTab() {
         ) : pnl.isError ? (
           <p className="text-sm text-text-secondary">could not load holdings. backend on :8000?</p>
         ) : !pnl.data?.positions.length ? (
-          <p className="text-sm text-text-label">no open positions. log a buy below.</p>
+          <EmptyState message="no open positions. log a buy below." />
         ) : (
           <HoldingsPnlTable rows={pnl.data.positions} />
         )}
@@ -199,7 +200,7 @@ function TradeLog() {
       {isLoading ? (
         <Skeleton className="h-32" />
       ) : !data?.trades.length ? (
-        <p className="text-sm text-text-label">no closed trades yet (FIFO-matched from the ledger).</p>
+        <EmptyState message="no closed trades yet (FIFO-matched from the ledger)." />
       ) : (
         <>
           <div className="overflow-x-auto">
@@ -338,7 +339,7 @@ function TransactionLedger() {
       ) : txns.isError ? (
         <p className="text-sm text-text-secondary">could not load transactions. backend on :8000?</p>
       ) : !txns.data?.transactions.length ? (
-        <p className="text-sm text-text-label">no transactions logged yet.</p>
+        <EmptyState message="no transactions logged yet." />
       ) : (
         <>
           <Table>

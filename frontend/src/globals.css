@@ -28,14 +28,16 @@
   --scrollbar-track: 10 14 19;
   --scrollbar-thumb: 31 38 46;
   --scrollbar-thumb-hover: 47 54 64;
+  --shadow-panel: none;
+  --shadow-panel-hover: none;
   color-scheme: dark;
 }
 
 .light {
-  --color-bg: 247 248 250;
+  --color-bg: 242 244 248;
   --color-bg-panel: 255 255 255;
-  --color-bg-panel-hover: 240 242 245;
-  --color-border: 226 229 234;
+  --color-bg-panel-hover: 236 239 244;
+  --color-border: 224 228 234;
   --color-border-focus: 37 99 235;
   --color-accent: 37 99 235;
   --color-accent-dim: 29 78 216;
@@ -47,9 +49,13 @@
   --color-text-secondary: 92 100 112;
   --color-text-label: 138 146 158;
   --color-text-disabled: 184 189 199;
-  --scrollbar-track: 240 242 245;
-  --scrollbar-thumb: 209 213 219;
+  --scrollbar-track: 236 239 244;
+  --scrollbar-thumb: 205 210 219;
   --scrollbar-thumb-hover: 156 163 175;
+  /* One elevation step: cards separate from the (slightly cooled) canvas via a
+     soft shadow + the existing hairline border, never a heavier double-shadow. */
+  --shadow-panel: 0 1px 2px 0 rgba(16, 24, 40, 0.04), 0 1px 3px 0 rgba(16, 24, 40, 0.07);
+  --shadow-panel-hover: 0 2px 4px 0 rgba(16, 24, 40, 0.05), 0 4px 8px -2px rgba(16, 24, 40, 0.08);
   color-scheme: light;
 }
 
@@ -85,10 +91,12 @@
 @layer components {
   .panel {
     @apply bg-bg-panel border border-border rounded-lg p-4;
+    box-shadow: var(--shadow-panel);
   }
 
   .panel-hover:hover {
     @apply bg-bg-panel-hover;
+    box-shadow: var(--shadow-panel-hover);
   }
 }
 

@@ -41,7 +41,7 @@ export function CumulativeReturnChart({
         <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={shortDate} minTickGap={40} />
         <YAxis {...AXIS_PROPS} width={48} tickFormatter={pctTick} />
         <Tooltip
-          contentStyle={{ background: "#0A0E13", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+          contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
           formatter={(v: number) => `${(v * 100).toFixed(2)}%`}
           labelStyle={{ color: CHART_COLORS.axis }}
         />
@@ -67,7 +67,7 @@ export function RollingSharpeChart({
         <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={shortDate} minTickGap={40} />
         <YAxis {...AXIS_PROPS} width={40} />
         <Tooltip
-          contentStyle={{ background: "#0A0E13", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+          contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
           formatter={(v: number) => v?.toFixed(2)}
           labelStyle={{ color: CHART_COLORS.axis }}
         />
@@ -92,7 +92,7 @@ export function BestWorstBars({
         <XAxis type="number" {...AXIS_PROPS} tickFormatter={pctTick} />
         <YAxis type="category" dataKey="label" {...AXIS_PROPS} width={88} />
         <Tooltip
-          contentStyle={{ background: "#0A0E13", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+          contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
           formatter={(v: number) => `${(v * 100).toFixed(2)}%`}
           cursor={{ fill: "#161C25" }}
         />
@@ -121,7 +121,7 @@ export function EfficientFrontierScatter({
 }) {
   const tip = {
     contentStyle: {
-      background: "#0A0E13",
+      background: "rgb(var(--color-bg-panel))",
       border: `1px solid ${CHART_COLORS.grid}`,
       fontFamily: "JetBrains Mono, monospace",
       fontSize: 11,
@@ -180,7 +180,7 @@ export function FactorBetaBars({
         <XAxis dataKey="factor" {...AXIS_PROPS} />
         <YAxis {...AXIS_PROPS} width={40} />
         <Tooltip
-          contentStyle={{ background: "#0A0E13", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+          contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
           formatter={(v: number) => v.toFixed(2)}
           cursor={{ fill: "#161C25" }}
         />

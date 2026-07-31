@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
 import { NumberDisplay } from "@/components/ui/number-display"
 import {
@@ -44,7 +45,7 @@ export function BudgetTab() {
   if (actuals.length === 0) {
     return (
       <Panel title="budget" statusDotColor="muted">
-        <p className="text-sm text-text-label">no category data yet.</p>
+        <EmptyState message="no category data yet." />
       </Panel>
     )
   }
