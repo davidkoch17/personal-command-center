@@ -7,16 +7,40 @@ second, closing sell was never appended (no parser existed to produce it), so
 ``current_holdings()`` still showed ~3.43 shares "held" months after the real
 account was fully out of the position.
 
-The fix is architectural, not just a one-off correction: a statement's
-*current holdings* table (Depotübersicht / Portfolio Overview) is ground
-truth for "what do I hold right now" — replaying a transaction history is a
-fallback for statements that only provide a trade log, and it is inherently
-fragile (a single missed row silently leaves a closed position looking
-still-held, which is exactly what happened here). So :func:`reconcile_holdings`
-always prefers the holdings table when the statement has one, and *diffs*
-it against the ledger rather than trying to replay trades.
+RESOLVED (verified against a real statement, see below): the original design
+assumed a statement's *current holdings* table (Depotübersicht / Portfolio
+Overview) would be ground truth and always available, with transaction-history
+replay only a fallback — on the theory that replaying trades is fragile (one
+missed row silently leaves a closed position looking still-held). That
+assumption turned out to be wrong for David's actual export: Trade Republic's
+"account statement" is a Kontoauszug (cash-account statement) — it has a
+``UMSATZÜBERSICHT`` transaction log and a ``BARMITTELÜBERSICHT`` cash/
+money-market overview, but **no Depotübersicht/holdings section at all**. So
+the holdings-table path never had anything to work with, and both
+:func:`reconcile_holdings` and :func:`update_investments_tr_sheet` silently
+no-op'd on every real run — which *is* "a single missed row silently leaves a
+closed position looking still-held", just arriving via "the only statement
+type this account produces" rather than a parsing slip.
 
-Extraction has three tiers per page, in order:
+The fix adds a second extraction path — :func:`_extract_trade_rows` — that
+reads the ``Handel``/"Sell trade"/"Buy trade" rows out of the transaction
+log (via word x-position, not line-regex: TR's PDF wraps one logical row
+across 2-3 text lines at inconsistent points, so naive line concatenation
+reorders the columns; see git history for the page dumps this was derived
+from). :func:`reconcile_holdings` now has two paths:
+  - **Holdings table present** (Depotübersicht-style statement): unchanged —
+    diff the table against the ledger, ground truth as before.
+  - **No holdings table, but trade rows found** (Kontoauszug-style, David's
+    actual export): net each ticker's buy(+)/sell(-) quantity from this
+    statement's trades, add it to the ledger's current holding, and clamp
+    negative results to 0 — a statement proves a sell happened even if the
+    ledger never recorded the matching buy, and a brokerage account can't
+    hold negative shares, so "would go negative" means "fully closed."
+Either way, the result feeds the same corrective-transaction + sheet-write
+plumbing, so a ticker that's fully sold — Alphabet included — drops out of
+both the ledger and the ``Investments_TR`` sheet.
+
+Extraction has three tiers per page for the holdings table, in order:
   1. pdfplumber's grid-based table extraction (``page.extract_tables()``) —
      most reliable when the PDF has real ruled table lines.
   2. Per-line regex parsing of the page's text layer, for statements that
@@ -25,23 +49,20 @@ Extraction has three tiers per page, in order:
      pages with no extractable text layer at all, rasterized with
      pdfplumber's built-in pypdfium2-backed renderer (no poppler/ImageMagick
      needed).
-
-Caveat: the table/regex heuristics below are written from TR's typical export
-conventions (name / quantity / price / value columns; German + English
-headers), not verified against a real statement PDF — none was available on
-disk when this was built (checked 00_Input, Finance_Imports, 0_Inbox,
-Downloads, Desktop; only screenshots and an unrelated 2025 tax PDF were
-found). Run it against a real statement and adjust the header keyword lists /
-row regex if a section isn't picked up.
+Trade-row extraction (:func:`_extract_trade_rows`) runs independently per page
+using ``page.extract_words()`` and TR's fixed column layout; it does not use
+OCR, since every real statement seen so far has a native text layer.
 
 Usage (re-runnable — safe to run again on the same or a newer statement):
     python -m modules.finance.tr_statement_parser <path-to-statement.pdf>
+    python -m modules.finance.tr_statement_parser <path-to-statement.pdf> --dry-run  # parse only, no writes
 """
 from __future__ import annotations
 
 import re
 import shutil
 import tempfile
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -75,6 +96,47 @@ _HOLDINGS_ROW_RE = re.compile(
     r"(?P<value>[\d.,]+)\s*€?\s*$"
 )
 
+# --- Transaction-history ("Kontoauszug") row extraction ---------------------
+#
+# TR's "account statement" export renders one logical row (date / type /
+# description / amounts) across 2-3 physical text lines, and *where* it wraps
+# varies row to row — so naive line-by-line concatenation interleaves columns
+# out of order. These constants are the fixed x-coordinates (in PDF points)
+# of TR's column boundaries, measured directly off a real statement via
+# ``page.extract_words()``; row reconstruction below buckets words by column
+# using these, not by line.
+_DATE_COL_MAX_X = 110.0
+_TYPE_COL_MAX_X = 150.0
+_DESC_COL_MAX_X = 371.0
+_ROW_LINE_TOLERANCE = 1.5  # px: words within this of each other's `top` are the same visual line
+
+_MONTH_ABBR = r"Jan|Feb|M(?:ä|a)rz|Apr|Mai|Juni?|Juli?|Aug|Sep|Okt|Nov|Dez"
+_MONTH_TOKEN_RE = re.compile(rf"^(?:{_MONTH_ABBR})\.?$", re.I)
+_DE_MONTHS = {
+    "jan": 1, "feb": 2, "marz": 3, "apr": 4, "mai": 5, "jun": 6, "juni": 6,
+    "jul": 7, "juli": 7, "aug": 8, "sep": 9, "okt": 10, "nov": 11, "dez": 12,
+}
+
+# ISIN -> ticker for the instruments seen on David's real statements. Checked
+# before the name-substring NAME_TICKER_MAP since ISINs are unambiguous.
+_ISIN_TICKER_MAP = {
+    "US4581401001": "INTC",
+    "US46625H1005": "JPM",
+    "US91324P1021": "UNH",
+    "US38141G1040": "GS",
+    "US02079K3059": "GOOGL",
+    "US01609W1027": "BABA",
+    "US05606L1008": "BYDDY",
+    "DE000A1K0235": "SMHN",
+}
+
+_TRADE_ROW_RE = re.compile(
+    r"(?P<action>Sell|Buy)\s+trade\s+"
+    r"(?P<isin>[A-Z]{2}[A-Z0-9]{9}\d)\s+"
+    r"(?P<name>.+?)\s*,?\s*quantity:\s*(?P<qty>[\d.,]+)",
+    re.I,
+)
+
 
 @dataclass
 class Holding:
@@ -88,14 +150,40 @@ class Holding:
 
 
 @dataclass
+class Trade:
+    """One "Handel" (trade) row from a statement's transaction history."""
+
+    date: date
+    isin: str
+    name: str
+    ticker: str | None
+    action: str  # "buy" | "sell"
+    quantity: float
+    amount: float | None = None  # gross proceeds/cost for this fill, if parsed
+
+
+@dataclass
 class ParsedStatement:
     source_file: Path
     as_of_date: date
     holdings: list[Holding] = field(default_factory=list)
+    trades: list[Trade] = field(default_factory=list)
 
     @property
     def has_holdings_table(self) -> bool:
         return bool(self.holdings)
+
+    @property
+    def has_data(self) -> bool:
+        """Whether anything at all was extracted (holdings table or trade rows).
+
+        Distinct from :attr:`has_holdings_table`: a trade-history statement
+        that fully liquidates every position legitimately parses to an empty
+        holdings list after reconciliation — that's real data (see
+        :func:`reconcile_holdings`), not a failed parse, and should still
+        clear stale sheet rows rather than being treated as "nothing found."
+        """
+        return bool(self.holdings) or bool(self.trades)
 
 
 def resolve_ticker(name: str) -> str | None:
@@ -110,6 +198,11 @@ def resolve_ticker(name: str) -> str | None:
         if key in n:
             return tk
     return None
+
+
+def _resolve_trade_ticker(isin: str, name: str) -> str | None:
+    """Ticker for a transaction-history row: ISIN lookup first, then name."""
+    return _ISIN_TICKER_MAP.get(isin) or resolve_ticker(name)
 
 
 def _de_number(raw: str) -> float:
@@ -186,12 +279,137 @@ def _parse_holdings_table(rows: list[list[str | None]]) -> list[Holding]:
     return out
 
 
+def _month_num(token: str) -> int | None:
+    """German month abbreviation ('Jan.', 'März', 'Juli', ...) -> 1-12."""
+    key = token.strip(".").lower().replace("ä", "a")
+    return _DE_MONTHS.get(key)
+
+
 def _parse_as_of_date(full_text: str, fallback: date) -> date:
-    """Statement date, e.g. 'Stand: 18.07.2026' / 'as of 18.07.2026'."""
-    m = re.search(r"(?:stand|as of|per)\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4})", full_text, re.I)
+    """Statement date. Tries, in order:
+
+    1. Explicit 'Stand: 18.07.2026' / 'as of 18.07.2026' (numeric, holdings-
+       table-style exports).
+    2. The Kontoauszug header's date-range end, e.g. 'DATUM 01 Jan. 2026 -
+       18 Juli 2026' -> 18 Juli 2026.
+    3. The cash-overview snapshot line, e.g. 'Zum 18 Juli 2026'.
+    4. The document-generation footer, 'Erstellt am 2026-07-19 ...'.
+    5. ``fallback``.
+    """
+    m = re.search(r"(?:stand|as of|per)\s*:?\s*(\d{1,2})\.(\d{1,2})\.(\d{4})", full_text, re.I)
     if m:
-        return datetime.strptime(m.group(1), "%d.%m.%Y").date()
+        return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+
+    m = re.search(rf"-\s*(\d{{1,2}})\.?\s+({_MONTH_ABBR})\.?\s+(\d{{4}})", full_text, re.I)
+    if m:
+        month = _month_num(m.group(2))
+        if month:
+            return date(int(m.group(3)), month, int(m.group(1)))
+
+    m = re.search(rf"zum\s+(\d{{1,2}})\.?\s+({_MONTH_ABBR})\.?\s+(\d{{4}})", full_text, re.I)
+    if m:
+        month = _month_num(m.group(2))
+        if month:
+            return date(int(m.group(3)), month, int(m.group(1)))
+
+    m = re.search(r"erstellt am\s+(\d{4})-(\d{2})-(\d{2})", full_text, re.I)
+    if m:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
     return fallback
+
+
+def _group_into_lines(words: list[dict]) -> list[list[dict]]:
+    """Cluster pdfplumber words into visual lines (same ``top``, left-to-right).
+
+    Used instead of the page's own text-line breaks so trade-row extraction
+    can bucket words by x-position (column) independent of how the text
+    layer happens to wrap a given row.
+    """
+    lines: list[list[dict]] = []
+    tops: list[float] = []
+    for w in sorted(words, key=lambda w: (w["top"], w["x0"])):
+        if lines and abs(w["top"] - tops[-1]) <= _ROW_LINE_TOLERANCE:
+            lines[-1].append(w)
+        else:
+            lines.append([w])
+            tops.append(w["top"])
+    return [sorted(ln, key=lambda w: w["x0"]) for ln in lines]
+
+
+def _is_row_start(line_words: list[dict]) -> bool:
+    """A new Kontoauszug row starts with 'DD Mon.' in the DATUM column."""
+    date_col = [w for w in line_words if w["x0"] < _DATE_COL_MAX_X]
+    if len(date_col) < 2:
+        return False
+    day, month = date_col[0], date_col[1]
+    return bool(re.match(r"^\d{1,2}\.?$", day["text"])) and bool(_MONTH_TOKEN_RE.match(month["text"]))
+
+
+def _first_amount(words: list[dict]) -> float | None:
+    """First parseable monetary value in column order (skips '€'/'EUR' tokens)."""
+    for w in words:
+        if w["text"] in ("€", "EUR"):
+            continue
+        try:
+            return _de_number(w["text"])
+        except ValueError:
+            continue
+    return None
+
+
+def _extract_trade_rows(page) -> list[Trade]:
+    """Extract 'Handel'/Sell-trade/Buy-trade rows from one Kontoauszug page.
+
+    Reconstructs each logical row from words grouped by (block, column)
+    rather than by raw text line — see the x-coordinate constants above and
+    the module docstring for why line-based parsing doesn't work here.
+    """
+    words = page.extract_words()
+    lines = _group_into_lines(words)
+    start_idxs = [i for i, ln in enumerate(lines) if _is_row_start(ln)]
+
+    trades: list[Trade] = []
+    for n, start in enumerate(start_idxs):
+        end = start_idxs[n + 1] if n + 1 < len(start_idxs) else len(lines)
+        block = [w for ln in lines[start:end] for w in ln]
+
+        type_words = [w["text"] for w in block if _DATE_COL_MAX_X <= w["x0"] < _TYPE_COL_MAX_X]
+        if not type_words or type_words[0].lower() != "handel":
+            continue
+
+        desc_text = " ".join(w["text"] for w in block if _TYPE_COL_MAX_X <= w["x0"] < _DESC_COL_MAX_X)
+        m = _TRADE_ROW_RE.search(desc_text)
+        if not m:
+            logger.debug("Handel row without a parsable trade description: %r", desc_text)
+            continue
+
+        date_words = [w["text"] for w in block if w["x0"] < _DATE_COL_MAX_X]
+        day_m = next((t for t in date_words if re.match(r"^\d{1,2}\.?$", t)), None)
+        month_m = next((t for t in date_words if _MONTH_TOKEN_RE.match(t)), None)
+        year_m = next((t for t in date_words if re.match(r"^\d{4}$", t)), None)
+        month_num = _month_num(month_m) if month_m else None
+        if not (day_m and month_num and year_m):
+            logger.debug("Handel row with unparsable date tokens: %r", date_words)
+            continue
+        trade_date = date(int(year_m), month_num, int(day_m.rstrip(".")))
+
+        amount = _first_amount([w for w in block if w["x0"] >= _DESC_COL_MAX_X])
+
+        isin = m.group("isin").upper()
+        name = m.group("name").strip()
+        try:
+            qty = _de_number(m.group("qty"))
+        except ValueError:
+            logger.debug("Handel row with unparsable quantity: %r", m.group("qty"))
+            continue
+
+        trades.append(Trade(
+            date=trade_date, isin=isin, name=name,
+            ticker=_resolve_trade_ticker(isin, name),
+            action=m.group("action").lower(), quantity=qty, amount=amount,
+        ))
+    return trades
 
 
 def parse_tr_statement(pdf_path: str | Path) -> ParsedStatement:
@@ -216,6 +434,11 @@ def parse_tr_statement(pdf_path: str | Path) -> ParsedStatement:
                 if len(table) >= 2 and _looks_like_holdings_table(table[0]):
                     statement.holdings.extend(_parse_holdings_table(table))
                     found_table = True
+
+            # Independent of the holdings-table tiers: pull any Kontoauszug-
+            # style trade rows off this page too (cheap, and the two never
+            # collide — a real statement is one type or the other).
+            statement.trades.extend(_extract_trade_rows(page))
 
             # Tier 2/3: text layer, or OCR if the page has none.
             text = _page_text(page, pdf_path.name, i)
@@ -252,22 +475,15 @@ def parse_tr_statement(pdf_path: str | Path) -> ParsedStatement:
 
     statement.as_of_date = _parse_as_of_date("\n".join(all_text), statement.as_of_date)
     logger.info(
-        "%s: parsed %d holdings row(s), as_of=%s (holdings table %s)",
-        pdf_path.name, len(statement.holdings), statement.as_of_date,
+        "%s: parsed %d holdings row(s) and %d trade row(s), as_of=%s (holdings table %s)",
+        pdf_path.name, len(statement.holdings), len(statement.trades), statement.as_of_date,
         "found" if statement.has_holdings_table else "NOT found",
     )
     return statement
 
 
-def reconcile_holdings(statement: ParsedStatement) -> dict:
-    """Diff the statement's holdings table against the ledger and close the gap.
-
-    For every ticker the ledger still shows held but the statement doesn't (or
-    holds less of), appends a closing/reducing "sell" transaction dated at the
-    statement's as-of date. For every ticker the statement holds *more* of
-    than the ledger shows, appends a "buy" for the difference. Re-running this
-    against the same statement is idempotent: once the ledger matches, the
-    diff is zero and nothing new is appended.
+def _in_scope_tickers(pos_module, candidate_tickers: set[str]) -> tuple[set[str], list[str]]:
+    """Split tickers into (brokerage-scoped, out-of-scope) for a TR statement.
 
     Scoped to tickers whose recorded ``Position.type`` is ``equity``/``etf``
     (skipping ``crypto``/``cash``): a Trade Republic statement is only ever
@@ -277,79 +493,198 @@ def reconcile_holdings(statement: ParsedStatement) -> dict:
     the whole ledger as in-scope would silently zero out entirely unrelated
     holdings. Tickers with no known Position metadata are treated as
     in-scope (equity is the default assumption for a TR statement).
-
-    No-ops if the statement has no holdings table — trade-history replay
-    isn't implemented as a primary path for the reason explained in the
-    module docstring (a single missed row silently mis-states a position).
     """
-    if not statement.has_holdings_table:
-        logger.warning(
-            "%s: no current-holdings table found; skipping ledger reconciliation",
-            statement.source_file.name,
-        )
-        return {"applied": False, "reason": "no holdings table", "adjustments": []}
-
-    from modules.finance import positions as pos
-    from modules.finance.positions import Transaction
-
-    before = pos.current_holdings()
-    statement_qty = {h.ticker: h.quantity for h in statement.holdings if h.ticker}
-    unresolved = [h.name for h in statement.holdings if not h.ticker]
-    if unresolved:
-        logger.warning("%s: could not resolve ticker for: %s", statement.source_file.name, unresolved)
-
     from modules.finance.positions import BROKERAGE_TYPES
 
-    in_scope_tickers = {
-        t for t in set(before) | set(statement_qty)
-        if (pos.get_position(t).type if pos.get_position(t) else "equity") in BROKERAGE_TYPES
+    in_scope = {
+        t for t in candidate_tickers
+        if (pos_module.get_position(t).type if pos_module.get_position(t) else "equity") in BROKERAGE_TYPES
     }
-    skipped_scope = sorted((set(before) | set(statement_qty)) - in_scope_tickers)
+    return in_scope, sorted(candidate_tickers - in_scope)
+
+
+def _apply_adjustment(pos_module, ticker: str, held: float, target: float,
+                       price: float, statement: ParsedStatement, reason: str) -> dict | None:
+    """Append a corrective transaction moving ``ticker`` from ``held`` to ``target``.
+
+    Returns the adjustment record, or ``None`` if ``held`` already matches
+    ``target`` (nothing to do — this is what makes re-running a statement
+    idempotent).
+    """
+    from modules.finance.positions import Transaction
+
+    diff = round(target - held, 8)
+    if abs(diff) <= 1e-6:
+        return None
+    action = "buy" if diff > 0 else "sell"
+    qty = abs(diff)
+    note = (
+        f"Statement reconciliation ({statement.source_file.name}, as of "
+        f"{statement.as_of_date}): {reason}. Adjusting with a {action} of {qty:g} "
+        f"@ ~{price:.2f} to match — exact trade date/price/fees unknown from this "
+        "statement; correct if you have the real trade confirmation."
+    )
+    pos_module.record_transaction(Transaction(
+        date=statement.as_of_date, ticker=ticker, action=action,
+        quantity=qty, price=price, currency="EUR", fees=0.0, notes=note,
+    ))
+    logger.info("Reconciled %s: %s %.6f @ %.2f (before=%.6f, after=%.6f)",
+                ticker, action, qty, price, held, target)
+    return {"ticker": ticker, "action": action, "quantity": qty, "price": price,
+            "before": held, "after": target}
+
+
+def _synthesize_holdings(pos_module, current: dict[str, float], tickers: set[str],
+                          names: dict[str, str]) -> list[Holding]:
+    """Build a :class:`Holding` snapshot from the post-reconciliation ledger.
+
+    Lets a trade-history-only statement (no Depotübersicht section) feed
+    :func:`update_investments_tr_sheet` the same way a real holdings table
+    would — priced at each ticker's last known transaction price, since the
+    statement itself provides no live price for anything still held.
+    """
+    out: list[Holding] = []
+    for ticker in sorted(tickers):
+        qty = current.get(ticker, 0.0)
+        if abs(qty) <= 1e-9:
+            continue
+        prior = pos_module.transactions_for(ticker)
+        price = prior[-1].price if prior else 0.0
+        out.append(Holding(
+            name=names.get(ticker, ticker), quantity=qty, price=price,
+            value=round(qty * price, 2), ticker=ticker,
+        ))
+    return out
+
+
+def reconcile_holdings(statement: ParsedStatement) -> dict:
+    """Reconcile the ledger against this statement and close any gap.
+
+    Two paths, depending on what the statement actually contains:
+
+    - **Holdings table present** (Depotübersicht-style export): diff the
+      table's per-ticker quantities against the ledger — ground truth. For
+      every ticker the ledger still shows held but the statement doesn't (or
+      holds less of), append a closing/reducing "sell". For every ticker the
+      statement holds *more* of, append a "buy" for the difference.
+    - **No holdings table, but trade rows found** (Kontoauszug-style — this is
+      what David's real TR export actually is): net each ticker's buy(+)/
+      sell(-) quantity from this statement's trade rows, add it to the
+      ledger's current holding, and clamp below zero to 0 (a statement proves
+      a sell happened even if the ledger never recorded the matching buy, and
+      a brokerage account can't hold negative shares — "would go negative"
+      means "fully closed"). The resulting current holdings are then
+      synthesized into a :class:`Holding` snapshot so
+      :func:`update_investments_tr_sheet` can write it exactly like a real
+      holdings table.
+
+    Either path is idempotent: re-running against the same statement produces
+    a zero diff (see :func:`_apply_adjustment`) the second time.
+
+    No-ops if the statement has neither a holdings table nor trade rows.
+    """
+    from modules.finance import positions as pos
+
+    if statement.has_holdings_table:
+        before = pos.current_holdings()
+        statement_qty = {h.ticker: h.quantity for h in statement.holdings if h.ticker}
+        unresolved = [h.name for h in statement.holdings if not h.ticker]
+        if unresolved:
+            logger.warning("%s: could not resolve ticker for: %s", statement.source_file.name, unresolved)
+
+        in_scope, skipped_scope = _in_scope_tickers(pos, set(before) | set(statement_qty))
+        if skipped_scope:
+            logger.info("Out of scope for this statement (not a TR brokerage holding): %s", skipped_scope)
+
+        adjustments: list[dict] = []
+        for ticker in sorted(in_scope):
+            held = before.get(ticker, 0.0)
+            actual = statement_qty.get(ticker, 0.0)
+            holding = next((h for h in statement.holdings if h.ticker == ticker), None)
+            if holding:
+                price = holding.price
+            else:
+                # Ticker dropped out of the statement entirely (fully sold) —
+                # fall back to its last known transaction price rather than 0,
+                # same convention the trade-history path uses.
+                prior = pos.transactions_for(ticker)
+                price = prior[-1].price if prior else 0.0
+            adj = _apply_adjustment(
+                pos, ticker, held, actual, price, statement,
+                reason=f"ledger showed {held:g}, statement holdings table shows {actual:g}",
+            )
+            if adj:
+                adjustments.append(adj)
+
+        after = pos.current_holdings()
+        return {
+            "applied": True, "before": before, "after": after,
+            "adjustments": adjustments, "out_of_scope_tickers": skipped_scope,
+        }
+
+    if not statement.trades:
+        logger.warning(
+            "%s: no current-holdings table and no trade rows found; skipping reconciliation",
+            statement.source_file.name,
+        )
+        return {"applied": False, "reason": "no holdings table or trade rows", "adjustments": []}
+
+    before = pos.current_holdings()
+    unresolved = sorted({t.name for t in statement.trades if not t.ticker})
+    if unresolved:
+        logger.warning("%s: could not resolve ticker for trade(s): %s", statement.source_file.name, unresolved)
+
+    net_change: dict[str, float] = defaultdict(float)
+    fills: dict[str, list[Trade]] = defaultdict(list)
+    names: dict[str, str] = {}
+    for t in statement.trades:
+        if not t.ticker:
+            continue
+        net_change[t.ticker] += t.quantity if t.action == "buy" else -t.quantity
+        fills[t.ticker].append(t)
+        names[t.ticker] = t.name
+
+    in_scope, skipped_scope = _in_scope_tickers(pos, set(before) | set(net_change))
     if skipped_scope:
         logger.info("Out of scope for this statement (not a TR brokerage holding): %s", skipped_scope)
 
     adjustments: list[dict] = []
-    for ticker in sorted(in_scope_tickers):
+    clamped: list[str] = []
+    for ticker in sorted(in_scope):
         held = before.get(ticker, 0.0)
-        actual = statement_qty.get(ticker, 0.0)
-        diff = round(actual - held, 8)
-        if abs(diff) <= 1e-6:
-            continue
+        raw_target = held + net_change.get(ticker, 0.0)
+        target = max(0.0, round(raw_target, 8))
+        if target != round(raw_target, 8):
+            clamped.append(ticker)
+            logger.warning(
+                "%s: statement's sells for %s exceed the ledger's recorded holding "
+                "(ledger=%.6f, statement net change=%+.6f -> would go negative); "
+                "clamping to fully closed (0).",
+                statement.source_file.name, ticker, held, net_change.get(ticker, 0.0),
+            )
 
-        holding = next((h for h in statement.holdings if h.ticker == ticker), None)
-        if holding:
-            price = holding.price
+        matching_fills = [f for f in fills.get(ticker, []) if (f.action == "buy") == (target > held)]
+        priced_fills = [f for f in matching_fills if f.amount]
+        if priced_fills:
+            price = sum(f.amount for f in priced_fills) / sum(f.quantity for f in priced_fills)
         else:
-            # Ticker dropped out of the statement entirely (fully sold) —
-            # fall back to its last known transaction price rather than 0,
-            # same convention the earlier manual partial-sale entry used.
             prior = pos.transactions_for(ticker)
             price = prior[-1].price if prior else 0.0
 
-        action = "buy" if diff > 0 else "sell"
-        qty = abs(diff)
-        note = (
-            f"Statement reconciliation ({statement.source_file.name}, as of "
-            f"{statement.as_of_date}): ledger showed {held:g}, statement holdings "
-            f"table shows {actual:g}. Adjusting with a {action} of {qty:g} to "
-            "match — exact trade date/price/fees unknown from this statement; "
-            "correct if you have the real trade confirmation."
+        adj = _apply_adjustment(
+            pos, ticker, held, target, price, statement,
+            reason=(f"ledger showed {held:g}, this statement's trade rows imply a net "
+                    f"change of {net_change.get(ticker, 0.0):+g} -> target {target:g}"),
         )
-        pos.record_transaction(Transaction(
-            date=statement.as_of_date, ticker=ticker, action=action,
-            quantity=qty, price=price, currency="EUR", fees=0.0, notes=note,
-        ))
-        adjustments.append({
-            "ticker": ticker, "action": action, "quantity": qty, "price": price,
-            "before": held, "after": actual,
-        })
-        logger.info("Reconciled %s: %s %.6f @ %.2f (before=%.6f, after=%.6f)",
-                    ticker, action, qty, price, held, actual)
+        if adj:
+            adjustments.append(adj)
 
     after = pos.current_holdings()
+    statement.holdings = _synthesize_holdings(pos, after, in_scope, names)
     return {
         "applied": True, "before": before, "after": after,
         "adjustments": adjustments, "out_of_scope_tickers": skipped_scope,
+        "clamped_to_zero": clamped,
     }
 
 
@@ -370,11 +705,14 @@ def update_investments_tr_sheet(statement: ParsedStatement) -> dict:
     the workbook to ``.bak_trstatement_<timestamp>.xlsx`` first, per the vault
     write rule (Python file I/O only, never the Edit/Write tool).
 
-    No-ops if the statement has no holdings table (nothing authoritative to
-    write — a partial/garbled parse should not clobber good data).
+    No-ops only if the statement had nothing extractable at all — no holdings
+    table and no trade rows (a partial/garbled parse should not clobber good
+    data). A trade-history statement that reconciles to zero holdings (e.g.
+    every position fully sold) still writes — clearing that month's stale
+    rows is the whole point; see :func:`reconcile_holdings`.
     """
-    if not statement.has_holdings_table:
-        return {"written": False, "reason": "no holdings table"}
+    if not statement.has_data:
+        return {"written": False, "reason": "no holdings table or trade rows"}
 
     import openpyxl
 
@@ -431,14 +769,31 @@ if __name__ == "__main__":
     import sys
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    if len(sys.argv) != 2:
-        print("Usage: python -m modules.finance.tr_statement_parser <path-to-statement.pdf>")
+    if len(sys.argv) not in (2, 3):
+        print("Usage: python -m modules.finance.tr_statement_parser <path-to-statement.pdf> [--dry-run]")
         raise SystemExit(1)
+
+    if len(sys.argv) == 3 and sys.argv[2] == "--dry-run":
+        st_dry = parse_tr_statement(sys.argv[1])
+        print(f"[dry run] Holdings table found: {st_dry.has_holdings_table}")
+        print(f"[dry run] Trade rows found: {len(st_dry.trades)}")
+        for t in st_dry.trades:
+            amt = "n/a" if t.amount is None else f"{t.amount:.2f}"
+            print(f"  {t.date} {t.action:<4} {t.name:<30} ticker={t.ticker or '?':<8} "
+                  f"qty={t.quantity:>12.6f} amount={amt}")
+        raise SystemExit(0)
+
+    from modules.finance import positions as pos
+    before_holdings = pos.current_holdings()
 
     result = run(sys.argv[1])
     st = result["statement"]
     print(f"\nHoldings table found: {st.has_holdings_table}")
+    print(f"Trade rows found: {len(st.trades)}")
     print(f"As-of date: {st.as_of_date}")
+    print(f"\nLedger before: {before_holdings}")
+    print(f"Ledger after:  {result['reconcile'].get('after')}")
+    print("\nCurrent holdings (post-reconciliation):")
     for h in st.holdings:
         print(f"  {h.name:<25} ticker={h.ticker or '—':<8} qty={h.quantity:>12.6f} "
               f"price={h.price:>10.2f} value={h.value:>10.2f}")
