@@ -318,3 +318,120 @@ def _net_contributions_all(since: date) -> float:
         elif t.action == "sell":
             total -= t.quantity * t.price - t.fees
     return total
+
+
+def _net_contributions_all_between(start: date, end: date) -> float:
+    """Net cash moved into the whole depot in ``[start, end)`` (buys +, sells -).
+
+    Same idea as :func:`_net_contributions_all` but windowed to one month, the
+    way :mod:`modules.finance.tr_contributions` windows its per-ticker version
+    (``net_contributions_between``) for a historical month's estimate.
+    """
+    total = 0.0
+    for t in list_transactions():
+        if not (start <= t.date < end):
+            continue
+        if t.action == "buy":
+            total += t.quantity * t.price + t.fees
+        elif t.action == "sell":
+            total -= t.quantity * t.price - t.fees
+    return total
+
+
+def _income_expenses_for_month(month: str) -> tuple[Optional[float], Optional[float]]:
+    """(income, expenses) for ``month`` from the Cash Flow pillar (``None, None`` if absent).
+
+    Uses :mod:`modules.finance.cashflow` (the Excel-first Cash Flow rebuild),
+    not ``money.monthly_totals()`` — the latter reads the legacy
+    Income_vs_Expenses sheet, which is empty since the Cash Flow cutover.
+    ``monthly_summary`` always returns zeroed totals rather than signalling
+    "no data", so ``available_months()`` is checked first to tell a real zero
+    from an absent month.
+    """
+    try:
+        from modules.finance import cashflow
+
+        if month not in cashflow.available_months():
+            return None, None
+        summary = cashflow.monthly_summary(month)
+    except Exception as exc:  # noqa: BLE001 — Excel may be missing/locked
+        logger.warning("cashflow.monthly_summary unavailable for bridge: %s", exc)
+        return None, None
+    inc, exp = summary.get("income_total"), summary.get("expenses_total")
+    if inc is None or exp is None:
+        return None, None
+    try:
+        return round(float(inc), 2), round(float(exp), 2)
+    except (TypeError, ValueError):
+        return None, None
+
+
+def networth_bridge(month: Optional[str] = None) -> dict:
+    """Waterfall breakdown of one month's net-worth change (Phase 9).
+
+    opening net worth -> + income -> - expenses -> + investment contributions
+    -> +/- market P&L -> closing net worth.
+
+    Unlike :func:`month_decomposition` (current month only, income/expenses
+    collapsed into one "savings" figure), this accepts any ``month`` (default:
+    current) and keeps income, expenses and contributions as separate waterfall
+    steps — reusing the same month-windowing pattern
+    :mod:`modules.finance.tr_contributions` uses for historical months, and the
+    same live-ledger net-worth series :func:`month_decomposition` uses.
+
+    Carries the same caveat as the rest of this module: priced off
+    ``networth_daily.csv`` (live yfinance re-pricing), not the Excel-authoritative
+    net worth — the two can and do diverge (see module docstring).
+    """
+    month = month or f"{date.today():%Y-%m}"
+    year, mon = (int(x) for x in month.split("-"))
+    m_start = date(year, mon, 1)
+    m_end = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
+
+    rows = sorted(read_rows(NETWORTH_DAILY_CSV), key=lambda r: r.get("date", ""))
+    if not rows:
+        return {"available": False, "reason": "no networth_daily.csv history yet", "month": month}
+
+    opening_row = _nw_row_asof(rows, m_start, strictly_before=True)
+    closing_row = _nw_row_asof(rows, m_end, strictly_before=True)
+    if opening_row is None or closing_row is None:
+        return {"available": False, "reason": f"no networth_daily.csv coverage for {month}", "month": month}
+
+    opening_nw = _f(opening_row.get("net_worth_eur"))
+    closing_nw = _f(closing_row.get("net_worth_eur"))
+    mom_delta = round(closing_nw - opening_nw, 2)
+
+    contributions = round(_net_contributions_all_between(m_start, m_end), 2)
+    invest_start = _f(opening_row.get("portfolio_total_eur")) + _f(opening_row.get("crypto_total_eur"))
+    invest_end = _f(closing_row.get("portfolio_total_eur")) + _f(closing_row.get("crypto_total_eur"))
+    market_pnl = round((invest_end - invest_start) - contributions, 2)
+
+    income, expenses = _income_expenses_for_month(month)
+    if income is None or expenses is None:
+        # No IvE sheet for this month -> back a combined savings figure out of
+        # the identity so the waterfall still reconciles; income/expenses stay
+        # unsplit (None) rather than guessed.
+        savings = round(mom_delta - contributions - market_pnl, 2)
+        savings_source = "derived (mom_delta - contributions - market_pnl)"
+    else:
+        savings = round(income - expenses, 2)
+        savings_source = "income_vs_expenses"
+
+    residual = round(mom_delta - savings - contributions - market_pnl, 2)
+
+    return {
+        "available": True,
+        "month": month,
+        "opening_date": opening_row.get("date"),
+        "closing_date": closing_row.get("date"),
+        "opening_net_worth": round(opening_nw, 2),
+        "income": income,
+        "expenses": expenses,
+        "savings": savings,
+        "savings_source": savings_source,
+        "contributions": contributions,
+        "market_pnl": market_pnl,
+        "closing_net_worth": round(closing_nw, 2),
+        "mom_delta": mom_delta,
+        "residual": residual,
+    }

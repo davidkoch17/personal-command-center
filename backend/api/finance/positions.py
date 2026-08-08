@@ -207,3 +207,15 @@ def networth_decomposition() -> dict:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return period_pnl.month_decomposition()
+
+
+@router.get("/networth/bridge")
+def networth_bridge(month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$")) -> dict:
+    """One month's net-worth waterfall: opening -> income -> expenses -> contributions -> market P&L -> closing.
+
+    Defaults to the current month. Same live-ledger caveat as
+    ``/networth/decomposition`` — see ``period_pnl.py`` module docstring.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return period_pnl.networth_bridge(month)

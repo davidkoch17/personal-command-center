@@ -60,6 +60,33 @@ export function useNetWorthDecomposition() {
   })
 }
 
+export interface BridgeResponse {
+  available: boolean
+  reason?: string
+  month: string
+  opening_date?: string
+  closing_date?: string
+  opening_net_worth?: number
+  income?: number | null
+  expenses?: number | null
+  savings?: number
+  savings_source?: string
+  contributions?: number
+  market_pnl?: number
+  closing_net_worth?: number
+  mom_delta?: number
+  residual?: number
+}
+
+export function useNetWorthBridge(month: string | null) {
+  return useQuery({
+    queryKey: ["hub", "networth-bridge", month],
+    queryFn: () => api.get<BridgeResponse>(`/api/finance/networth/bridge${month ? `?month=${month}` : ""}`),
+    enabled: !!month,
+    staleTime: 5 * 60_000,
+  })
+}
+
 // --- Holdings ---------------------------------------------------------------
 
 export interface PnlPosition {

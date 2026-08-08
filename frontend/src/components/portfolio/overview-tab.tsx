@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -7,13 +8,15 @@ import { NumberDisplay } from "@/components/ui/number-display"
 import { DecisionAlerts } from "@/components/finance/decision-alerts"
 import { AXIS_PROPS, CHART_COLORS, GRID_PROPS } from "@/components/charts/theme"
 import { CockpitTooltip } from "@/components/charts/cockpit-tooltip"
+import { NetWorthBridgeWaterfall, type BridgeStep } from "@/components/charts/finance-charts"
+import { MonthPicker } from "@/components/cashflow/month-picker"
 import {
   useMoneySnapshot,
   useMoneyAvailableMonths,
   useMoneyAllocation,
   useNetWorthHistory,
 } from "@/hooks/useFinance"
-import { useNetWorthDaily, useNetWorthDecomposition } from "@/hooks/usePortfolioHub"
+import { useNetWorthDaily, useNetWorthDecomposition, useNetWorthBridge } from "@/hooks/usePortfolioHub"
 import { formatCurrency } from "@/lib/utils"
 
 export function OverviewTab() {
@@ -146,6 +149,9 @@ export function OverviewTab() {
       {/* This-month decomposition */}
       <ThisMonthDecomposition />
 
+      {/* Monthly net-worth bridge (waterfall) */}
+      <NetWorthBridge months={months.data?.months ?? []} defaultMonth={latestMonth} />
+
       {/* Portfolio decision-alerts strip */}
       <DecisionAlerts />
     </div>
@@ -200,6 +206,59 @@ function ThisMonthDecomposition() {
           <p className="text-xs text-text-label">
             this breakdown is priced off the live daily ledger, not the Excel headline above — the
             two are expected to diverge (see the "net worth" KPI for the authoritative figure).
+          </p>
+        </div>
+      )}
+    </Panel>
+  )
+}
+
+function NetWorthBridge({
+  months,
+  defaultMonth,
+}: {
+  months: string[]
+  defaultMonth: string | null
+}) {
+  const [selected, setSelected] = useState<string | null>(null)
+  const activeMonth = selected ?? defaultMonth
+  const { data, isLoading } = useNetWorthBridge(activeMonth)
+
+  const steps: BridgeStep[] = data?.available
+    ? [
+        { label: "opening", amount: data.opening_net_worth ?? 0, isTotal: true },
+        ...(data.income != null && data.expenses != null
+          ? [
+              { label: "income", amount: data.income },
+              { label: "expenses", amount: -data.expenses },
+            ]
+          : [{ label: "savings", amount: data.savings ?? 0 }]),
+        { label: "contributions", amount: data.contributions ?? 0 },
+        { label: "market P&L", amount: data.market_pnl ?? 0 },
+        { label: "closing", amount: data.closing_net_worth ?? 0, isTotal: true },
+      ]
+    : []
+
+  return (
+    <Panel title="net worth bridge — how it moved" statusDotColor="accent">
+      <div className="mb-3 flex justify-end">
+        <MonthPicker months={months} month={activeMonth} onChange={setSelected} />
+      </div>
+      {isLoading ? (
+        <Skeleton className="h-64" />
+      ) : !data?.available ? (
+        <EmptyState message={data?.reason ?? "not enough history yet"} />
+      ) : (
+        <div className="space-y-2">
+          <NetWorthBridgeWaterfall steps={steps} />
+          {data.residual != null && Math.abs(data.residual) >= 1 && (
+            <p className="text-xs text-text-label">
+              unreconciled:{" "}
+              <NumberDisplay value={data.residual} format="currency" signed className="text-text-secondary" />
+            </p>
+          )}
+          <p className="text-xs text-text-label">
+            priced off the live daily ledger, not the Excel headline above — the two are expected to diverge.
           </p>
         </div>
       )}
