@@ -1,26 +1,37 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { IncomeExpenseBar } from "@/components/charts/finance-charts"
+import { StatusDot, type StatusColor } from "@/components/ui/status-dot"
+import { IncomeExpenseNetBar } from "@/components/charts/finance-charts"
 import {
+  useCashflowAccounts,
+  useCashflowAlerts,
+  useCashflowForecast,
   useCashflowMonths,
-  useCashflowSummary,
+  useCashflowOverview,
+  useCashflowRunway,
   useCashflowTrend,
-  useSetCashflowGoal,
-  type CashflowGoalProgress,
+  useDeleteCashflowAccount,
+  useSetCashflowAccount,
+  useSetCashflowReserveTarget,
+  type CashflowAccount,
+  type CashflowAlert,
+  type CashflowAlertSeverity,
+  type CashflowOverviewResponse,
+  type CashflowTopCategory,
 } from "@/hooks/useCashflow"
-import {
-  useMoneyAvailableMonths,
-  useMoneyReport,
-  type MonthlyReportCategory,
-} from "@/hooks/useFinance"
 import { MonthPicker } from "./month-picker"
 import { ReviewQueue } from "./review-queue"
-import { cn, formatCurrency } from "@/lib/utils"
+import { cn, formatCurrency, formatPercent } from "@/lib/utils"
+
+function monthLabel(month: string): string {
+  return new Date(`${month}-01`).toLocaleString("en-US", { month: "long", year: "numeric" })
+}
 
 export function OverviewTab() {
   const monthsQ = useCashflowMonths()
@@ -28,124 +39,501 @@ export function OverviewTab() {
   const [selected, setSelected] = useState<string | null>(null)
   const month = selected ?? (months.length ? months[months.length - 1] : null)
 
-  const summary = useCashflowSummary(month)
-  const trend = useCashflowTrend(12)
+  const overview = useCashflowOverview(month)
+  const trend = useCashflowTrend(6)
 
   return (
     <div className="space-y-4">
       <MonthPicker months={months} month={month} onChange={setSelected} />
 
+      {month && <AlertsStrip month={month} />}
+
       <ReviewQueue />
 
-      {monthsQ.isLoading || summary.isLoading ? (
+      {monthsQ.isLoading || overview.isLoading ? (
         <Skeleton className="h-96" />
-      ) : !summary.data ? (
+      ) : !overview.data || !month ? (
         <Panel title="overview" statusDotColor="muted">
           <EmptyState message="no data yet — hand me a bank/card statement, receipt, or screenshot and I'll add it to the ledger." />
         </Panel>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Panel title="income" statusDotColor="success" className="!py-3">
-              <NumberDisplay value={summary.data.income_total} format="currency" emphasized />
-            </Panel>
-            <Panel title="expenses" statusDotColor="danger" className="!py-3">
-              <NumberDisplay value={summary.data.expenses_total} format="currency" emphasized />
-            </Panel>
-            <Panel title="net" statusDotColor={summary.data.net >= 0 ? "success" : "danger"} className="!py-3">
-              <NumberDisplay value={summary.data.net} format="currency" emphasized signed />
-            </Panel>
-            <Panel title="savings rate" statusDotColor="accent" className="!py-3">
-              <NumberDisplay
-                value={summary.data.savings_rate != null ? summary.data.savings_rate * 100 : null}
-                format="percent"
-                emphasized
-                signed
-              />
-            </Panel>
-          </div>
+          <AccountsStrip reserveTarget={overview.data.reserve.target} />
 
-          <GoalPanel goal={summary.data.goal} />
+          <RunwayBand />
 
-          {/* Monthly P&L summary — moved here from the Portfolio pillar. */}
-          <MonthlyPnlPanel />
+          <KpiRow data={overview.data} month={month} />
 
-          <Panel title="income vs expenses" meta="last 12 months" statusDotColor="accent">
-            {trend.isLoading ? <Skeleton className="h-64" /> : <IncomeExpenseBar data={trend.data?.trend ?? []} />}
+          <ReservePanel data={overview.data} />
+
+          <Panel title="income vs expenses" meta="last 6 months" statusDotColor="accent">
+            {trend.isLoading ? <Skeleton className="h-64" /> : <IncomeExpenseNetBar data={trend.data?.trend ?? []} />}
           </Panel>
+
+          <TopCategoriesPanel data={overview.data} />
         </>
       )}
     </div>
   )
 }
 
-function GoalPanel({ goal }: { goal: CashflowGoalProgress }) {
-  const setGoal = useSetCashflowGoal()
-  const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState(goal.goal != null ? String(goal.goal) : "")
+// --- Alerts strip -----------------------------------------------------------
+// Only rendered when something is flagged (category spike, new/rising
+// recurring charge, low runway, reserve milestone) — no empty-state noise.
 
-  function save() {
-    const num = parseFloat(value)
-    setGoal.mutate(Number.isFinite(num) ? num : null, { onSuccess: () => setEditing(false) })
-  }
+const ALERT_SEVERITY_DOT: Record<CashflowAlertSeverity, StatusColor> = {
+  high: "danger",
+  medium: "warning",
+  low: "accent",
+}
 
-  const pct = goal.percent_of_goal ?? 0
-  const statusColor = goal.goal == null ? "muted" : goal.on_track ? "success" : "warning"
+const ALERT_SEVERITY_STYLE: Record<CashflowAlertSeverity, string> = {
+  high: "border-danger/40 bg-danger/10",
+  medium: "border-warning/40 bg-warning/10",
+  low: "border-accent/30 bg-accent/10",
+}
+
+function AlertsStrip({ month }: { month: string }) {
+  const alertsQ = useCashflowAlerts(month)
+  const navigate = useNavigate()
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+
+  const alerts = (alertsQ.data?.alerts ?? []).filter((a) => !dismissed.has(a.id))
+  if (alerts.length === 0) return null
 
   return (
-    <Panel title="monthly savings goal" statusDotColor={statusColor}>
-      {editing ? (
-        <div className="flex items-center gap-2">
+    <div className="space-y-1.5">
+      {alerts.map((a) => (
+        <AlertRow
+          key={a.id}
+          alert={a}
+          onOpen={() => navigate(`/cashflow?tab=${a.tab}`)}
+          onDismiss={() => setDismissed((prev) => new Set(prev).add(a.id))}
+        />
+      ))}
+    </div>
+  )
+}
+
+function AlertRow({ alert, onOpen, onDismiss }: { alert: CashflowAlert; onOpen: () => void; onDismiss: () => void }) {
+  return (
+    <div className={cn("flex items-center justify-between gap-3 rounded-sm border px-3 py-2", ALERT_SEVERITY_STYLE[alert.severity])}>
+      <button onClick={onOpen} className="flex flex-1 items-center gap-2 text-left">
+        <StatusDot color={ALERT_SEVERITY_DOT[alert.severity]} />
+        <span className="text-xs text-text-secondary">{alert.message}</span>
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onDismiss()
+        }}
+        aria-label="dismiss alert"
+        className="shrink-0 text-xs text-text-label hover:text-text-secondary"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
+// --- Accounts strip -------------------------------------------------------
+
+function AccountsStrip({ reserveTarget }: { reserveTarget: number }) {
+  const accountsQ = useCashflowAccounts()
+  const setAccount = useSetCashflowAccount()
+  const deleteAccount = useDeleteCashflowAccount()
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState("")
+  const [balance, setBalance] = useState("")
+  const [isReserve, setIsReserve] = useState(false)
+
+  const accounts = accountsQ.data?.accounts ?? []
+  const totalCash = accountsQ.data?.total_cash ?? 0
+
+  function save() {
+    const num = parseFloat(balance)
+    if (!name.trim() || !Number.isFinite(num)) return
+    setAccount.mutate(
+      { name: name.trim(), balance: num, is_reserve: isReserve },
+      {
+        onSuccess: () => {
+          setAdding(false)
+          setName("")
+          setBalance("")
+          setIsReserve(false)
+        },
+      },
+    )
+  }
+
+  return (
+    <Panel
+      title="accounts"
+      meta={accounts.length ? `${formatCurrency(totalCash)} total cash` : undefined}
+      statusDotColor={accounts.length ? "accent" : "muted"}
+    >
+      {accountsQ.isLoading ? (
+        <Skeleton className="h-10" />
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          {accounts.length === 0 && !adding && <EmptyState message="no accounts recorded yet." />}
+          {accounts.map((a) => (
+            <AccountChip
+              key={a.name}
+              account={a}
+              reserveTarget={reserveTarget}
+              onDelete={() => deleteAccount.mutate(a.name)}
+            />
+          ))}
+          {!adding && (
+            <button
+              onClick={() => setAdding(true)}
+              className="rounded-sm border border-dashed border-border px-3 py-1.5 text-xs text-text-label hover:border-accent hover:text-accent"
+            >
+              + add account
+            </button>
+          )}
+        </div>
+      )}
+      {adding && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Input className="h-8 w-36" placeholder="account name" value={name} onChange={(e) => setName(e.target.value)} />
           <Input
             mono
-            className="h-8 w-32"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="e.g. 1000"
+            className="h-8 w-28"
+            placeholder="balance"
+            value={balance}
+            onChange={(e) => setBalance(e.target.value)}
           />
-          <Button size="sm" onClick={save} disabled={setGoal.isPending}>
+          <label className="flex items-center gap-1.5 text-xs text-text-label">
+            <input type="checkbox" checked={isReserve} onChange={(e) => setIsReserve(e.target.checked)} />
+            reserve
+          </label>
+          <Button size="sm" onClick={save} disabled={!name.trim() || !balance.trim() || setAccount.isPending}>
             save
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => setEditing(false)}>
+          <Button size="sm" variant="secondary" onClick={() => setAdding(false)}>
             cancel
           </Button>
-        </div>
-      ) : goal.goal == null ? (
-        <div className="flex items-center justify-between">
-          <EmptyState message="no savings goal set yet." />
-          <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-            set goal
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <NumberDisplay value={goal.actual_savings} format="currency" emphasized className="text-2xl" />
-            <button onClick={() => setEditing(true)} className="text-xs text-text-label hover:text-accent">
-              target {formatCurrency(goal.goal)} · edit
-            </button>
-          </div>
-          <div className="h-2.5 w-full overflow-hidden rounded-full bg-border">
-            <div
-              className={cn("h-full rounded-full transition-[width]", goal.on_track ? "bg-success" : "bg-warning")}
-              style={{ width: `${Math.min(100, pct)}%` }}
-            />
-          </div>
-          <div className="flex justify-between text-xs text-text-label">
-            <span>{pct}% of goal</span>
-            <span>{goal.on_track ? "on track" : "behind goal"}</span>
-          </div>
         </div>
       )}
     </Panel>
   )
 }
 
+function AccountChip({
+  account,
+  reserveTarget,
+  onDelete,
+}: {
+  account: CashflowAccount
+  reserveTarget: number
+  onDelete: () => void
+}) {
+  const setAccount = useSetCashflowAccount()
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(String(account.balance))
+
+  function save() {
+    const num = parseFloat(value)
+    if (!Number.isFinite(num)) return
+    setAccount.mutate(
+      { name: account.name, balance: num, is_reserve: account.is_reserve },
+      { onSuccess: () => setEditing(false) },
+    )
+  }
+
+  const pct = account.is_reserve && reserveTarget > 0 ? Math.min(100, Math.round((account.balance / reserveTarget) * 100)) : null
+  const full = pct != null && pct >= 100
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-sm border px-3 py-1.5",
+        account.is_reserve
+          ? full
+            ? "border-success/40 bg-success/10"
+            : "border-warning/40 bg-warning/10"
+          : "border-border bg-bg-panel",
+      )}
+    >
+      <span className="text-xs font-medium text-text-secondary">{account.name}</span>
+      {editing ? (
+        <>
+          <Input mono className="h-6 w-20 text-xs" value={value} onChange={(e) => setValue(e.target.value)} />
+          <button onClick={save} className="text-xs text-accent">
+            save
+          </button>
+        </>
+      ) : (
+        <button onClick={() => setEditing(true)} className="flex items-center gap-1.5">
+          <NumberDisplay value={account.balance} format="currency" className="text-xs" />
+          {pct != null && (
+            <span className={cn("text-[10px]", full ? "text-success" : "text-warning")}>· {pct}% reserve</span>
+          )}
+        </button>
+      )}
+      <button onClick={onDelete} className="text-xs text-text-label hover:text-danger">
+        ×
+      </button>
+    </div>
+  )
+}
+
+// --- Runway band -----------------------------------------------------------
+
+function formatDateLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+}
+
+function RunwayBand() {
+  const runwayQ = useCashflowRunway()
+  const data = runwayQ.data
+
+  if (runwayQ.isLoading) return <Skeleton className="h-20" />
+  if (!data || data.months_total == null || data.cash_lasts_until == null) {
+    return (
+      <Panel title="runway" statusDotColor="muted">
+        <EmptyState message="no accounts or spending history yet to project runway from." />
+      </Panel>
+    )
+  }
+
+  const dotColor = data.months_total >= 3 ? "success" : data.months_total >= 1 ? "warning" : "danger"
+  const drawdownPct =
+    data.months_before_reserve_drawdown != null && data.months_total > 0
+      ? Math.min(100, Math.round((data.months_before_reserve_drawdown / data.months_total) * 100))
+      : null
+
+  return (
+    <Panel title="runway" meta={`${formatCurrency(data.monthly_burn ?? 0)}/mo burn`} statusDotColor={dotColor}>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="text-2xl font-mono tabular-nums text-text">cash lasts until {formatDateLabel(data.cash_lasts_until)}</span>
+          <span className="text-xs text-text-label">
+            ({data.months_total.toFixed(1)} mo at {formatCurrency(data.total_cash)} total cash)
+          </span>
+        </div>
+        {drawdownPct != null && data.reserve_drawdown_date && (
+          <div className="space-y-1">
+            <div className="relative h-2 w-full overflow-hidden rounded-full bg-accent/30">
+              <div className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-warning" style={{ left: `${drawdownPct}%` }} />
+            </div>
+            <div className="text-xs text-text-label">
+              starts drawing into the {formatCurrency(data.reserve_balance)} reserve from {formatDateLabel(data.reserve_drawdown_date)}
+            </div>
+          </div>
+        )}
+      </div>
+    </Panel>
+  )
+}
+
+// --- KPI row ------------------------------------------------------------
+
+function DeltaChip({ percent, goodDirection }: { percent: number | null; goodDirection: "up" | "down" }) {
+  if (percent == null) return null
+  const isUp = percent >= 0
+  const isGood = goodDirection === "up" ? isUp : !isUp
+  return (
+    <span
+      className={cn(
+        "inline-flex w-fit items-center rounded-full px-1.5 py-0.5 text-[11px] font-mono tabular-nums",
+        isGood ? "bg-success/10 text-success" : "bg-danger/10 text-danger",
+      )}
+    >
+      {formatPercent(percent, 1)} vs 3-mo avg
+    </span>
+  )
+}
+
+function KpiPanel({
+  title,
+  statusDotColor,
+  period,
+  value,
+  format,
+  signed,
+  valueClassName,
+  deltaPercent,
+  goodDirection,
+  subtext,
+  mutedSubtext,
+}: {
+  title: string
+  statusDotColor: "success" | "danger" | "accent" | "muted"
+  period: string
+  value: number | null
+  format: "currency" | "percent"
+  signed?: boolean
+  valueClassName?: string
+  deltaPercent?: number | null
+  goodDirection?: "up" | "down"
+  subtext?: string
+  mutedSubtext?: string
+}) {
+  return (
+    <Panel title={title} statusDotColor={statusDotColor} className="!py-3">
+      <div className="space-y-1.5">
+        <div className="text-[11px] text-text-label">{period}</div>
+        <NumberDisplay value={value} format={format} signed={signed} className={cn("text-2xl", valueClassName)} />
+        {deltaPercent !== undefined && goodDirection && <DeltaChip percent={deltaPercent} goodDirection={goodDirection} />}
+        {subtext && <div className="text-[11px] text-text-label">{subtext}</div>}
+        {mutedSubtext && <div className="text-[11px] text-text-label">{mutedSubtext}</div>}
+      </div>
+    </Panel>
+  )
+}
+
+function KpiRow({ data, month }: { data: CashflowOverviewResponse; month: string }) {
+  const period = `${monthLabel(month)} · vs 3-month average`
+  const runwaySubtext = data.runway_months != null ? `runway ${data.runway_months.toFixed(1)} mo` : undefined
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <KpiPanel
+        title="income"
+        statusDotColor="success"
+        period={period}
+        value={data.income.total}
+        format="currency"
+        valueClassName="text-success"
+        deltaPercent={data.income.delta_percent}
+        goodDirection="up"
+      />
+      <KpiPanel
+        title="expenses"
+        statusDotColor="danger"
+        period={period}
+        value={data.expenses.total}
+        format="currency"
+        valueClassName="text-danger"
+        deltaPercent={data.expenses.delta_percent}
+        goodDirection="down"
+      />
+      <KpiPanel
+        title="net"
+        statusDotColor={data.net.total >= 0 ? "success" : "danger"}
+        period={period}
+        value={data.net.total}
+        format="currency"
+        signed
+        deltaPercent={data.net.delta_percent}
+        goodDirection="up"
+        subtext={runwaySubtext}
+      />
+      <KpiPanel
+        title="savings rate"
+        statusDotColor="accent"
+        period={period}
+        value={data.savings_rate != null ? data.savings_rate * 100 : null}
+        format="percent"
+        signed
+        mutedSubtext={data.savings_rate == null ? "income near €0" : undefined}
+      />
+    </div>
+  )
+}
+
+// --- Reserve + split panel -----------------------------------------------
+
+function ReservePanel({ data }: { data: CashflowOverviewResponse }) {
+  const setTarget = useSetCashflowReserveTarget()
+  const forecast = useCashflowForecast(6)
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(String(data.reserve.target))
+
+  const balance = data.reserve.reserve_balance
+  const pct = data.reserve.percent_filled ?? 0
+  const full = pct >= 100
+  const fillMonth = forecast.data?.reserve_fill_month
+
+  function save() {
+    const num = parseFloat(value)
+    if (!Number.isFinite(num) || num <= 0) return
+    setTarget.mutate(num, { onSuccess: () => setEditing(false) })
+  }
+
+  return (
+    <Panel title="safety reserve" statusDotColor={balance == null ? "muted" : full ? "success" : "warning"}>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          {editing ? (
+            <div className="flex items-center gap-2">
+              <Input mono className="h-8 w-28" value={value} onChange={(e) => setValue(e.target.value)} placeholder="e.g. 4000" />
+              <Button size="sm" onClick={save} disabled={setTarget.isPending}>
+                save
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setEditing(false)}>
+                cancel
+              </Button>
+            </div>
+          ) : (
+            <>
+              <NumberDisplay value={balance} format="currency" emphasized className="text-2xl" />
+              <button
+                onClick={() => {
+                  setValue(String(data.reserve.target))
+                  setEditing(true)
+                }}
+                className="text-xs text-text-label hover:text-accent"
+              >
+                target {formatCurrency(data.reserve.target)} · set target
+              </button>
+            </>
+          )}
+        </div>
+
+        {balance == null ? (
+          <EmptyState message="no reserve balance recorded yet — set it from the Reserve & Allocation tab." />
+        ) : (
+          <>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-border">
+              <div
+                className={cn("h-full rounded-full transition-[width]", full ? "bg-success" : "bg-accent")}
+                style={{ width: `${Math.min(100, pct)}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-text-label">
+              <span>{pct}% filled</span>
+              <span>{full ? "fully funded" : `${formatCurrency(data.reserve.remaining_to_target ?? 0)} remaining`}</span>
+            </div>
+            {!full && fillMonth && (
+              <div className="text-xs text-text-label">
+                projected full by{" "}
+                <span className="text-text-secondary">
+                  {new Date(`${fillMonth}-01`).toLocaleString("en-US", { month: "long", year: "numeric" })}
+                </span>{" "}
+                at current pace
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="border-t border-border pt-3">
+          <div className="label mb-1.5">this month's recommended split</div>
+          {data.investable_surplus <= 0 ? (
+            <p className="text-xs text-text-label">no investable income yet</p>
+          ) : (
+            <p className="text-sm text-text-secondary">
+              {formatCurrency(data.split_recommendation.to_reserve)} to reserve ·{" "}
+              {formatCurrency(data.split_recommendation.to_invest)} to invest
+            </p>
+          )}
+        </div>
+      </div>
+    </Panel>
+  )
+}
+
+// --- Top categories + biggest mover ---------------------------------------
+
 // One accent hue family (blue/sky tints) — no categorical "rainbow".
 const CAT_COLOR: Record<string, string> = {
   Rent: "bg-blue-600",
   Shopping: "bg-blue-800",
   Restaurants: "bg-sky-400",
+  Dining: "bg-sky-400",
   Transport: "bg-blue-500",
   Travel: "bg-sky-500",
   Entertainment: "bg-sky-700",
@@ -155,7 +543,7 @@ const CAT_COLOR: Record<string, string> = {
   Health: "bg-sky-600",
 }
 
-function CategoryBar({ cat, max }: { cat: MonthlyReportCategory; max: number }) {
+function CategoryBar({ cat, max }: { cat: CashflowTopCategory; max: number }) {
   const pct = max > 0 ? Math.round((cat.amount / max) * 100) : 0
   const color = CAT_COLOR[cat.category] ?? "bg-text-label"
   return (
@@ -164,147 +552,34 @@ function CategoryBar({ cat, max }: { cat: MonthlyReportCategory; max: number }) 
       <div className="flex-1 h-1.5 rounded-full bg-border overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="w-16 text-right tabular-nums text-text-secondary shrink-0">
-        {formatCurrency(cat.amount)}
-      </span>
+      <span className="w-16 text-right tabular-nums text-text-secondary shrink-0">{formatCurrency(cat.amount)}</span>
+      <span className="w-9 text-right tabular-nums text-text-label shrink-0">{Math.round(cat.percent_of_total)}%</span>
     </div>
   )
 }
 
-function MonthlyPnlPanel() {
-  const months = useMoneyAvailableMonths()
-  const allMonths = months.data?.months ?? []
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
-
-  // Default to latest month once data loads
-  const idx = selectedIdx !== null ? selectedIdx : allMonths.length - 1
-  const selectedMonth = allMonths[idx] ?? null
-  const report = useMoneyReport(selectedMonth)
-
-  const income = report.data?.income.total ?? null
-  const expenses = report.data?.expenses.total ?? null
-  const net = report.data?.net ?? null
-  const rate = report.data?.savings_rate ?? null
-  const topCats = (report.data?.expenses.by_category ?? []).slice(0, 5)
-  const maxCatAmount = topCats[0]?.amount ?? 0
-
-  const monthLabel = selectedMonth
-    ? new Date(selectedMonth + "-01").toLocaleString("en-US", { month: "long", year: "numeric" })
-    : undefined
-
-  const canPrev = idx > 0
-  const canNext = idx < allMonths.length - 1
-
+function TopCategoriesPanel({ data }: { data: CashflowOverviewResponse }) {
+  const topCategories = data.top_categories ?? []
+  const max = topCategories[0]?.amount ?? 0
   return (
-    <Panel title="monthly p&l" statusDotColor="accent">
-      {/* Header row: prev / month / next + link */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSelectedIdx(Math.max(0, idx - 1))}
-            disabled={!canPrev}
-            className="rounded px-1.5 py-0.5 text-xs text-text-label hover:text-text-secondary disabled:opacity-30 transition-colors"
-          >
-            ←
-          </button>
-          <span className="font-mono text-xs text-text-secondary tabular-nums min-w-[90px] text-center">
-            {monthLabel ?? "—"}
-          </span>
-          <button
-            onClick={() => setSelectedIdx(Math.min(allMonths.length - 1, idx + 1))}
-            disabled={!canNext}
-            className="rounded px-1.5 py-0.5 text-xs text-text-label hover:text-text-secondary disabled:opacity-30 transition-colors"
-          >
-            →
-          </button>
-        </div>
-        <a
-          href={`/workspace/money?tab=expense+report`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-text-label hover:text-text-secondary transition-colors"
-        >
-          full report ↗
-        </a>
-      </div>
-
-      {report.isLoading || months.isLoading ? (
-        <Skeleton className="h-32" />
-      ) : !report.data ? (
-        <EmptyState message="no data — update Finance_Tracker.xlsx to populate." />
+    <Panel title="top spending this month" statusDotColor="accent">
+      {topCategories.length === 0 ? (
+        <EmptyState message="no expenses recorded this month." />
       ) : (
-        <div className="space-y-4">
-          {/* 4 KPI chips */}
-          <div className="grid gap-3 sm:grid-cols-4">
-            <KpiChip label="income" value={income} format="currency" />
-            <KpiChip label="expenses" value={expenses} format="currency" valueClass="text-danger" />
-            <KpiChip
-              label="net"
-              value={net}
-              format="currency"
-              signed
-              valueClass={net != null && net < 0 ? "text-danger" : "text-success"}
-            />
-            <div className="rounded-sm border border-border bg-bg-panel px-3 py-2">
-              <div className="label mb-1">savings rate</div>
-              <div className="font-mono text-base font-medium tabular-nums">
-                {rate == null ? (
-                  <span className="text-text-label">—</span>
-                ) : (
-                  <span className={rate < 0 ? "text-danger" : rate >= 0.2 ? "text-success" : "text-warning"}>
-                    {(rate * 100).toFixed(1)}%
-                  </span>
-                )}
-              </div>
-            </div>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            {topCategories.map((c) => (
+              <CategoryBar key={c.category} cat={c} max={max} />
+            ))}
           </div>
-
-          {/* Income breakdown */}
-          {report.data.income.total > 0 && (
-            <div className="flex gap-4 text-xs text-text-label">
-              {report.data.income.salary > 0 && (
-                <span>salary <span className="text-text-secondary font-mono">{formatCurrency(report.data.income.salary)}</span></span>
-              )}
-              {report.data.income.other > 0 && (
-                <span>other income <span className="text-text-secondary font-mono">{formatCurrency(report.data.income.other)}</span></span>
-              )}
-            </div>
-          )}
-
-          {/* Top categories */}
-          {topCats.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="label text-xs text-text-label mb-2">top expenses</div>
-              {topCats.map((cat) => (
-                <CategoryBar key={cat.category} cat={cat} max={maxCatAmount} />
-              ))}
-            </div>
+          {data.biggest_mover && (
+            <p className="rounded-sm border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-text-secondary">
+              biggest mover: <span className="font-medium text-warning">{data.biggest_mover.category}</span>{" "}
+              {formatPercent(data.biggest_mover.delta_percent, 1)} vs 3-mo avg
+            </p>
           )}
         </div>
       )}
     </Panel>
-  )
-}
-
-function KpiChip({
-  label,
-  value,
-  format,
-  signed,
-  valueClass,
-}: {
-  label: string
-  value: number | null
-  format: "currency"
-  signed?: boolean
-  valueClass?: string
-}) {
-  return (
-    <div className="rounded-sm border border-border bg-bg-panel px-3 py-2">
-      <div className="label mb-1">{label}</div>
-      <div className={`font-mono text-base font-medium tabular-nums ${valueClass ?? ""}`}>
-        <NumberDisplay value={value} format={format} signed={signed} />
-      </div>
-    </div>
   )
 }

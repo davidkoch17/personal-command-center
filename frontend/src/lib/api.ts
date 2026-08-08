@@ -12,6 +12,11 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
+    // API responses are never meant to be HTTP-cached — without this, a URL
+    // that once fell through to the SPA catch-all (which sends Last-Modified
+    // and is heuristically cacheable) keeps serving that stale HTML forever,
+    // even after the backend grows a real handler for it.
+    cache: "no-store",
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     ...init,
   })

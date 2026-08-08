@@ -110,6 +110,164 @@ export interface CashflowReserveResponse {
   contribution_vs_recommended: number | null
 }
 
+export interface CashflowMetricWithTrend {
+  total: number
+  avg_3mo: number | null
+  delta_percent: number | null
+}
+
+export interface CashflowTopCategory {
+  category: string
+  amount: number
+  percent_of_total: number
+}
+
+export interface CashflowBiggestMover {
+  category: string
+  delta_percent: number
+}
+
+export interface CashflowAccount {
+  name: string
+  balance: number
+  is_reserve: boolean
+}
+
+export interface CashflowAccountsResponse {
+  accounts: CashflowAccount[]
+  total_cash: number
+}
+
+export interface CashflowOverviewResponse {
+  month: string
+  income: CashflowMetricWithTrend
+  expenses: CashflowMetricWithTrend
+  net: CashflowMetricWithTrend
+  savings_rate: number | null
+  runway_months: number | null
+  reserve: CashflowReserveStatus
+  split_recommendation: { to_reserve: number; to_invest: number }
+  investable_surplus: number
+  top_categories: CashflowTopCategory[]
+  biggest_mover: CashflowBiggestMover | null
+}
+
+export interface CashflowFixedVsVariable {
+  month: string
+  fixed: number
+  variable: number
+  fixed_share: number | null
+}
+
+export interface CashflowRecurringItem {
+  merchant: string
+  amount: number
+  cadence: "weekly" | "monthly" | "quarterly" | "yearly"
+  category: string
+  last_seen: string
+  occurrences: number
+  price_creep: boolean
+  price_creep_delta: number | null
+  monthly_equivalent: number
+}
+
+export interface CashflowRecurringResponse {
+  items: CashflowRecurringItem[]
+  committed_monthly_total: number
+}
+
+export interface CashflowMerchant {
+  merchant: string
+  amount: number
+}
+
+export interface CashflowSpendingCategory {
+  category: string
+  amount: number
+  type: "fixed" | "variable"
+  merchants: CashflowMerchant[]
+}
+
+export interface CashflowSpendingMover {
+  category: string
+  amount: number
+  avg_3mo: number
+  delta_percent: number
+}
+
+export interface CashflowSpendingResponse {
+  month: string
+  fixed_vs_variable: CashflowFixedVsVariable
+  recurring: CashflowRecurringResponse
+  categories: CashflowSpendingCategory[]
+  biggest_movers: CashflowSpendingMover[]
+}
+
+export interface CashflowRunway {
+  as_of: string
+  total_cash: number
+  reserve_balance: number
+  monthly_burn: number | null
+  months_total: number | null
+  cash_lasts_until: string | null
+  months_before_reserve_drawdown: number | null
+  reserve_drawdown_date: string | null
+}
+
+export interface CashflowRunwayScenario {
+  monthly_burn: number
+  months_total: number | null
+  cash_lasts_until: string | null
+}
+
+export interface CashflowRunwayScenariosResponse {
+  base: CashflowRunway
+  cut_variable_25: CashflowRunwayScenario | null
+  cut_variable_50: CashflowRunwayScenario | null
+}
+
+export interface CashflowForecastMonth {
+  month: string
+  projected_income: number
+  projected_bills: number
+  projected_surplus: number
+  to_reserve: number
+  to_invest: number
+  projected_reserve_balance: number
+}
+
+export interface CashflowForecastResponse {
+  base_month: string
+  recurring_income: number
+  committed_bills: number
+  reserve_target: number
+  months: CashflowForecastMonth[]
+  reserve_fill_month: string | null
+  invest_start_month: string | null
+}
+
+export interface CashflowTrendsPoint {
+  month: string
+  savings_rate: number | null
+  income_stability: number | null
+}
+
+export type CashflowAlertSeverity = "high" | "medium" | "low"
+export type CashflowAlertTab = "overview" | "spending" | "reserve"
+
+export interface CashflowAlert {
+  id: string
+  type: string
+  severity: CashflowAlertSeverity
+  message: string
+  tab: CashflowAlertTab
+}
+
+export interface CashflowAlertsResponse {
+  month: string
+  alerts: CashflowAlert[]
+}
+
 // --- Queries -----------------------------------------------------------------
 
 export function useCashflowCategories() {
@@ -163,11 +321,37 @@ export function useCashflowTransactions(month: string | null) {
   })
 }
 
+export function useCashflowOverview(month: string | null) {
+  return useQuery({
+    queryKey: ["cashflow", "overview", month],
+    queryFn: () => api.get<CashflowOverviewResponse>(`/api/cashflow/overview/${month}`),
+    enabled: !!month,
+    staleTime: 30_000,
+  })
+}
+
+export function useCashflowSpending(month: string | null) {
+  return useQuery({
+    queryKey: ["cashflow", "spending", month],
+    queryFn: () => api.get<CashflowSpendingResponse>(`/api/cashflow/spending/${month}`),
+    enabled: !!month,
+    staleTime: 30_000,
+  })
+}
+
 export function useCashflowReserve(month: string | null) {
   return useQuery({
     queryKey: ["cashflow", "reserve", month],
     queryFn: () => api.get<CashflowReserveResponse>(`/api/cashflow/reserve/${month}`),
     enabled: !!month,
+    staleTime: 30_000,
+  })
+}
+
+export function useCashflowAccounts() {
+  return useQuery({
+    queryKey: ["cashflow", "accounts"],
+    queryFn: () => api.get<CashflowAccountsResponse>("/api/cashflow/accounts"),
     staleTime: 30_000,
   })
 }
@@ -183,6 +367,55 @@ export function useCashflowBudget() {
   return useQuery({
     queryKey: ["cashflow", "budget"],
     queryFn: () => api.get<{ budget: Record<string, number> }>("/api/cashflow/budget"),
+  })
+}
+
+export function useCashflowRunway() {
+  return useQuery({
+    queryKey: ["cashflow", "runway"],
+    queryFn: () => api.get<CashflowRunway>("/api/cashflow/runway"),
+    staleTime: 30_000,
+  })
+}
+
+export function useCashflowRunwayScenarios() {
+  return useQuery({
+    queryKey: ["cashflow", "runway-scenarios"],
+    queryFn: () => api.get<CashflowRunwayScenariosResponse>("/api/cashflow/runway/scenarios"),
+    staleTime: 30_000,
+  })
+}
+
+export function useCashflowForecast(months = 6) {
+  return useQuery({
+    queryKey: ["cashflow", "forecast", months],
+    queryFn: () => api.get<CashflowForecastResponse>(`/api/cashflow/forecast?months=${months}`),
+    staleTime: 30_000,
+  })
+}
+
+export function useCashflowTrends(months = 12) {
+  return useQuery({
+    queryKey: ["cashflow", "trends", months],
+    queryFn: () => api.get<{ months: number; trends: CashflowTrendsPoint[] }>(`/api/cashflow/trends?months=${months}`),
+    staleTime: 30_000,
+  })
+}
+
+export function useCashflowExpectedIncome() {
+  return useQuery({
+    queryKey: ["cashflow", "expected-income"],
+    queryFn: () => api.get<{ monthly_amount: number | null }>("/api/cashflow/config/expected-income"),
+    staleTime: 30_000,
+  })
+}
+
+export function useCashflowAlerts(month: string | null) {
+  return useQuery({
+    queryKey: ["cashflow", "alerts", month],
+    queryFn: () => api.get<CashflowAlertsResponse>(`/api/cashflow/alerts/${month}`),
+    enabled: !!month,
+    staleTime: 30_000,
   })
 }
 
@@ -208,6 +441,30 @@ export function useSetReserveBalance() {
   })
 }
 
+export function useSetCashflowReserveTarget() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (value: number) =>
+      api.post<{ ok: boolean; target: number }>("/api/cashflow/config/reserve-target", { value }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cashflow", "overview"] })
+      qc.invalidateQueries({ queryKey: ["cashflow", "reserve"] })
+    },
+  })
+}
+
+export function useSetCashflowExpectedIncome() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (value: number | null) =>
+      api.post<{ ok: boolean; monthly_amount: number | null }>("/api/cashflow/config/expected-income", { value }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cashflow", "expected-income"] })
+      qc.invalidateQueries({ queryKey: ["cashflow", "forecast"] })
+    },
+  })
+}
+
 export function useSetCashflowGoal() {
   const qc = useQueryClient()
   return useMutation({
@@ -227,6 +484,38 @@ export function useSetCashflowBudget() {
       api.post<{ ok: boolean; budget: Record<string, number> }>("/api/cashflow/budget", { category, value }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cashflow", "budget"] })
+    },
+  })
+}
+
+// Account balances feed runway (total cash + reserve balance) and the
+// low-runway/reserve-milestone alerts on the backend, so both must be
+// invalidated alongside "accounts" or the Runway panel and alerts strip
+// keep showing pre-edit figures until an unrelated refetch happens.
+export function useSetCashflowAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (account: CashflowAccount) =>
+      api.post<{ ok: boolean; accounts: CashflowAccount[] }>("/api/cashflow/accounts", account),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cashflow", "accounts"] })
+      qc.invalidateQueries({ queryKey: ["cashflow", "runway"] })
+      qc.invalidateQueries({ queryKey: ["cashflow", "runway-scenarios"] })
+      qc.invalidateQueries({ queryKey: ["cashflow", "alerts"] })
+    },
+  })
+}
+
+export function useDeleteCashflowAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) =>
+      api.delete<{ ok: boolean; accounts: CashflowAccount[] }>(`/api/cashflow/accounts/${encodeURIComponent(name)}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cashflow", "accounts"] })
+      qc.invalidateQueries({ queryKey: ["cashflow", "runway"] })
+      qc.invalidateQueries({ queryKey: ["cashflow", "runway-scenarios"] })
+      qc.invalidateQueries({ queryKey: ["cashflow", "alerts"] })
     },
   })
 }

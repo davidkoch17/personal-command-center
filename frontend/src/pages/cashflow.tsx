@@ -2,13 +2,14 @@ import { useSearchParams } from "react-router-dom"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tag } from "@/components/ui/tag"
 import { OverviewTab } from "@/components/cashflow/overview-tab"
-import { CategoriesTab } from "@/components/cashflow/categories-tab"
+import { SpendingTab } from "@/components/cashflow/spending-tab"
 import { TransactionsTab } from "@/components/cashflow/transactions-tab"
 import { ReserveTab } from "@/components/cashflow/reserve-tab"
 import { BudgetTab } from "@/components/cashflow/budget-tab"
+import { ForecastTab } from "@/components/cashflow/forecast-tab"
 import { useCashflowNeedsReview } from "@/hooks/useCashflow"
 
-const TABS = ["overview", "categories", "transactions", "reserve", "budget"] as const
+const TABS = ["overview", "spending", "transactions", "reserve", "budget", "forecast"] as const
 type Tab = (typeof TABS)[number]
 
 /**
@@ -46,17 +47,19 @@ export function CashFlow() {
               )}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="categories">categories</TabsTrigger>
+          <TabsTrigger value="spending">spending</TabsTrigger>
           <TabsTrigger value="transactions">transactions</TabsTrigger>
           <TabsTrigger value="reserve">reserve & allocation</TabsTrigger>
           <TabsTrigger value="budget">budget</TabsTrigger>
+          <TabsTrigger value="forecast">forecast</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">{tab === "overview" && <OverviewTab />}</TabsContent>
-        <TabsContent value="categories">{tab === "categories" && <CategoriesTab />}</TabsContent>
+        <TabsContent value="spending">{tab === "spending" && <SpendingTab />}</TabsContent>
         <TabsContent value="transactions">{tab === "transactions" && <TransactionsTab />}</TabsContent>
         <TabsContent value="reserve">{tab === "reserve" && <ReserveTab />}</TabsContent>
         <TabsContent value="budget">{tab === "budget" && <BudgetTab />}</TabsContent>
+        <TabsContent value="forecast">{tab === "forecast" && <ForecastTab />}</TabsContent>
       </Tabs>
     </div>
   )
