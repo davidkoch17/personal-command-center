@@ -96,6 +96,20 @@ def assemble_briefing_context() -> str:
     except Exception:  # noqa: BLE001
         logger.debug("briefing: decision alerts unavailable", exc_info=True)
 
+    # Cash Flow alerts (Phase 10) — category spikes, new/rising recurring
+    # charges, low runway, reserve milestones for the latest ledger month.
+    try:
+        from modules.finance import cashflow as cf
+
+        months = cf.available_months()
+        if months:
+            cf_alerts = cf.alerts(months[-1])
+            if cf_alerts:
+                named = "; ".join(f"[{a['severity']}] {a['message']}" for a in cf_alerts[:5])
+                parts.append(f"Cash Flow alerts ({len(cf_alerts)} active — mention top ones): {named}")
+    except Exception:  # noqa: BLE001
+        logger.debug("briefing: cashflow alerts unavailable", exc_info=True)
+
     # Active project statuses + next steps — include the literal folder names so
     # the briefing can say "Ulli (03_Project_Ulli_Acebuche)" not "your project".
     try:
