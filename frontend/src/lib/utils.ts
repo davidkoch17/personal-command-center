@@ -6,26 +6,33 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
 }
 
+/** Locale for all money/number display — German grouping (thousands dot,
+ *  decimal comma), per the Cash Flow number-format convention. */
+const NUMBER_LOCALE = "de-DE"
+
 /**
- * Format a number as currency in the Cockpit style: `€ 4,807.30`
- * (symbol, space, grouped thousands, two decimals).
+ * Format a number as currency, German-locale Cockpit style: `€1.838,09`
+ * (symbol directly against the number, dot-grouped thousands, comma decimal,
+ * real minus sign before the symbol for negatives — `−€1.498,00`).
  */
 export function formatCurrency(
   value: number | null | undefined,
   currency: string = "EUR",
+  decimals: number = 2,
 ): string {
   if (value == null || Number.isNaN(value)) return "—"
   const symbols: Record<string, string> = { EUR: "€", USD: "$", GBP: "£" }
   const symbol = symbols[currency] ?? currency
-  const formatted = value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  const sign = value < 0 ? "−" : ""
+  const formatted = Math.abs(value).toLocaleString(NUMBER_LOCALE, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   })
-  return `${symbol} ${formatted}`
+  return `${sign}${symbol}${formatted}`
 }
 
 /**
- * Format a signed percentage in the Cockpit style: `+2.4 %` / `-1.1 %`.
+ * Format a signed percentage in the Cockpit style: `+2,4 %` / `−1,1 %`.
  * Returns an em-dash for missing values.
  */
 export function formatPercent(
@@ -33,17 +40,21 @@ export function formatPercent(
   decimals: number = 1,
 ): string {
   if (value == null || Number.isNaN(value)) return "—"
-  const sign = value > 0 ? "+" : ""
-  return `${sign}${value.toFixed(decimals)} %`
+  const sign = value > 0 ? "+" : value < 0 ? "−" : ""
+  const formatted = Math.abs(value).toLocaleString(NUMBER_LOCALE, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+  return `${sign}${formatted} %`
 }
 
-/** Format a plain number with grouped thousands. */
+/** Format a plain number with grouped thousands, German locale. */
 export function formatNumber(
   value: number | null | undefined,
   decimals: number = 0,
 ): string {
   if (value == null || Number.isNaN(value)) return "—"
-  return value.toLocaleString("en-US", {
+  return value.toLocaleString(NUMBER_LOCALE, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })

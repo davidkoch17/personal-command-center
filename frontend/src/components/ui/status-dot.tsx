@@ -5,6 +5,7 @@ export type StatusColor =
   | "success"
   | "warning"
   | "danger"
+  | "invest"
   | "muted"
 
 const COLOR_MAP: Record<StatusColor, string> = {
@@ -12,6 +13,7 @@ const COLOR_MAP: Record<StatusColor, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  invest: "bg-invest",
   muted: "bg-text-label",
 }
 
@@ -40,6 +42,7 @@ export function StatusDot({
       success: "border-success",
       warning: "border-warning",
       danger: "border-danger",
+      invest: "border-invest",
       muted: "border-text-label",
     }
     return (

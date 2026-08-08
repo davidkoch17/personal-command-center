@@ -21,6 +21,7 @@ export default {
         success: "rgb(var(--color-success) / <alpha-value>)",
         danger: "rgb(var(--color-danger) / <alpha-value>)",
         warning: "rgb(var(--color-warning) / <alpha-value>)",
+        invest: "rgb(var(--color-invest) / <alpha-value>)",
         text: "rgb(var(--color-text) / <alpha-value>)",
         "text-secondary": "rgb(var(--color-text-secondary) / <alpha-value>)",
         "text-label": "rgb(var(--color-text-label) / <alpha-value>)",
