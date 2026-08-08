@@ -150,6 +150,27 @@ STEUERN_SCENARIOS_PATH = VAULT_PATH / "2_Personal" / "03_Steuern" / "Scenarios"
 NOTGROSCHEN_TARGET = 4000            # emergency-buffer (Tagesgeld) target, €
 SPLIT_RATIO_TO_RESERVE = 0.70        # share of surplus routed to the reserve; remainder -> investments
 INVESTABLE_INCOME_TYPES = ["salary", "freelance"]   # Income sheet Types that count as surplus
+SAVINGS_RATE_MIN_INCOME = 200        # below this monthly investable income (€), savings rate is "n/a" not a misleading %
+
+# Fixed vs. variable classification of Excel Transactions-sheet categories (see
+# the Categories sheet). Fixed = committed monthly costs; variable = discretionary.
+# Categories not listed here default to "variable".
+EXPENSE_CATEGORY_TYPE: dict[str, str] = {
+    "Rent": "fixed",
+    "Insurance": "fixed",
+    "Subscriptions": "fixed",
+    "Utilities": "fixed",
+    "Groceries": "variable",
+    "Restaurants": "variable",
+    "Dining": "variable",
+    "Shopping": "variable",
+    "Transport": "variable",
+    "Travel": "variable",
+    "Health": "variable",
+    "Entertainment": "variable",
+    "Taxes & Fees": "variable",
+    "Other": "variable",
+}
 
 # --- Cash Flow pillar (modules/finance/cashflow.py) --------------------------
 # Ledger-backed income/expense tracker, fed by David handing Claude raw bank/
@@ -164,6 +185,28 @@ CASHFLOW_TRANSACTIONS_FILE = DATA_DIR / "cashflow_transactions.jsonl"
 CASHFLOW_RESERVE_BALANCE_FILE = DATA_DIR / "cashflow_reserve_balance.json"
 CASHFLOW_GOAL_FILE = DATA_DIR / "cashflow_goal.json"          # {"monthly_savings_goal": float}
 CASHFLOW_BUDGET_FILE = DATA_DIR / "cashflow_budget.json"      # {category: target_amount}
+# Persisted override for the Notgroschen reserve target (default NOTGROSCHEN_TARGET
+# above), settable from the Cash Flow Overview tab's "Set target" editor.
+CASHFLOW_RESERVE_TARGET_FILE = DATA_DIR / "cashflow_reserve_target.json"  # {"target": float}
+# Hand-maintained snapshot of current cash-account balances (Overview accounts
+# strip) — {"accounts": [{"name", "balance", "is_reserve"}]}. Separate from
+# CASHFLOW_RESERVE_BALANCE_FILE above, which is a per-month history feeding the
+# reserve/invest split; this is "where cash sits right now".
+CASHFLOW_ACCOUNTS_FILE = DATA_DIR / "cashflow_accounts.json"
+# Manual override for forward_forecast()'s recurring-income assumption — e.g.
+# David's known upcoming salary before any "Salary" category rows exist in
+# the ledger yet. {"monthly_amount": float}
+CASHFLOW_EXPECTED_INCOME_FILE = DATA_DIR / "cashflow_expected_income.json"
+
+# --- Cash Flow alerts engine (Phase 10) --------------------------------------
+# A category counts as "spiking" once it exceeds this multiple of its trailing
+# 3-month average (2x -> a 100 percentage-point delta).
+CASHFLOW_ALERT_CATEGORY_SPIKE_MULTIPLIER = 2.0
+# Runway alert fires once total-cash runway drops below this many months.
+CASHFLOW_ALERT_RUNWAY_MONTHS = 2.0
+# "reserve nearly full" fires once the remaining gap to target drops to/below
+# this many euros — close enough to be worth flagging, not just noise.
+CASHFLOW_ALERT_RESERVE_NEAR_FULL = 500
 
 CASHFLOW_EXPENSE_CATEGORIES = [
     "Rent", "Groceries", "Dining", "Transport", "Travel", "Subscriptions",

@@ -171,6 +171,10 @@ class ReserveBalanceRequest(BaseModel):
     value: float
 
 
+class ReserveTargetRequest(BaseModel):
+    value: float
+
+
 class CashflowGoalRequest(BaseModel):
     # None clears the goal.
     value: Optional[float] = None
@@ -179,6 +183,17 @@ class CashflowGoalRequest(BaseModel):
 class CashflowBudgetRequest(BaseModel):
     category: str
     # None clears that category's target.
+    value: Optional[float] = None
+
+
+class CashflowAccountRequest(BaseModel):
+    name: str
+    balance: float
+    is_reserve: bool = False
+
+
+class CashflowExpectedIncomeRequest(BaseModel):
+    # None clears the override, falling back to the trailing Salary-category average.
     value: Optional[float] = None
 
 

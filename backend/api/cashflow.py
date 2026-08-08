@@ -6,10 +6,13 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.models.schemas import (
+    CashflowAccountRequest,
     CashflowBudgetRequest,
+    CashflowExpectedIncomeRequest,
     CashflowGoalRequest,
     CashflowResolveRequest,
     ReserveBalanceRequest,
+    ReserveTargetRequest,
 )
 from core.config import CASHFLOW_EXPENSE_CATEGORIES, CASHFLOW_INCOME_CATEGORIES, get_logger
 from modules.finance import cashflow, tr_contributions
@@ -37,6 +40,14 @@ def summary(month: str) -> dict:
     s = cashflow.monthly_summary(month)
     s["goal"] = cashflow.goal_progress(month)
     return s
+
+
+@router.get("/overview/{month}")
+def overview(month: str) -> dict:
+    """Everything the Overview tab needs for one month in a single round trip:
+    KPI totals + trailing 3-month deltas, guarded savings rate, reserve status
+    + recommended split, top spending categories, and the biggest mover."""
+    return cashflow.overview(month)
 
 
 @router.get("/trend")
@@ -79,12 +90,48 @@ def reserve(month: str) -> dict:
     }
 
 
+@router.get("/spending/{month}")
+def spending(month: str) -> dict:
+    """Spending tab data for one month: fixed-vs-variable split, recurring/
+    subscription detection (+ committed monthly total), per-category totals
+    with merchant drill-down, and the full biggest-movers list."""
+    return cashflow.spending(month)
+
+
+@router.get("/accounts")
+def get_accounts() -> dict:
+    """Hand-maintained cash accounts (name, balance, reserve flag) plus total
+    cash — the Overview tab's accounts strip."""
+    return cashflow.accounts_summary()
+
+
+@router.post("/accounts")
+def set_account(req: CashflowAccountRequest) -> dict:
+    """Add or update one account by name."""
+    accounts = cashflow.set_account(req.name, req.balance, req.is_reserve)
+    return {"ok": True, "accounts": accounts}
+
+
+@router.delete("/accounts/{name}")
+def delete_account(name: str) -> dict:
+    accounts = cashflow.delete_account(name)
+    return {"ok": True, "accounts": accounts}
+
+
 @router.post("/reserve/{month}/balance")
 def set_reserve_balance(month: str, req: ReserveBalanceRequest) -> dict:
     """Manually record the Notgroschen reserve account balance for ``month``
     (no automated bank feed yet — David reports the figure by hand)."""
     cashflow.set_reserve_balance(month, req.value)
     return {"ok": True, "month": month, "value": req.value}
+
+
+@router.post("/config/reserve-target")
+def set_reserve_target(req: ReserveTargetRequest) -> dict:
+    """Update the Notgroschen reserve target (persisted override of the
+    NOTGROSCHEN_TARGET default in core/config.py)."""
+    cashflow.set_reserve_target(req.value)
+    return {"ok": True, "target": req.value}
 
 
 @router.get("/goal")
@@ -130,3 +177,55 @@ def set_budget(req: CashflowBudgetRequest) -> dict:
     """Set (or, with ``value: null``, clear) one category's budget target."""
     cashflow.set_budget_target(req.category, req.value)
     return {"ok": True, "budget": cashflow.get_budget()}
+
+
+@router.get("/runway")
+def runway() -> dict:
+    """Total-cash runway (months + approximate "cash lasts until" date) and
+    the point spending would start drawing down the €4.000 reserve."""
+    return cashflow.runway()
+
+
+@router.get("/runway/scenarios")
+def runway_scenarios() -> dict:
+    """Runway recomputed under two simple levers: cut trailing variable
+    spend 25% / 50%."""
+    return cashflow.runway_scenarios()
+
+
+@router.get("/forecast")
+def forecast(months: int = Query(6, ge=1, le=24)) -> dict:
+    """Forward cashflow projection: recurring income minus committed bills,
+    the 70/30 reserve waterfall carried forward, the reserve-fill date, and
+    the month investing begins — the Forecast tab's data source."""
+    return cashflow.forward_forecast(months)
+
+
+@router.get("/trends")
+def trends(months: int = Query(12, ge=1)) -> dict:
+    """Savings-rate and income-stability (Salary share of income) monthly
+    series, for the Forecast tab's trend charts."""
+    return {"months": months, "trends": cashflow.trends(months)}
+
+
+@router.get("/alerts/{month}")
+def alerts(month: str) -> dict:
+    """Active personal-finance alerts for one month: category spikes, new/
+    rising recurring charges, and (for the latest month only) low runway and
+    reserve milestones. Sorted by severity — the Overview alerts strip and
+    the weekly briefing's finance section both read this."""
+    return {"month": month, "alerts": cashflow.alerts(month)}
+
+
+@router.get("/config/expected-income")
+def get_expected_income() -> dict:
+    return {"monthly_amount": cashflow.get_expected_monthly_income()}
+
+
+@router.post("/config/expected-income")
+def set_expected_income(req: CashflowExpectedIncomeRequest) -> dict:
+    """Set (or, with ``value: null``, clear) forward_forecast()'s manual
+    recurring-income override — e.g. David's known upcoming salary before any
+    "Salary" ledger rows exist yet."""
+    cashflow.set_expected_monthly_income(req.value)
+    return {"ok": True, "monthly_amount": req.value}
