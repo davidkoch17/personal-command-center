@@ -117,6 +117,16 @@ BUCKET_LABELS: dict[str, str] = {
 # Manual per-position overrides live in data/positions.json instead (Position
 # .bucket), never here — see buckets.py's resolve_bucket for the precedence.
 TICKER_BUCKETS_FILE = REPO_ROOT / "config" / "ticker_buckets.yaml"
+
+# Chunk 4 — Single Stock tab. Manual peer lists live in a small YAML the
+# PATCH /peers/{ticker} endpoint writes (empty = every ticker auto-derives);
+# yfinance ``.info`` snapshots are cached as parquet so fundamentals (which move
+# slowly) don't hammer yfinance on every page load.
+PEER_OVERRIDES_FILE = REPO_ROOT / "config" / "peer_overrides.yaml"
+FUNDAMENTALS_CACHE_DIR = DATA_DIR / "fundamentals_cache"
+FUNDAMENTALS_TTL_SECONDS = 24 * 3600
+PEER_MARKET_CAP_BAND = 0.5   # peers must sit within ±50% of the subject's market cap
+DEFAULT_PEER_COUNT = 4
 # Drift bands (absolute percentage-point deviation from target): within ``ok`` is
 # green, within ``warn`` is amber, beyond is red.
 BUCKET_DRIFT_OK = 0.02   # ±2 pp

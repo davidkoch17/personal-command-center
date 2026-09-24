@@ -1,0 +1,4 @@
+# Manual peer lists for the Single Stock tab: TICKER: [peer, peer, ...]
+# Written by PATCH /api/finance/peers/{ticker}. A ticker with no entry
+# auto-derives its peers (modules/finance/peers.py). Safe to edit by hand.
+{}

@@ -4,7 +4,7 @@ import { StatusDot, type StatusColor } from "./status-dot"
 
 interface PanelProps {
   title?: string
-  meta?: string // top-right metadata
+  meta?: ReactNode // top-right metadata (text, or a small node like a badge + button)
   statusDotColor?: StatusColor
   titleSuffix?: ReactNode // small node rendered right after the title (e.g. an info tooltip)
   children: ReactNode

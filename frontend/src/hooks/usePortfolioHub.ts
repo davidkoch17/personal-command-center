@@ -8,12 +8,13 @@
  * - Captures   : captures list / detail / routing
  * - Research   : reports library + run launcher + hypotheses
  * - Portfolio  : KPI-band summary + indexed performance chart (Chunk 2)
+ * - Stock      : Single Stock tab — universe / detail / peers (Chunk 4)
  *
  * Decision-alerts (Overview + Portfolio strips) reuse `useDecisionSummary`
  * from useFinance; the Decision Log (Research tab) reuses `useDecisions` /
  * `useLogDecision`.
  */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 
 // --- Overview ---------------------------------------------------------------
@@ -442,5 +443,181 @@ export function useDashboardPerformance(period: string, benchmark: string) {
         `/api/finance/dashboard/performance-indexed?period=${period}&benchmark=${benchmark}`,
       ),
     staleTime: 60_000,
+  })
+}
+
+// --- Single Stock tab (Chunk 4) -----------------------------------------------
+
+export interface StockUniverseEntry {
+  ticker: string
+  name: string
+}
+
+export interface StockUniverseResponse {
+  held: StockUniverseEntry[]
+  watchlist: StockUniverseEntry[]
+}
+
+/** Selector source: held tickers first, then watchlist tickers not held. */
+export function useStockUniverse() {
+  return useQuery({
+    queryKey: ["hub", "stock-universe"],
+    queryFn: () => api.get<StockUniverseResponse>("/api/finance/stock-universe"),
+    staleTime: 60_000,
+  })
+}
+
+/** Every field is null when yfinance has nothing for it — render "—". */
+export interface StockFundamentals {
+  ticker: string
+  name: string | null
+  sector: string | null
+  industry: string | null
+  exchange: string | null
+  currency: string | null
+  quote_type: string | null
+  price: number | null
+  day_change_pct: number | null
+  as_of: string | null
+  market_cap: number | null
+  pe_forward: number | null
+  pe_trailing: number | null
+  revenue_growth: number | null
+  ebit_margin: number | null
+  dividend_yield: number | null
+  week52_low: number | null
+  week52_high: number | null
+  week52_position: number | null
+  beta: number | null
+  beta_benchmark: string
+  fcf_yield: number | null
+}
+
+export interface StockPosition {
+  ticker: string
+  name: string
+  quantity: number
+  avg_cost: number
+  cost_basis: number
+  current_value: number | null
+  pnl: number | null
+  pnl_pct: number | null
+  weight: number | null
+  days_held: number | null
+  first_bought: string | null
+  fx_stale: boolean | null
+}
+
+export interface StockSeries {
+  period: string
+  points: { date: string; close: number }[]
+  change_pct: number | null
+}
+
+export interface StockDetailResponse {
+  ticker: string
+  fundamentals: StockFundamentals
+  /** null when the ticker isn't currently held. */
+  position: StockPosition | null
+  series: StockSeries
+}
+
+/** Fundamentals + position + price series for one ticker. The previous result is
+ *  kept on screen while a new period/benchmark loads, so the pills don't blank the page. */
+export function useStockDetail(ticker: string | null, period: string, benchmark: string) {
+  return useQuery({
+    queryKey: ["hub", "stock-detail", ticker, period, benchmark],
+    queryFn: () =>
+      api.get<StockDetailResponse>(
+        `/api/finance/stock-detail/${encodeURIComponent(ticker!)}?period=${period}&benchmark=${benchmark}`,
+      ),
+    enabled: !!ticker,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  })
+}
+
+export interface PeerRow {
+  ticker: string
+  name: string | null
+  sector: string | null
+  market_cap: number | null
+  pe_forward: number | null
+  ytd_return: number | null
+  return_1y: number | null
+  is_subject: boolean
+  /** false = nearest same-sector name outside the +/-50% market-cap band; null for custom peers. */
+  in_band: boolean | null
+}
+
+export interface PeersResponse {
+  ticker: string
+  /** "auto" = derived (same sector, market cap +/-50%); "override" = a saved custom list. */
+  source: "auto" | "override"
+  peers: PeerRow[]
+}
+
+export function usePeers(ticker: string | null) {
+  return useQuery({
+    queryKey: ["hub", "peers", ticker],
+    queryFn: () => api.get<PeersResponse>(`/api/finance/peers/${encodeURIComponent(ticker!)}`),
+    enabled: !!ticker,
+    staleTime: 60_000,
+  })
+}
+
+/** Save a custom peer list for ``ticker`` (an empty list clears it -> back to auto).
+ *  Mirrors usePatchPositionBucket: one PATCH, and the response is the fresh table. */
+export function usePatchPeers(ticker: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (peers: string[]) =>
+      api.patch<PeersResponse>(`/api/finance/peers/${encodeURIComponent(ticker!)}`, { peers }),
+    onSuccess: (data) => {
+      qc.setQueryData(["hub", "peers", ticker], data)
+    },
+  })
+}
+
+// --- Benchmarks tab (Chunk 5) -------------------------------------------------
+
+export type BenchmarkKey4 = "MSCI_WORLD" | "SPY" | "DAX" | "STOXX_600"
+
+export interface BenchmarkMeta {
+  key: BenchmarkKey4
+  name: string
+  ticker: string
+  /** false = no cached prices; the row renders "—" and the series is skipped. */
+  available: boolean
+}
+
+export interface BenchmarkMetrics {
+  return: number | null
+  vol: number | null
+  sharpe: number | null
+  /** 1.0 for MSCI World itself (shown as "—"). */
+  correlation_to_msci: number | null
+}
+
+export interface BenchmarkComparisonResponse {
+  period: string
+  start: string | null
+  end: string | null
+  risk_free_rate: number
+  benchmarks: BenchmarkMeta[]
+  metrics: Record<BenchmarkKey4, BenchmarkMetrics>
+  correlation: { keys: BenchmarkKey4[]; labels: string[]; matrix: (number | null)[][] }
+  /** One row per date: {date, MSCI_WORLD: 100, SPY: ..., ...}; unavailable benchmarks omitted. */
+  series: ({ date: string } & Partial<Record<BenchmarkKey4, number>>)[]
+}
+
+/** Metrics + correlation matrix + indexed series for all four benchmarks, one call.
+ *  The previous period stays on screen while the next one loads (no blank flash). */
+export function useBenchmarkComparison(period: string) {
+  return useQuery({
+    queryKey: ["hub", "benchmarks", period],
+    queryFn: () => api.get<BenchmarkComparisonResponse>(`/api/finance/benchmarks/compare?period=${period}`),
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60_000,
   })
 }

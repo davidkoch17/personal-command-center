@@ -85,6 +85,85 @@ export function IndexedPerformanceChart({
   )
 }
 
+// --- Single-stock price line (Single Stock tab, Chunk 4) --------------------
+// Same conventions as IndexedPerformanceChart (invest violet, no dots, shared
+// grid/axis/tooltip styling) for one series in the instrument's native currency.
+export function PriceSparkline({
+  data,
+  currency,
+}: {
+  data: { date: string; close: number }[]
+  currency?: string | null
+}) {
+  const fmt = (v: number) => `${currency ? `${currency} ` : ""}${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+  // Long ranges: one tick per month ("25-10"), thinned to <= 8; a single month
+  // label repeated every few days (the default) reads as noise. Short ranges: MM-DD.
+  const long = data.length > 130
+  let ticks: string[] | undefined
+  if (long) {
+    const firsts = data.filter((p, i) => i === 0 || p.date.slice(0, 7) !== data[i - 1].date.slice(0, 7)).map((p) => p.date)
+    const step = Math.ceil(firsts.length / 8)
+    ticks = firsts.filter((_, i) => i % step === 0)
+  }
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+        <CartesianGrid {...GRID_PROPS} />
+        <XAxis dataKey="date" {...AXIS_PROPS} ticks={ticks} tickFormatter={(d: string) => (long ? d.slice(2, 7) : d.slice(5))} minTickGap={40} />
+        <YAxis {...AXIS_PROPS} width={52} domain={["auto", "auto"]} tickFormatter={(v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 0 })} />
+        <Tooltip
+          contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+          formatter={(v: number) => fmt(v)}
+          labelStyle={{ color: CHART_COLORS.axis }}
+        />
+        <Line type="monotone" dataKey="close" name="close" stroke={CHART_COLORS.invest} strokeWidth={2} dot={false} isAnimationActive={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+// --- N benchmarks indexed to 100 (Benchmarks tab, Chunk 5) ------------------
+// A sibling of IndexedPerformanceChart rather than an extension of it: that one is
+// hard-wired to "portfolio vs one benchmark" (fixed keys, dashed overlay), and
+// generalizing it would risk the Portfolio tab it already serves. Same axis / grid /
+// tooltip conventions; the first series is drawn heavier as the primary reference.
+export function BenchmarkComparisonChart({
+  data,
+  series,
+}: {
+  data: Record<string, string | number>[]
+  series: { key: string; name: string; color: string }[]
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={320}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+        <CartesianGrid {...GRID_PROPS} />
+        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={shortDate} minTickGap={48} />
+        <YAxis {...AXIS_PROPS} width={44} domain={["auto", "auto"]} />
+        <Tooltip
+          contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+          formatter={(v: number) => v.toFixed(2)}
+          labelStyle={{ color: CHART_COLORS.axis }}
+        />
+        <Legend verticalAlign="top" align="left" wrapperStyle={{ ...LEGEND_STYLE, paddingBottom: 8 }} />
+        <ReferenceLine y={100} stroke={CHART_COLORS.axis} strokeDasharray="2 2" />
+        {series.map((s, i) => (
+          <Line
+            key={s.key}
+            type="monotone"
+            dataKey={s.key}
+            name={s.name}
+            stroke={s.color}
+            strokeWidth={i === 0 ? 2.5 : 1.5}
+            dot={false}
+            isAnimationActive={false}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
 // --- Rolling Sharpe ---------------------------------------------------------
 export function RollingSharpeChart({
   data,
@@ -314,13 +393,30 @@ function corrColor(v: number): string {
   return `rgb(${Math.round(37 - t * 17)}, ${Math.round(99 + t * 85)}, ${Math.round(235 - t * 65)})`
 }
 
+/** Neutral slate → invest violet as correlation rises 0 → 1 (negatives clamp to
+ *  neutral). No green/red — used by the Benchmarks tab (Chunk 5). */
+function investCorrColor(v: number): string {
+  const t = Math.max(0, Math.min(1, v))
+  const from = [71, 85, 105]
+  const to = [139, 92, 246]
+  return `rgb(${from.map((f, i) => Math.round(f + t * (to[i] - f))).join(", ")})`
+}
+
 export function CorrelationHeatmap({
   tickers,
   matrix,
+  scale = "diverging",
+  size = "sm",
 }: {
   tickers: string[]
   matrix: Record<string, string | number>[]
+  /** "diverging" (default, Risk tab): blue ↔ red. "invest": neutral → violet. */
+  scale?: "diverging" | "invest"
+  /** "lg" = roomy cells for small (e.g. 4×4) matrices. */
+  size?: "sm" | "lg"
 }) {
+  const color = scale === "invest" ? investCorrColor : corrColor
+  const large = size === "lg"
   if (tickers.length === 0) return <p className="text-sm text-text-label">no correlation data</p>
   const byTicker = new Map(matrix.map((r) => [String(r.ticker), r]))
   return (
@@ -328,9 +424,9 @@ export function CorrelationHeatmap({
       <table className="border-separate border-spacing-0.5">
         <thead>
           <tr>
-            <th className="w-14" />
+            <th className={large ? "w-28" : "w-14"} />
             {tickers.map((t) => (
-              <th key={t} className="px-1.5 py-1 font-mono text-[10px] text-text-secondary">
+              <th key={t} className={large ? "px-2 py-1.5 font-mono text-xs text-text-secondary" : "px-1.5 py-1 font-mono text-[10px] text-text-secondary"}>
                 {t}
               </th>
             ))}
@@ -339,14 +435,14 @@ export function CorrelationHeatmap({
         <tbody>
           {tickers.map((row) => (
             <tr key={row}>
-              <td className="pr-2 text-right font-mono text-[10px] text-text-secondary">{row}</td>
+              <td className={large ? "pr-3 text-right font-mono text-xs text-text-secondary" : "pr-2 text-right font-mono text-[10px] text-text-secondary"}>{row}</td>
               {tickers.map((col) => {
                 const v = Number(byTicker.get(row)?.[col] ?? 0)
                 return (
                   <td
                     key={col}
-                    className="h-9 w-12 text-center font-mono text-[10px] text-white/90"
-                    style={{ backgroundColor: corrColor(v) }}
+                    className={large ? "h-14 w-28 text-center font-mono text-sm text-white/95" : "h-9 w-12 text-center font-mono text-[10px] text-white/90"}
+                    style={{ backgroundColor: color(v) }}
                     title={`${row} · ${col}: ${v.toFixed(2)}`}
                   >
                     {v.toFixed(2)}

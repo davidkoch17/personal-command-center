@@ -67,6 +67,14 @@ Phase 15e (polish — currency + S-priority items + performance + diagnostics):
 Chunk 2 (Portfolio-tab dashboard):
 - ``/api/finance/dashboard/summary``             (GET)
 - ``/api/finance/dashboard/performance-indexed`` (GET)
+
+Chunk 4 (Single Stock tab):
+- ``/api/finance/stock-universe``                (GET)
+- ``/api/finance/stock-detail/{ticker}``         (GET)
+- ``/api/finance/peers/{ticker}``                (GET, PATCH)
+
+Chunk 5 (Benchmarks tab):
+- ``/api/finance/benchmarks/compare``            (GET)
 """
 from __future__ import annotations
 
@@ -75,6 +83,7 @@ from fastapi import APIRouter
 from backend.api.finance import (
     attribution,
     backtest,
+    benchmarks,
     buckets,
     capital_allocation,
     currency,
@@ -89,6 +98,7 @@ from backend.api.finance import (
     prices,
     risk,
     snapshot,
+    stock_detail,
     stress_tests,
     tax,
     watchlist_analytics,
@@ -116,3 +126,7 @@ router.include_router(snapshot.router)
 router.include_router(diagnostics.router)
 # Chunk 2 — Portfolio-tab dashboard summary + indexed performance chart.
 router.include_router(dashboard.router)
+# Chunk 4 — Single Stock tab: fundamentals / position / price series / peers.
+router.include_router(stock_detail.router)
+# Chunk 5 — Benchmarks tab: metrics + correlation + indexed series in one call.
+router.include_router(benchmarks.router)

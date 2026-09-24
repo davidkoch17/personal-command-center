@@ -8,12 +8,16 @@ import { HoldingsTab } from "@/components/portfolio/holdings-tab"
 import { WatchlistTab } from "@/components/portfolio/watchlist-tab"
 import { CapturesTab } from "@/components/portfolio/captures-tab"
 import { ResearchTab } from "@/components/portfolio/research-tab"
+import { SingleStockTab } from "@/components/portfolio/single-stock-tab"
+import { BenchmarksTab } from "@/components/portfolio/benchmarks-tab"
 
 // "portfolio" (Chunk 2) is first — David's main portfolio dashboard — the
 // other five are untouched and keep their existing order. Default tab stays
 // "overview" (see the fallback below) so this doesn't change what anyone sees
 // on a bare /portfolio load; it only adds a new leftmost entry to the nav.
-const TABS = ["portfolio", "overview", "holdings", "watchlist", "captures", "research"] as const
+// "stock" (Chunk 4, Single Stock) is appended last — slug follows the existing
+// one-word convention; the selected ticker rides along as ?ticker=.
+const TABS = ["portfolio", "overview", "holdings", "watchlist", "captures", "research", "stock", "benchmarks"] as const
 type Tab = (typeof TABS)[number]
 
 /**
@@ -54,6 +58,8 @@ export function Portfolio() {
           <TabsTrigger value="watchlist">watchlist</TabsTrigger>
           <TabsTrigger value="captures">captures</TabsTrigger>
           <TabsTrigger value="research">research</TabsTrigger>
+          <TabsTrigger value="stock">single stock</TabsTrigger>
+          <TabsTrigger value="benchmarks">benchmarks</TabsTrigger>
         </TabsList>
 
         <TabsContent value="portfolio">{tab === "portfolio" && <PortfolioTab />}</TabsContent>
@@ -62,6 +68,8 @@ export function Portfolio() {
         <TabsContent value="watchlist">{tab === "watchlist" && <WatchlistTab />}</TabsContent>
         <TabsContent value="captures">{tab === "captures" && <CapturesTab />}</TabsContent>
         <TabsContent value="research">{tab === "research" && <ResearchTab />}</TabsContent>
+        <TabsContent value="stock">{tab === "stock" && <SingleStockTab />}</TabsContent>
+        <TabsContent value="benchmarks">{tab === "benchmarks" && <BenchmarksTab />}</TabsContent>
       </Tabs>
     </div>
   )

@@ -19,6 +19,18 @@ export const CHART_COLORS = {
 } as const
 
 /**
+ * Benchmark comparison series (Chunk 5). MSCI World is the primary reference and
+ * takes the portfolio-tracking violet; the rest are distinct, deliberately
+ * unsaturated hues that avoid the success/danger green/red pair.
+ */
+export const BENCHMARK_COLORS: Record<string, string> = {
+  MSCI_WORLD: CHART_COLORS.invest,
+  SPY: "#3B82F6",
+  DAX: "#F59E0B",
+  STOXX_600: "#14B8A6",
+}
+
+/**
  * Fixed color meanings — reuse everywhere, never repurpose for anything else:
  * income = success (green), expenses = danger (red), net = accent (blue),
  * reserve = success (green), investments = invest (violet, its own accent

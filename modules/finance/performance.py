@@ -28,8 +28,9 @@ logger = get_logger(__name__)
 TRADING_DAYS = 252
 
 # "1d"/"1w"/"1m" added for the Portfolio-tab timeframe toggle (Chunk 2) — purely
-# additive, existing callers only ever pass ytd/1y/3y/5y/all.
-_PERIOD_DAYS = {"1d": 1, "1w": 7, "1m": 30, "1y": 365, "3y": 365 * 3, "5y": 365 * 5}
+# additive, existing callers only ever pass ytd/1y/3y/5y/all. "3m"/"6m" added
+# for the Benchmarks tab (Chunk 5), same reasoning.
+_PERIOD_DAYS = {"1d": 1, "1w": 7, "1m": 30, "3m": 91, "6m": 182, "1y": 365, "3y": 365 * 3, "5y": 365 * 5}
 
 
 # --- Portfolio return series ------------------------------------------------
