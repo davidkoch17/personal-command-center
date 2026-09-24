@@ -664,6 +664,8 @@ export interface FrontierPoint {
 
 export interface FrontierResponse {
   tickers: string[]
+  /** Benchmark whose CAPM-implied returns produced this frontier. */
+  benchmark: string
   points: FrontierPoint[]
   max_sharpe: OptPortfolio
   min_variance: OptPortfolio
@@ -744,11 +746,16 @@ export interface DecompositionResponse {
   }
 }
 
-export function useOptFrontier(nPoints = 50) {
+/** Efficient frontier. Expected returns are CAPM-implied against ``benchmark``
+ *  (the shared useBenchmark() selection), so the curve, star, diamond and ✕ all
+ *  change with it — the benchmark is part of the query key so switching refetches. */
+export function useOptFrontier(nPoints = 50, benchmark = "MSCI_WORLD") {
   return useQuery({
-    queryKey: ["finance", "frontier", nPoints],
+    queryKey: ["finance", "frontier", nPoints, benchmark],
     queryFn: () =>
-      api.get<FrontierResponse>(`/api/finance/optimization/frontier?n_points=${nPoints}`),
+      api.get<FrontierResponse>(
+        `/api/finance/optimization/frontier?n_points=${nPoints}&benchmark=${benchmark}`,
+      ),
   })
 }
 

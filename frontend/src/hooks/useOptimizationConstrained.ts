@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query"
 import { api } from "@/lib/api"
+import { useBenchmark } from "@/hooks/useBenchmark"
 import type { FrontierPoint, OptPortfolio } from "@/hooks/useFinance"
 
 export interface BoundConstraint {
@@ -38,10 +39,16 @@ export interface ConstrainedFrontierResponse {
   constrained: ConstrainedFrontierResult
 }
 
-/** POST /optimization/frontier-with-constraints — the D8 "Preview" action. */
+/** POST /optimization/frontier-with-constraints — the D8 "Preview" action.
+ *  Reads the shared benchmark itself so the overlay is always built from the
+ *  same CAPM expected returns as the base frontier it is drawn over. */
 export function useOptimizationConstrained() {
+  const [benchmark] = useBenchmark()
   return useMutation({
     mutationFn: (req: ConstraintSet & { tickers?: string[]; n_points?: number }) =>
-      api.post<ConstrainedFrontierResponse>("/api/finance/optimization/frontier-with-constraints", req),
+      api.post<ConstrainedFrontierResponse>("/api/finance/optimization/frontier-with-constraints", {
+        ...req,
+        benchmark,
+      }),
   })
 }

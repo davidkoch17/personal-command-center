@@ -1,8 +1,9 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Panel } from "@/components/ui/panel"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EfficientFrontierScatter } from "@/components/charts/finance-analytics-charts"
@@ -15,7 +16,7 @@ import {
   useDistanceFromFrontier,
   type OptPortfolio,
 } from "@/hooks/useFinance"
-import { useBenchmark } from "@/hooks/useBenchmark"
+import { useBenchmark, type BenchmarkKey } from "@/hooks/useBenchmark"
 import type { ConstrainedFrontierResult } from "@/hooks/useOptimizationConstrained"
 import { ConstraintsModal } from "@/components/portfolio/constraints-modal"
 import { cn } from "@/lib/utils"
@@ -60,12 +61,18 @@ function toPoint(p: OptPortfolio | null | undefined): { risk: number; return: nu
 }
 
 function FrontierSubtab() {
-  const { data, isLoading } = useOptFrontier(50)
+  const [benchmark, setBenchmark] = useBenchmark()
+  const { data, isLoading } = useOptFrontier(50, benchmark)
   const holdings = useFinanceHoldings()
-  const [benchmark] = useBenchmark()
   const distance = useDistanceFromFrontier(benchmark)
   const [modalOpen, setModalOpen] = useState(false)
   const [constrained, setConstrained] = useState<ConstrainedFrontierResult | null>(null)
+
+  // A constrained overlay was solved against the previous benchmark's expected
+  // returns; drawing it over the new base frontier would mix two different mu's.
+  useEffect(() => {
+    setConstrained(null)
+  }, [benchmark])
 
   const overlay =
     constrained && constrained.feasible
@@ -80,20 +87,37 @@ function FrontierSubtab() {
     <div className="space-y-4">
       <Panel
         title="efficient frontier"
-        meta={data ? `${data.points.length} points` : undefined}
+        meta={data ? `${data.points.length} points · CAPM vs ${BENCHMARK_LABELS[benchmark] ?? benchmark}` : undefined}
         statusDotColor="accent"
       >
+        {/* Always rendered (even on the empty state) so a benchmark with no usable
+            history can be switched away from. */}
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="label">market benchmark</span>
+            <div className="w-40">
+              <Select value={benchmark} onValueChange={(v) => setBenchmark(v as BenchmarkKey)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(BENCHMARK_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {data && data.points.length > 0 && (
+            <Button size="sm" variant="secondary" onClick={() => setModalOpen(true)}>
+              {constrained ? "edit constraints" : "add my constraints"}
+            </Button>
+          )}
+        </div>
         {isLoading ? (
           <Skeleton className="h-80" />
         ) : !data || data.points.length === 0 ? (
           <p className="text-sm text-text-label">not enough data to build a frontier</p>
         ) : (
           <>
-            <div className="mb-2 flex justify-end">
-              <Button size="sm" variant="secondary" onClick={() => setModalOpen(true)}>
-                {constrained ? "edit constraints" : "add my constraints"}
-              </Button>
-            </div>
             <EfficientFrontierScatter
               frontier={data.points.map((p) => ({ risk: p.risk, return: p.return }))}
               current={data.current ? { risk: data.current.risk, return: data.current.return } : null}
@@ -147,8 +171,7 @@ function DistanceCallout({ d }: { d: NonNullable<ReturnType<typeof useDistanceFr
         </span>
       </p>
       <p className="mt-1 text-xs text-text-label">
-        your vol {pct(d.portfolio_vol)} · tangency vol {pct(d.tangency_vol)} · tangency uses CAPM expected returns
-        against the selected benchmark, so it can differ from the ✦ on the chart (historical mean returns)
+        your vol {pct(d.portfolio_vol)} · tangency vol {pct(d.tangency_vol)}
       </p>
     </div>
   )
@@ -159,18 +182,20 @@ function OptimalSubtab() {
   const [minPos, setMinPos] = useState("")
   const holdings = useFinanceHoldings()
   const riskParity = useOptRiskParity()
+  const [benchmark] = useBenchmark()
 
   const qs = new URLSearchParams()
   if (maxPos) qs.set("max_position", maxPos)
   if (minPos) qs.set("min_position", minPos)
+  qs.set("benchmark", benchmark)
   const suffix = qs.toString() ? `?${qs.toString()}` : ""
 
   const maxSharpe = useQuery({
-    queryKey: ["finance", "max-sharpe", maxPos, minPos],
+    queryKey: ["finance", "max-sharpe", maxPos, minPos, benchmark],
     queryFn: () => api.get<OptPortfolio & { tickers: string[] }>(`/api/finance/optimization/max-sharpe${suffix}`),
   })
   const minVar = useQuery({
-    queryKey: ["finance", "min-variance", maxPos, minPos],
+    queryKey: ["finance", "min-variance", maxPos, minPos, benchmark],
     queryFn: () => api.get<OptPortfolio & { tickers: string[] }>(`/api/finance/optimization/min-variance${suffix}`),
   })
 

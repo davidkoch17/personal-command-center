@@ -94,6 +94,58 @@ def covariance_matrix(tickers: list[str], lookback_years: int = 5) -> pd.DataFra
     return risk_models.sample_cov(df, frequency=TRADING_DAYS, returns_data=True)
 
 
+def capm_mu_from_returns(rets: pd.DataFrame, market: pd.Series, risk_free: float = DEFAULT_RISK_FREE_RATE) -> pd.Series:
+    """CAPM-implied annual expected returns: E[r_i] = rf + beta_i * (E[r_m] - rf).
+
+    ``rets`` is the daily-returns matrix of the assets, ``market`` the daily
+    returns of the benchmark standing in for "the market". Beta and the market
+    mean use the dates both share (inner join). Arithmetic annualization —
+    identical to ``pypfopt.expected_returns.capm_return(..., compounding=False)``
+    on gap-free data (asserted in tests).
+    """
+    joined = rets.join(market.rename("__mkt__"), how="inner").dropna()
+    if len(joined) < 30:
+        return pd.Series(dtype="float64")
+    m = joined["__mkt__"]
+    var = m.var()
+    if not var:
+        return pd.Series(dtype="float64")
+    market_mean = float(m.mean() * TRADING_DAYS)
+    betas = joined.drop(columns="__mkt__").apply(lambda c: c.cov(m)) / var
+    return risk_free + betas * (market_mean - risk_free)
+
+
+def mu_cov(
+    tickers: list[str],
+    benchmark_ticker: Optional[str] = None,
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
+    lookback_years: int = 5,
+) -> tuple[pd.Series, pd.DataFrame]:
+    """The single (mu, Sigma) source for the Optimization tab.
+
+    With ``benchmark_ticker`` set, mu is CAPM-implied against that benchmark, so
+    the frontier, the tangency star, the current-portfolio marker, the
+    constrained overlay and the distance-from-frontier callout all consume the
+    *same* vector and cannot disagree. ``benchmark_ticker=None`` keeps the
+    historical-mean mu for the callers that never moved to CAPM (Home
+    optimization signals). Sigma is always the sample covariance.
+    """
+    S = covariance_matrix(tickers, lookback_years)
+    if benchmark_ticker is None:
+        mu = expected_returns_mean(tickers, lookback_years)
+    else:
+        rets = get_returns_matrix(tickers, lookback_years)
+        market = get_returns(benchmark_ticker)
+        if rets.empty or market.empty:
+            mu = pd.Series(dtype="float64")
+        else:
+            mu = capm_mu_from_returns(rets, market, risk_free)
+    if mu.empty or S.empty:
+        return pd.Series(dtype="float64"), pd.DataFrame()
+    common = [t for t in S.index if t in mu.index]
+    return mu.reindex(common), S.reindex(index=common, columns=common)
+
+
 def _perf_dict(perf: tuple) -> dict:
     """Normalize PyPortfolioOpt's (ret, vol, sharpe) tuple to a labelled dict."""
     return {
@@ -103,38 +155,19 @@ def _perf_dict(perf: tuple) -> dict:
     }
 
 
-def efficient_frontier_points(tickers: list[str], n_points: int = 50) -> list[dict]:
-    """Efficient frontier as (risk, return, weights) triplets."""
-    from pypfopt import EfficientFrontier
-
-    mu = expected_returns_mean(tickers)
-    S = covariance_matrix(tickers)
+def efficient_frontier_points(tickers: list[str], n_points: int = 50, benchmark_ticker: Optional[str] = None) -> list[dict]:
+    """Efficient frontier as (risk, return, weights) triplets, sampled from the
+    minimum-variance return up to the highest reachable return."""
+    mu, S = mu_cov(tickers, benchmark_ticker)
     if mu.empty or S.empty:
         return []
-    points: list[dict] = []
-    target_returns = np.linspace(mu.min(), mu.max(), n_points)
-    for target in target_returns:
-        try:
-            ef = EfficientFrontier(mu, S)
-            ef.efficient_return(target_return=float(target))
-            perf = ef.portfolio_performance()
-            points.append({
-                "target_return": float(target),
-                "risk": float(perf[1]),
-                "return": float(perf[0]),
-                "sharpe": float(perf[2]),
-                "weights": {k: round(float(v), 4) for k, v in ef.clean_weights().items()},
-            })
-        except Exception:  # noqa: BLE001 — infeasible targets are simply skipped
-            continue
-    return points
+    return build_frontier_constrained(list(mu.index), mu, S, {}, n_points=n_points)["points"]
 
 
-def min_variance_portfolio(tickers: list[str], constraints: dict | None = None) -> dict:
+def min_variance_portfolio(tickers: list[str], constraints: dict | None = None, benchmark_ticker: Optional[str] = None) -> dict:
     from pypfopt import EfficientFrontier
 
-    mu = expected_returns_mean(tickers)
-    S = covariance_matrix(tickers)
+    mu, S = mu_cov(tickers, benchmark_ticker)
     if mu.empty or S.empty:
         return {"weights": {}, "performance": None}
     ef = EfficientFrontier(mu, S)
@@ -144,11 +177,31 @@ def min_variance_portfolio(tickers: list[str], constraints: dict | None = None) 
             "performance": _perf_dict(ef.portfolio_performance())}
 
 
-def max_sharpe_portfolio(tickers: list[str], risk_free: float = DEFAULT_RISK_FREE_RATE, constraints: dict | None = None) -> dict:
+def _max_sharpe_from(mu: pd.Series, S: pd.DataFrame, risk_free: float, constraints: dict | None = None) -> dict | None:
+    """Tangency portfolio for a given (mu, S); ``None`` when max-Sharpe is
+    unsolvable (e.g. every expected return is below the risk-free rate)."""
     from pypfopt import EfficientFrontier
 
-    mu = expected_returns_mean(tickers)
-    S = covariance_matrix(tickers)
+    ef = EfficientFrontier(mu, S)
+    _apply_constraints(ef, constraints)
+    try:
+        ef.max_sharpe(risk_free_rate=risk_free)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("max_sharpe unsolvable: %s", exc)
+        return None
+    return {"weights": {k: round(float(v), 4) for k, v in ef.clean_weights().items()},
+            "performance": _perf_dict(ef.portfolio_performance(risk_free_rate=risk_free))}
+
+
+def max_sharpe_portfolio(
+    tickers: list[str],
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
+    constraints: dict | None = None,
+    benchmark_ticker: Optional[str] = None,
+) -> dict:
+    from pypfopt import EfficientFrontier
+
+    mu, S = mu_cov(tickers, benchmark_ticker, risk_free)
     if mu.empty or S.empty:
         return {"weights": {}, "performance": None}
     ef = EfficientFrontier(mu, S)
@@ -353,7 +406,7 @@ def hypotheses_as_views() -> list[dict]:
     return views
 
 
-def current_portfolio_point(tickers: list[str]) -> dict | None:
+def current_portfolio_point(tickers: list[str], benchmark_ticker: Optional[str] = None) -> dict | None:
     """(risk, return, sharpe) of the *current* market-value-weighted portfolio.
 
     Plotted as the highlighted dot against the efficient frontier. Uses the same
@@ -368,8 +421,7 @@ def current_portfolio_point(tickers: list[str]) -> dict | None:
     if total <= 0:
         return None
     w = pd.Series({t: weights[t] / total for t in tickers})
-    mu = expected_returns_mean(tickers)
-    S = covariance_matrix(tickers)
+    mu, S = mu_cov(tickers, benchmark_ticker)
     if mu.empty or S.empty:
         return None
     w = w.reindex(mu.index).fillna(0.0)
@@ -610,72 +662,45 @@ def compute_distance_from_frontier(
     current_weights: dict[str, float],
     mu: pd.Series,
     S: pd.DataFrame,
-    benchmark_rets: pd.Series,
     risk_free: float = DEFAULT_RISK_FREE_RATE,
 ) -> dict:
-    """Current-portfolio Sharpe vs. the CAPM-tangency Sharpe for whichever
-    benchmark is selected (B2).
+    """Current-portfolio Sharpe vs. the tangency Sharpe (B2).
 
-    "Tangency" here is deliberately *not* the plain historical-mean tangency
-    the main frontier chart uses — that has no benchmark dependence at all, so
-    switching the Risk tab's Comparison dropdown couldn't move this callout.
-    Instead each ticker's expected return is CAPM-implied against
-    ``benchmark_rets`` ("the market" = whichever ticker is selected), the same
-    beta-based formula :func:`expected_returns_capm` already uses, just fed a
-    pre-fetched return series instead of a ticker string so this can be called
-    with the exact same benchmark series the Risk tab resolved.
+    ``mu``/``S`` must be the very vectors the frontier chart was built from
+    (:func:`mu_cov` with the selected benchmark) and the tangency is solved by
+    the same :func:`_max_sharpe_from` the chart's star uses, so this callout and
+    the chart agree by construction — both are CAPM against one benchmark.
     """
-    from pypfopt import EfficientFrontier
-
     if not tickers or mu.empty or S.empty:
         return {"available": False, "reason": "no priced holdings"}
 
-    w = pd.Series({t: current_weights.get(t, 0.0) for t in tickers})
+    common = [t for t in tickers if t in mu.index and t in S.index]
+    w = pd.Series({t: current_weights.get(t, 0.0) for t in common})
     total = w.sum()
-    if total <= 0:
+    if not common or total <= 0:
         return {"available": False, "reason": "no priced holdings"}
     w = w / total
 
-    mu_aligned = mu.reindex(tickers).fillna(0.0)
-    S_aligned = S.reindex(index=tickers, columns=tickers).fillna(0.0)
-    port_ret = float(w @ mu_aligned)
-    port_vol = float(np.sqrt(w.values @ S_aligned.values @ w.values))
+    mu_c = mu.reindex(common)
+    S_c = S.reindex(index=common, columns=common)
+    port_ret = float(w @ mu_c)
+    port_vol = float(np.sqrt(w.values @ S_c.values @ w.values))
     portfolio_sharpe = (port_ret - risk_free) / port_vol if port_vol else None
 
-    market_mean = benchmark_rets.mean() * TRADING_DAYS
-    market_var = benchmark_rets.var()
-    capm_mu: dict[str, float] = {}
-    if market_var:
-        for t in tickers:
-            r = get_returns(t)
-            aligned = pd.concat([r, benchmark_rets], axis=1).dropna()
-            if aligned.empty:
-                continue
-            beta = aligned.iloc[:, 0].cov(aligned.iloc[:, 1]) / market_var
-            capm_mu[t] = float(risk_free + beta * (market_mean - risk_free))
-
-    if not capm_mu:
-        return {"available": False, "reason": "not enough overlapping history with the benchmark"}
-
-    common = [t for t in tickers if t in capm_mu]
-    try:
-        ef = EfficientFrontier(pd.Series(capm_mu).reindex(common), S.reindex(index=common, columns=common))
-        ef.max_sharpe(risk_free_rate=risk_free)
-        tangency_ret, tangency_vol, tangency_sharpe = ef.portfolio_performance(risk_free_rate=risk_free)
-    except Exception as exc:  # noqa: BLE001
-        logger.info("CAPM tangency solve failed: %s", exc)
-        return {"available": False, "reason": "could not solve for the CAPM tangency portfolio"}
+    tangency = _max_sharpe_from(mu_c, S_c, risk_free)
+    if tangency is None:
+        return {"available": False, "reason": "could not solve for the tangency portfolio"}
+    perf = tangency["performance"]
 
     delta_bps = (
-        round((portfolio_sharpe - tangency_sharpe) * 10000, 1) if portfolio_sharpe is not None else None
+        round((portfolio_sharpe - perf["sharpe"]) * 10000, 1) if portfolio_sharpe is not None else None
     )
-
     return {
         "available": True,
         "portfolio_sharpe": round(portfolio_sharpe, 4) if portfolio_sharpe is not None else None,
-        "tangency_sharpe": round(float(tangency_sharpe), 4),
+        "tangency_sharpe": round(perf["sharpe"], 4),
         "delta_bps": delta_bps,
         "portfolio_vol": round(port_vol, 4),
-        "tangency_vol": round(float(tangency_vol), 4),
+        "tangency_vol": round(perf["volatility"], 4),
         "risk_free_rate": risk_free,
     }

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import {
   type ConstraintSet,
 } from "@/hooks/useOptimizationConstrained"
 import { useConstraintScenarios } from "@/hooks/useConstraintScenarios"
+import { useBenchmark } from "@/hooks/useBenchmark"
 import { toast } from "@/lib/toast-store"
 import { cn } from "@/lib/utils"
 
@@ -115,6 +116,13 @@ export function ConstraintsModal({
   const [scenarioName, setScenarioName] = useState("")
   const preview = useOptimizationConstrained()
   const { scenarios, saveScenario } = useConstraintScenarios()
+  const [benchmark] = useBenchmark()
+
+  // The preview was solved against the previous benchmark's expected returns.
+  useEffect(() => {
+    preview.reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [benchmark])
 
   function resetAll() {
     setState(defaultState(rows, currentVol))

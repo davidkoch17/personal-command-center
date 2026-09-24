@@ -110,12 +110,9 @@ def test_frontier_infeasible():
 
 def test_distance_from_frontier():
     mu, S = _synthetic_mu_cov()
-    dates = pd.date_range("2024-01-01", periods=300, freq="D")
-    rng = np.random.default_rng(7)
-    benchmark_rets = pd.Series(rng.normal(0.0004, 0.01, len(dates)), index=dates)
     weights = {"A": 1.0, "B": 1.0, "C": 1.0, "D": 1.0}  # equal-weight current portfolio
 
-    result = opt.compute_distance_from_frontier(TICKERS, weights, mu, S, benchmark_rets)
+    result = opt.compute_distance_from_frontier(TICKERS, weights, mu, S)
 
     assert result["available"] is True
     for key in ("portfolio_sharpe", "tangency_sharpe", "delta_bps", "portfolio_vol", "tangency_vol"):
@@ -158,8 +155,7 @@ def client():
 
 def test_frontier_with_constraints_endpoint(client, monkeypatch):
     mu, S = _synthetic_mu_cov()
-    monkeypatch.setattr(opt, "expected_returns_mean", lambda tickers, lookback_years=5: mu.reindex(tickers))
-    monkeypatch.setattr(opt, "covariance_matrix", lambda tickers, lookback_years=5: S.reindex(index=tickers, columns=tickers))
+    monkeypatch.setattr(opt, "mu_cov", lambda tickers, benchmark_ticker=None, *a, **kw: (mu.reindex(tickers), S.reindex(index=tickers, columns=tickers)))
 
     resp = client.post(
         "/api/finance/optimization/frontier-with-constraints",
@@ -174,16 +170,11 @@ def test_frontier_with_constraints_endpoint(client, monkeypatch):
 
 def test_distance_from_frontier_endpoint(client, monkeypatch):
     mu, S = _synthetic_mu_cov()
-    dates = pd.date_range("2024-01-01", periods=300, freq="D")
-    rng = np.random.default_rng(11)
-    benchmark_rets = pd.Series(rng.normal(0.0004, 0.01, len(dates)), index=dates)
 
-    monkeypatch.setattr(opt, "expected_returns_mean", lambda tickers, lookback_years=5: mu.reindex(tickers))
-    monkeypatch.setattr(opt, "covariance_matrix", lambda tickers, lookback_years=5: S.reindex(index=tickers, columns=tickers))
+    monkeypatch.setattr(opt, "mu_cov", lambda tickers, benchmark_ticker=None, *a, **kw: (mu.reindex(tickers), S.reindex(index=tickers, columns=tickers)))
     monkeypatch.setattr(opt, "_resolve_tickers", lambda tickers: TICKERS)
     monkeypatch.setattr("modules.finance.positions.current_holdings", lambda: {t: 1.0 for t in TICKERS})
     monkeypatch.setattr("modules.finance.price_history.latest_price", lambda t: 100.0)
-    monkeypatch.setattr("modules.finance.price_history.get_returns", lambda ticker, freq="D": benchmark_rets)
 
     resp = client.get("/api/finance/optimization/distance-from-frontier?benchmark=MSCI_WORLD")
 
@@ -192,3 +183,133 @@ def test_distance_from_frontier_endpoint(client, monkeypatch):
     assert body["available"] is True
     assert body["benchmark"] == "MSCI_WORLD"
     assert "delta_bps" in body
+
+
+# --- Chunk 3.5: CAPM expected returns everywhere -----------------------------
+#
+# Synthetic *price history* (not just mu/S) so these exercise the real
+# mu_cov -> CAPM path end to end. Two different benchmark series stand in for
+# MSCI World (URTH) and the S&P 500 (^GSPC) — same holdings, different market.
+
+_N_DAYS = 700
+_DATES = pd.bdate_range("2023-01-02", periods=_N_DAYS)
+_BETAS = {"A": 0.4, "B": 1.0, "C": 1.8, "D": 0.7}
+
+
+def _market(seed: int, mean: float, vol: float) -> pd.Series:
+    return pd.Series(np.random.default_rng(seed).normal(mean, vol, _N_DAYS), index=_DATES)
+
+
+def _asset_returns(market: pd.Series) -> dict[str, pd.Series]:
+    """Each asset = beta * market + independent noise, so betas are recoverable."""
+    rng = np.random.default_rng(99)
+    return {t: b * market + pd.Series(rng.normal(0.0002, 0.006, _N_DAYS), index=_DATES) for t, b in _BETAS.items()}
+
+
+@pytest.fixture
+def price_world(monkeypatch):
+    """Assets are generated off URTH; ^GSPC is a *different* market series, so
+    switching benchmark changes every asset's beta and the market premium."""
+    urth = _market(1, 0.0007, 0.010)
+    gspc = _market(2, 0.0004, 0.013)
+    series = {**_asset_returns(urth), "URTH": urth, "^GSPC": gspc}
+    monkeypatch.setattr(opt, "get_returns", lambda ticker, freq="D": series.get(ticker, pd.Series(dtype="float64")))
+    monkeypatch.setattr(opt, "current_holdings", lambda: {t: 1.0 for t in TICKERS})
+    monkeypatch.setattr("modules.finance.positions.current_holdings", lambda: {t: 1.0 for t in TICKERS})
+    monkeypatch.setattr("modules.finance.price_history.latest_price", lambda t: 100.0)
+    return series
+
+
+def test_capm_returns_computed_correctly():
+    """capm_mu_from_returns == hand-computed rf + beta*(E[rm]-rf) == PyPortfolioOpt's
+    capm_return (arithmetic annualization) on gap-free data."""
+    from pypfopt import expected_returns
+
+    market = _market(5, 0.0006, 0.011)
+    rets = pd.DataFrame(_asset_returns(market))
+    rf = DEFAULT_RISK_FREE_RATE
+
+    mu = opt.capm_mu_from_returns(rets, market, rf)
+
+    market_mean = market.mean() * 252
+    for t in TICKERS:
+        beta = np.cov(rets[t], market, ddof=1)[0, 1] / np.var(market, ddof=1)
+        assert mu[t] == pytest.approx(rf + beta * (market_mean - rf), rel=1e-9)
+
+    ref = expected_returns.capm_return(
+        rets, market_prices=market.rename("mkt"), returns_data=True, risk_free_rate=rf, compounding=False,
+    )
+    for t in TICKERS:
+        assert mu[t] == pytest.approx(ref[t], rel=1e-9)
+
+
+def test_frontier_uses_capm_returns_not_historical(price_world):
+    """mu_cov with a benchmark yields CAPM mu (beta-ordered, all assets on the
+    security market line), which is materially different from the historical mean
+    the frontier used before Chunk 3.5."""
+    mu_capm, S = opt.mu_cov(TICKERS, "URTH")
+    mu_hist, _ = opt.mu_cov(TICKERS, None)
+
+    assert list(mu_capm.index) == list(S.index)
+    # CAPM mu is monotone in beta: C (1.8) > B (1.0) > D (0.7) > A (0.4)
+    assert mu_capm["C"] > mu_capm["B"] > mu_capm["D"] > mu_capm["A"]
+    # ...and is not the historical-mean vector.
+    assert not np.allclose(mu_capm.values, mu_hist.reindex(mu_capm.index).values, atol=1e-3)
+
+    # The frontier endpoint's max-sharpe is the CAPM one, not the historical one.
+    client = TestClient(_app())
+    body = client.get("/api/finance/optimization/frontier?benchmark=MSCI_WORLD&n_points=10").json()
+    expected = opt.max_sharpe_portfolio(TICKERS, benchmark_ticker="URTH")["performance"]
+    historical = opt.max_sharpe_portfolio(TICKERS)["performance"]
+    assert body["max_sharpe"]["performance"]["sharpe"] == pytest.approx(expected["sharpe"], abs=1e-9)
+    assert abs(body["max_sharpe"]["performance"]["sharpe"] - historical["sharpe"]) > 1e-3
+
+
+def test_frontier_reshapes_on_benchmark_change(price_world):
+    """Same holdings, different benchmark -> different frontier and tangency."""
+    client = TestClient(_app())
+    a = client.get("/api/finance/optimization/frontier?benchmark=MSCI_WORLD&n_points=10").json()
+    b = client.get("/api/finance/optimization/frontier?benchmark=SPY&n_points=10").json()
+
+    ta, tb = a["max_sharpe"]["performance"], b["max_sharpe"]["performance"]
+    assert a["benchmark"] == "MSCI_WORLD" and b["benchmark"] == "SPY"
+    assert abs(ta["expected_return"] - tb["expected_return"]) > 0.005
+    assert abs(ta["sharpe"] - tb["sharpe"]) > 0.02
+    # The whole curve moves too, not just the star.
+    assert a["points"][-1]["return"] != pytest.approx(b["points"][-1]["return"], abs=0.005)
+    # Constrained overlay follows the same benchmark: its tangency differs as well.
+    ca = client.post("/api/finance/optimization/frontier-with-constraints",
+                     json={"benchmark": "MSCI_WORLD", "n_points": 8, "bucket_caps": {"crypto": {"max": 0.5}}}).json()
+    cb = client.post("/api/finance/optimization/frontier-with-constraints",
+                     json={"benchmark": "SPY", "n_points": 8, "bucket_caps": {"crypto": {"max": 0.5}}}).json()
+    assert ca["constrained"]["feasible"] and cb["constrained"]["feasible"]
+    assert abs(ca["constrained"]["tangency"]["performance"]["sharpe"]
+               - cb["constrained"]["tangency"]["performance"]["sharpe"]) > 0.02
+
+
+def test_chart_and_callout_tangency_sharpe_match(price_world):
+    """The critical regression: the chart's star Sharpe (build_frontier side) and
+    the callout's tangency Sharpe (compute_distance_from_frontier side) are the
+    same number for the same portfolio + benchmark."""
+    # Module level: constrained-frontier tangency with no constraints vs callout.
+    mu, S = opt.mu_cov(TICKERS, "URTH")
+    weights = {t: 1.0 for t in TICKERS}
+    chart = opt.build_frontier_constrained(list(mu.index), mu, S, {})["tangency"]["performance"]["sharpe"]
+    callout = opt.compute_distance_from_frontier(list(mu.index), weights, mu, S)["tangency_sharpe"]
+    assert callout == pytest.approx(chart, abs=1e-4)  # callout is rounded to 4 dp
+
+    # Endpoint level, for both benchmarks: what the UI actually reads.
+    client = TestClient(_app())
+    for key in ("MSCI_WORLD", "SPY"):
+        star = client.get(f"/api/finance/optimization/frontier?benchmark={key}&n_points=10").json()
+        dist = client.get(f"/api/finance/optimization/distance-from-frontier?benchmark={key}").json()
+        assert dist["available"] is True
+        assert dist["tangency_sharpe"] == pytest.approx(star["max_sharpe"]["performance"]["sharpe"], abs=1e-4)
+        # ...and the chart's current-portfolio marker uses the callout's Sharpe basis too.
+        assert dist["portfolio_sharpe"] == pytest.approx(star["current"]["sharpe"], abs=1e-4)
+
+
+def _app() -> FastAPI:
+    app = FastAPI()
+    app.include_router(opt_api.router, prefix="/api/finance")
+    return app

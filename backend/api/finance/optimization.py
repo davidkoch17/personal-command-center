@@ -29,21 +29,34 @@ def _constraints(max_position: float | None, min_position: float | None) -> dict
     return c or None
 
 
+def _bench_ticker(benchmark: str) -> str:
+    """Benchmark key (MSCI_WORLD, SPY, ...) -> the yfinance ticker whose returns
+    stand in for "the market" in the CAPM expected-return vector."""
+    return BENCHMARKS.get(benchmark, BENCHMARKS[DEFAULT_BENCHMARK])["ticker"]
+
+
 @router.get("/optimization/frontier")
 def frontier(
     tickers: str | None = Query(None),
     n_points: int = Query(50, ge=5, le=200),
+    benchmark: str = Query(DEFAULT_BENCHMARK),
 ) -> dict:
-    """Efficient frontier points (risk, return, sharpe, weights)."""
+    """Efficient frontier points (risk, return, sharpe, weights).
+
+    Expected returns are CAPM-implied against ``benchmark``, so the whole curve
+    (and the star / diamond / current markers) is benchmark-dependent.
+    """
     tk = _parse_tickers(tickers)
+    bt = _bench_ticker(benchmark)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        points = opt.efficient_frontier_points(tk, n_points=n_points)
-        max_sharpe = opt.max_sharpe_portfolio(tk)
-        min_var = opt.min_variance_portfolio(tk)
-        current = opt.current_portfolio_point(tk)
+        points = opt.efficient_frontier_points(tk, n_points=n_points, benchmark_ticker=bt)
+        max_sharpe = opt.max_sharpe_portfolio(tk, benchmark_ticker=bt)
+        min_var = opt.min_variance_portfolio(tk, benchmark_ticker=bt)
+        current = opt.current_portfolio_point(tk, benchmark_ticker=bt)
     return {
         "tickers": tk,
+        "benchmark": benchmark,
         "points": points,
         "max_sharpe": max_sharpe,
         "min_variance": min_var,
@@ -60,12 +73,15 @@ def min_variance(
     tickers: str | None = Query(None),
     max_position: float | None = Query(None, ge=0, le=1),
     min_position: float | None = Query(None, ge=0, le=1),
+    benchmark: str = Query(DEFAULT_BENCHMARK),
 ) -> dict:
     tk = _parse_tickers(tickers)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = opt.min_variance_portfolio(tk, _constraints(max_position, min_position))
-    return {"tickers": tk, **result}
+        result = opt.min_variance_portfolio(
+            tk, _constraints(max_position, min_position), benchmark_ticker=_bench_ticker(benchmark)
+        )
+    return {"tickers": tk, "benchmark": benchmark, **result}
 
 
 @router.get("/optimization/max-sharpe")
@@ -74,12 +90,15 @@ def max_sharpe(
     risk_free: float = Query(DEFAULT_RISK_FREE_RATE),
     max_position: float | None = Query(None, ge=0, le=1),
     min_position: float | None = Query(None, ge=0, le=1),
+    benchmark: str = Query(DEFAULT_BENCHMARK),
 ) -> dict:
     tk = _parse_tickers(tickers)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        result = opt.max_sharpe_portfolio(tk, risk_free, _constraints(max_position, min_position))
-    return {"tickers": tk, **result}
+        result = opt.max_sharpe_portfolio(
+            tk, risk_free, _constraints(max_position, min_position), benchmark_ticker=_bench_ticker(benchmark)
+        )
+    return {"tickers": tk, "benchmark": benchmark, **result}
 
 
 @router.get("/optimization/risk-parity")
@@ -146,6 +165,7 @@ class ConstraintSetRequest(BaseModel):
 
     tickers: list[str] | None = None
     n_points: int = 30
+    benchmark: str = DEFAULT_BENCHMARK  # CAPM market for mu — must match the base frontier's
     bucket_caps: dict[str, BoundConstraint] | None = None
     position_bounds: dict[str, BoundConstraint] | None = None
     concentration: ConcentrationConstraint | None = None
@@ -172,10 +192,12 @@ def frontier_with_constraints(req: ConstraintSetRequest) -> dict:
     }
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        mu = opt.expected_returns_mean(tk)
-        S = opt.covariance_matrix(tk)
-        result = opt.build_frontier_constrained(tk, mu, S, constraints, n_points=req.n_points)
-    return {"tickers": tk, "constrained": result}
+        # Same CAPM (mu, S) the unconstrained /frontier is built from, so the
+        # overlay and the base curve differ only by the constraints.
+        mu, S = opt.mu_cov(tk, _bench_ticker(req.benchmark))
+        # Positional constraints index by mu's order — use the tickers that survived.
+        result = opt.build_frontier_constrained(list(mu.index), mu, S, constraints, n_points=req.n_points)
+    return {"tickers": list(mu.index), "benchmark": req.benchmark, "constrained": result}
 
 
 @router.get("/optimization/distance-from-frontier")
@@ -183,22 +205,19 @@ def distance_from_frontier(
     benchmark: str = Query(DEFAULT_BENCHMARK),
     tickers: str | None = Query(None),
 ) -> dict:
-    """Current-portfolio Sharpe vs. the CAPM-tangency Sharpe for ``benchmark``
-    (B2's distance-from-frontier callout) — see
-    modules.finance.optimization.compute_distance_from_frontier for why the
-    tangency here is CAPM-based rather than the main chart's historical-mean
-    tangency (this is what makes the callout respond to the benchmark switch)."""
+    """Current-portfolio Sharpe vs. the tangency Sharpe (B2's callout).
+
+    Uses the exact (mu, S) that ``/frontier`` plots for ``benchmark`` — CAPM
+    expected returns — so this tangency Sharpe equals the chart star's Sharpe.
+    """
     from modules.finance.positions import current_holdings
-    from modules.finance.price_history import get_returns, latest_price
+    from modules.finance.price_history import latest_price
 
     tk = _parse_tickers(tickers)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        mu = opt.expected_returns_mean(tk)
-        S = opt.covariance_matrix(tk)
+        mu, S = opt.mu_cov(tk, _bench_ticker(benchmark))
         holdings = current_holdings()
         weights = {t: holdings.get(t, 0.0) * (latest_price(t) or 0.0) for t in tk}
-        bench_ticker = BENCHMARKS.get(benchmark, BENCHMARKS[DEFAULT_BENCHMARK])["ticker"]
-        bench_rets = get_returns(bench_ticker)
-        result = opt.compute_distance_from_frontier(tk, weights, mu, S, bench_rets)
+        result = opt.compute_distance_from_frontier(tk, weights, mu, S)
     return {"benchmark": benchmark, **result}
