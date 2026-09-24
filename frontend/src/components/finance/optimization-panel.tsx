@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Panel } from "@/components/ui/panel"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EfficientFrontierScatter } from "@/components/charts/finance-analytics-charts"
@@ -11,8 +12,12 @@ import {
   useOptRiskParity,
   useBlackLitterman,
   useFinanceHoldings,
+  useDistanceFromFrontier,
   type OptPortfolio,
 } from "@/hooks/useFinance"
+import { useBenchmark } from "@/hooks/useBenchmark"
+import type { ConstrainedFrontierResult } from "@/hooks/useOptimizationConstrained"
+import { ConstraintsModal } from "@/components/portfolio/constraints-modal"
 import { cn } from "@/lib/utils"
 
 type Weights = Record<string, number>
@@ -43,36 +48,109 @@ export function OptimizationTab() {
   )
 }
 
+const BENCHMARK_LABELS: Record<string, string> = {
+  MSCI_WORLD: "MSCI World",
+  SPY: "S&P 500",
+  DAX: "DAX 40",
+  STOXX_600: "STOXX 600",
+}
+
+function toPoint(p: OptPortfolio | null | undefined): { risk: number; return: number } | null {
+  return p?.performance ? { risk: p.performance.volatility, return: p.performance.expected_return } : null
+}
+
 function FrontierSubtab() {
   const { data, isLoading } = useOptFrontier(50)
+  const holdings = useFinanceHoldings()
+  const [benchmark] = useBenchmark()
+  const distance = useDistanceFromFrontier(benchmark)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [constrained, setConstrained] = useState<ConstrainedFrontierResult | null>(null)
+
+  const overlay =
+    constrained && constrained.feasible
+      ? {
+          points: constrained.points.map((p) => ({ risk: p.risk, return: p.return })),
+          tangency: toPoint(constrained.tangency),
+          minVariance: toPoint(constrained.mvp),
+        }
+      : null
+
   return (
-    <Panel title="efficient frontier" meta={data ? `${data.points.length} points` : undefined} statusDotColor="accent">
-      {isLoading ? (
-        <Skeleton className="h-80" />
-      ) : !data || data.points.length === 0 ? (
-        <p className="text-sm text-text-label">not enough data to build a frontier</p>
-      ) : (
-        <>
-          <EfficientFrontierScatter
-            frontier={data.points.map((p) => ({ risk: p.risk, return: p.return }))}
-            current={data.current ? { risk: data.current.risk, return: data.current.return } : null}
-            maxSharpe={
-              data.max_sharpe.performance
-                ? { risk: data.max_sharpe.performance.volatility, return: data.max_sharpe.performance.expected_return }
-                : null
-            }
-            minVariance={
-              data.min_variance.performance
-                ? { risk: data.min_variance.performance.volatility, return: data.min_variance.performance.expected_return }
-                : null
-            }
-          />
-          <p className="mt-2 text-xs text-text-label">
-            ✦ max sharpe · ◆ min variance · ✕ your current portfolio · line = frontier
-          </p>
-        </>
+    <div className="space-y-4">
+      <Panel
+        title="efficient frontier"
+        meta={data ? `${data.points.length} points` : undefined}
+        statusDotColor="accent"
+      >
+        {isLoading ? (
+          <Skeleton className="h-80" />
+        ) : !data || data.points.length === 0 ? (
+          <p className="text-sm text-text-label">not enough data to build a frontier</p>
+        ) : (
+          <>
+            <div className="mb-2 flex justify-end">
+              <Button size="sm" variant="secondary" onClick={() => setModalOpen(true)}>
+                {constrained ? "edit constraints" : "add my constraints"}
+              </Button>
+            </div>
+            <EfficientFrontierScatter
+              frontier={data.points.map((p) => ({ risk: p.risk, return: p.return }))}
+              current={data.current ? { risk: data.current.risk, return: data.current.return } : null}
+              maxSharpe={toPoint(data.max_sharpe)}
+              minVariance={toPoint(data.min_variance)}
+              riskFreeRate={data.risk_free_rate}
+              constrained={overlay}
+            />
+            <p className="mt-2 text-xs text-text-label">
+              ✦ max sharpe · ◆ min variance · ✕ your current portfolio · line = frontier · cyan = capital market line
+              {overlay && " · dashed = unconstrained, solid = constrained"}
+            </p>
+            {constrained && !constrained.feasible && (
+              <p className="mt-1 text-xs text-danger">{constrained.reason}</p>
+            )}
+          </>
+        )}
+      </Panel>
+
+      <Panel title="distance from frontier" meta={`vs ${BENCHMARK_LABELS[benchmark] ?? benchmark}`} statusDotColor="muted">
+        {distance.isLoading ? (
+          <Skeleton className="h-12" />
+        ) : !distance.data?.available ? (
+          <p className="text-sm text-text-label">add positions to see distance from frontier</p>
+        ) : (
+          <DistanceCallout d={distance.data} />
+        )}
+      </Panel>
+
+      {data && holdings.data && (
+        <ConstraintsModal
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          currentVol={data.current?.risk ?? null}
+          unconstrainedTangency={data.max_sharpe}
+          onPreview={setConstrained}
+        />
       )}
-    </Panel>
+    </div>
+  )
+}
+
+function DistanceCallout({ d }: { d: NonNullable<ReturnType<typeof useDistanceFromFrontier>["data"]> }) {
+  const gap = d.delta_bps
+  return (
+    <div>
+      <p className="font-mono text-sm text-text">
+        your: {d.portfolio_sharpe?.toFixed(2) ?? "—"} · tangency: {d.tangency_sharpe?.toFixed(2) ?? "—"} · gap:{" "}
+        <span className={cn(gap != null && gap < 0 ? "text-danger" : "text-success")}>
+          {gap != null ? `${gap > 0 ? "+" : ""}${Math.round(gap)} bps` : "—"}
+        </span>
+      </p>
+      <p className="mt-1 text-xs text-text-label">
+        your vol {pct(d.portfolio_vol)} · tangency vol {pct(d.tangency_vol)} · tangency uses CAPM expected returns
+        against the selected benchmark, so it can differ from the ✦ on the chart (historical mean returns)
+      </p>
+    </div>
   )
 }
 

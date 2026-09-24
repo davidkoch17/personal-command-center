@@ -63,6 +63,10 @@ Phase 15e (polish — currency + S-priority items + performance + diagnostics):
 - ``/api/finance/stress/replay-all``             (GET)
 - ``/api/finance/portfolio/full-snapshot``       (GET)
 - ``/api/finance/diagnostics``                   (GET)
+
+Chunk 2 (Portfolio-tab dashboard):
+- ``/api/finance/dashboard/summary``             (GET)
+- ``/api/finance/dashboard/performance-indexed`` (GET)
 """
 from __future__ import annotations
 
@@ -74,6 +78,7 @@ from backend.api.finance import (
     buckets,
     capital_allocation,
     currency,
+    dashboard,
     decisions,
     diagnostics,
     factors,
@@ -109,3 +114,5 @@ router.include_router(attribution.router)
 router.include_router(stress_tests.router)
 router.include_router(snapshot.router)
 router.include_router(diagnostics.router)
+# Chunk 2 — Portfolio-tab dashboard summary + indexed performance chart.
+router.include_router(dashboard.router)

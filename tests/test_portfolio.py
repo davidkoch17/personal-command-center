@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from datetime import date
 
+import pandas as pd
 import pytest
 
-from modules.finance import positions
+from modules.finance import positions, risk
 
 
 @pytest.fixture(autouse=True)
@@ -110,3 +111,33 @@ def test_add_and_get_position():
     found = positions.get_position("VWCE")  # case-insensitive lookup
     assert found is not None
     assert found.name == "Vanguard All-World"
+
+
+def test_beta_vs_uses_the_requested_benchmark_ticker(monkeypatch):
+    """Per-holding beta (GET /api/finance/holdings) used to hardcode ^GSPC — Item
+    A2 wires it to whichever benchmark the Risk tab's dropdown resolves to. This
+    guards the underlying mechanism: beta_vs must key off its ``benchmark_ticker``
+    argument, not a fixed name, so two different benchmarks yield different betas.
+    """
+    dates = pd.date_range("2026-01-01", periods=30, freq="D")
+    portfolio_returns = pd.Series([0.01, -0.02] * 15, index=dates)
+
+    def fake_get_returns(ticker):
+        # MSCI World (URTH) moves at half the portfolio's swing; S&P 500 (^GSPC)
+        # moves at double it — deterministic, no network/price-cache needed.
+        if ticker == "URTH":
+            return pd.Series([0.005, -0.01] * 15, index=dates)
+        if ticker == "^GSPC":
+            return pd.Series([0.02, -0.04] * 15, index=dates)
+        return pd.Series(dtype=float)
+
+    monkeypatch.setattr(risk, "get_returns", fake_get_returns)
+
+    beta_msci = risk.beta_vs(portfolio_returns, "URTH")
+    beta_sp500 = risk.beta_vs(portfolio_returns, "^GSPC")
+
+    assert beta_msci is not None
+    assert beta_sp500 is not None
+    assert beta_msci != beta_sp500
+    assert round(beta_msci, 4) == 2.0
+    assert round(beta_sp500, 4) == 0.5

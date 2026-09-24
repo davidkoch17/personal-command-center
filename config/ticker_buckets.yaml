@@ -1,0 +1,85 @@
+# Ticker -> bucket seed map (Chunk 2.5 — Hybrid bucket assignment).
+#
+# Flat map: TICKER: bucket. Read by modules/finance/buckets.py's
+# infer_bucket() (mtime-cached — edit and save, no restart needed).
+#
+# The four buckets (Investment_Philosophy.md § 0, LOCKED targets):
+#   etf_foundation  (49%) — broad index/diversified ETFs, the portfolio's core.
+#   single_stocks   (21%) — individual equities, max 5% each (7% drift trigger).
+#   crypto          (24%) — coins/tokens, max 8% each; >30% total forces a trim.
+#   wild_cards       (6%) — small speculative/optionality bets, max 2% each.
+#
+# Resolution order (modules/finance/buckets.py resolve_bucket): a per-position
+# override in data/positions.json wins if set, else this map, else
+# "unassigned". This file is the *default* — it never overrides a manual
+# choice made via the Holdings-tab bucket dropdown.
+#
+# Tickers not listed here (anything not currently held/watched) simply return
+# "unassigned" until either added here or given a manual override — no error.
+#
+# Uncertain calls default to single_stocks with a comment explaining why.
+
+# --- ETF Foundation -----------------------------------------------------
+VWCE.DE: etf_foundation   # Vanguard FTSE All-World UCITS ETF
+CSPX.L: etf_foundation    # iShares Core S&P 500 UCITS ETF
+EXSA.DE: etf_foundation   # iShares STOXX Europe 600 UCITS ETF (DE) — best guess
+                          # for "the STOXX 600 tracker"; confirm/replace with
+                          # the exact ticker if this isn't the one held.
+
+# --- Single Stocks --------------------------------------------------------
+AAPL: single_stocks
+ADBE: single_stocks
+ADS.DE: single_stocks     # Adidas
+AMZN: single_stocks
+ASML: single_stocks
+AVGO: single_stocks
+BABA: single_stocks       # Alibaba (NAME_TICKER_MAP: "alibaba")
+BYDDY: single_stocks      # BYD (NAME_TICKER_MAP: "byd")
+CRCL: single_stocks       # Circle Internet Group — a listed equity (the USDC
+                          # *issuer's stock*, not the stablecoin itself, which
+                          # is separately mapped to crypto below)
+EVR: single_stocks        # Evercore
+GOOGL: single_stocks      # Alphabet (NAME_TICKER_MAP: "alphabet")
+GS: single_stocks         # Goldman Sachs
+HLI: single_stocks        # Houlihan Lokey
+JD: single_stocks
+LAZ: single_stocks        # Lazard
+LULU: single_stocks
+LUMN: single_stocks
+META: single_stocks
+MS: single_stocks         # Morgan Stanley
+MSFT: single_stocks
+NIO: single_stocks
+NKE: single_stocks
+NVDA: single_stocks
+NVO: single_stocks        # Novo Nordisk
+P911.DE: single_stocks    # Porsche AG
+PDD: single_stocks
+QCOM: single_stocks
+SAP: single_stocks
+SIE.DE: single_stocks     # Siemens
+TCEHY: single_stocks      # Tencent
+TSLA: single_stocks
+XPEV: single_stocks
+
+# --- Crypto -----------------------------------------------------------------
+BTC-USD: crypto
+ETH-USD: crypto
+SOL-USD: crypto
+SOL-EUR: crypto           # NAME_TICKER_MAP resolves Excel "Solana"/"Sol" here
+SOL: crypto               # bare-ticker form also seen in the price cache
+USDC: crypto              # stablecoin (pegged to USD) — bucketed as crypto
+                          # since that's the closest of the four sleeves; not
+                          # a directional crypto bet, flag if that distinction
+                          # matters for allocation math later.
+
+# --- Wild Cards ---------------------------------------------------------
+OKLO: wild_cards          # Oklo — pre-revenue nuclear microreactor, textbook
+                          # optionality bet.
+VST: wild_cards           # Vistra — categorized per explicit instruction;
+                          # note it's an established power utility/IPP, not
+                          # obviously "early-stage" on its own merits — revisit
+                          # if this bucket call feels wrong.
+LNG: wild_cards           # Cheniere Energy — same caveat as VST above: a
+                          # large, established LNG exporter, not textbook
+                          # early-stage; categorized per explicit instruction.

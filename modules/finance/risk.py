@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from core.config import BENCHMARKS, DEFAULT_BENCHMARK, get_logger
+from core.config import BENCHMARKS, DEFAULT_BENCHMARK, DEFAULT_RISK_FREE_RATE, get_logger
 from modules.finance.positions import current_holdings
 from modules.finance.price_history import get_closes, get_returns, latest_price
 from modules.finance.performance import portfolio_returns
@@ -47,13 +47,13 @@ def annualized_vol(returns: pd.Series) -> Optional[float]:
     return _f(returns.std() * np.sqrt(TRADING_DAYS))
 
 
-def sharpe(returns: pd.Series, risk_free: float = 0.04) -> Optional[float]:
+def sharpe(returns: pd.Series, risk_free: float = DEFAULT_RISK_FREE_RATE) -> Optional[float]:
     if returns.empty:
         return None
     return _f(ep.sharpe_ratio(returns, risk_free=risk_free / TRADING_DAYS, annualization=TRADING_DAYS))
 
 
-def sortino(returns: pd.Series, risk_free: float = 0.04) -> Optional[float]:
+def sortino(returns: pd.Series, risk_free: float = DEFAULT_RISK_FREE_RATE) -> Optional[float]:
     if returns.empty:
         return None
     return _f(ep.sortino_ratio(returns, required_return=risk_free / TRADING_DAYS, annualization=TRADING_DAYS))
@@ -167,7 +167,7 @@ def concentration_metrics(holdings: Optional[dict] = None,
     }
 
 
-def compute_all(benchmark: str = DEFAULT_BENCHMARK, risk_free: float = 0.04) -> dict:
+def compute_all(benchmark: str = DEFAULT_BENCHMARK, risk_free: float = DEFAULT_RISK_FREE_RATE) -> dict:
     """Bundle every risk metric for the API (JSON-safe)."""
     returns = portfolio_returns()
     if returns.empty:

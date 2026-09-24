@@ -102,11 +102,16 @@ export function usePortfolioSnapshot() {
 
 // --- Phase 15a: sophisticated finance layer (/api/finance/*) ----------------
 
+/** "override" = manual pick (positions.json), "map" = config/ticker_buckets.yaml,
+ *  "unassigned" = neither (Chunk 2.5). */
+export type BucketSource = "override" | "map" | "unassigned"
+
 export interface FinanceHolding {
   ticker: string
   name: string
   type: string | null
-  bucket: string | null
+  bucket: string
+  bucket_source: BucketSource
   currency: string
   quantity: number
   avg_cost: number
@@ -125,6 +130,7 @@ export interface FinanceHoldingsResponse {
   holdings: FinanceHolding[]
   total_market_value: number
   count: number
+  beta_benchmark?: string
 }
 
 interface BestWorst {
@@ -233,10 +239,10 @@ export interface TransactionRequest {
   notes?: string | null
 }
 
-export function useFinanceHoldings() {
+export function useFinanceHoldings(benchmark = "MSCI_WORLD") {
   return useQuery({
-    queryKey: ["finance", "holdings"],
-    queryFn: () => api.get<FinanceHoldingsResponse>("/api/finance/holdings"),
+    queryKey: ["finance", "holdings", benchmark],
+    queryFn: () => api.get<FinanceHoldingsResponse>(`/api/finance/holdings?benchmark=${benchmark}`),
     // Holdings carry per-position price + risk (network-heavy); 5 min is plenty.
     staleTime: 5 * 60_000,
   })
@@ -319,6 +325,31 @@ export function useRecordTransaction() {
       // A new transaction changes holdings, buckets, performance + risk (["finance"])
       // as well as the Portfolio Hub's holdings-pnl / realized-trades / net-worth
       // queries, which live in a separate ["hub"] key namespace (usePortfolioHub.ts).
+      qc.invalidateQueries({ queryKey: ["finance"] })
+      qc.invalidateQueries({ queryKey: ["hub"] })
+    },
+  })
+}
+
+export interface BucketOverrideResponse {
+  ticker: string
+  bucket: string
+  source: BucketSource
+}
+
+/** Set (bucket: key) or clear (bucket: null) a position's manual bucket
+ *  override — Chunk 2.5. Same broad invalidation as useRecordTransaction:
+ *  a bucket change ripples into holdings, the allocation donut/strip, drift
+ *  alerts and the Portfolio-tab KPI band all at once. */
+export function usePatchPositionBucket() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticker, bucket }: { ticker: string; bucket: string | null }) =>
+      api.patch<BucketOverrideResponse>(
+        `/api/finance/positions/${encodeURIComponent(ticker)}/bucket`,
+        { bucket },
+      ),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["finance"] })
       qc.invalidateQueries({ queryKey: ["hub"] })
     },
@@ -637,6 +668,21 @@ export interface FrontierResponse {
   max_sharpe: OptPortfolio
   min_variance: OptPortfolio
   current: { return: number; risk: number; sharpe: number | null; weights: Weights } | null
+  /** Chunk 3 B1 — same DEFAULT_RISK_FREE_RATE every Sharpe/CAPM computation
+   *  uses; the CML is drawn from (0, this) through the tangency point. */
+  risk_free_rate: number
+}
+
+export interface DistanceFromFrontierResponse {
+  benchmark: string
+  available: boolean
+  reason?: string
+  portfolio_sharpe?: number | null
+  tangency_sharpe?: number
+  delta_bps?: number | null
+  portfolio_vol?: number
+  tangency_vol?: number
+  risk_free_rate?: number
 }
 
 export interface BLView {
@@ -703,6 +749,19 @@ export function useOptFrontier(nPoints = 50) {
     queryKey: ["finance", "frontier", nPoints],
     queryFn: () =>
       api.get<FrontierResponse>(`/api/finance/optimization/frontier?n_points=${nPoints}`),
+  })
+}
+
+/** B2 — current portfolio Sharpe vs. the CAPM tangency Sharpe for
+ *  ``benchmark`` (the shared useBenchmark() selection — Chunk 1 pattern). */
+export function useDistanceFromFrontier(benchmark: string) {
+  return useQuery({
+    queryKey: ["finance", "distance-from-frontier", benchmark],
+    queryFn: () =>
+      api.get<DistanceFromFrontierResponse>(
+        `/api/finance/optimization/distance-from-frontier?benchmark=${benchmark}`,
+      ),
+    staleTime: 60_000,
   })
 }
 

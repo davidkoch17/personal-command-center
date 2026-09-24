@@ -54,12 +54,21 @@ CASH_TICKER = "EUR_CASH"
 
 
 class Position(BaseModel):
-    """Static metadata for a tradeable instrument (not the quantity held)."""
+    """Static metadata for a tradeable instrument (not the quantity held).
+
+    ``bucket`` is ``None`` unless the user has explicitly overridden it via the
+    Holdings-tab bucket cell (Chunk 2.5) — the *effective* bucket for display/
+    allocation math is computed at read time by
+    :func:`modules.finance.buckets.resolve_bucket`, which falls back to
+    ``config/ticker_buckets.yaml`` and then "unassigned" when this is ``None``.
+    Never write a map-inferred value in here — that would make it
+    indistinguishable from a real override and break "clear override".
+    """
 
     ticker: str
     name: str
     type: PositionType
-    bucket: Bucket
+    bucket: Optional[Bucket] = None
     sector: Optional[str] = None
     region: Optional[str] = None
     currency: str = "USD"
@@ -156,14 +165,44 @@ def list_transactions() -> list[Transaction]:
     return out
 
 
+def _stub_position_if_new(t: Transaction) -> None:
+    """Ensure a Position record exists for ``t.ticker`` (Chunk 2.5).
+
+    Only fires the first time a ticker is ever traded — idempotent, and never
+    touches ``bucket`` (left ``None`` so buckets.resolve_bucket's seed-map
+    fallback applies; see the Position docstring for why that must stay
+    unset rather than pre-filled). Best-effort ``type`` guess only, purely
+    cosmetic: crypto pairs are recognizable by their yfinance ``-USD``/``-EUR``
+    suffix, everything else defaults to "equity".
+    """
+    if get_position(t.ticker) is not None:
+        return
+    guessed_type: PositionType = (
+        "crypto" if t.ticker.upper().endswith(("-USD", "-EUR", "-GBP")) else "equity"
+    )
+    add_position(Position(
+        ticker=t.ticker, name=t.ticker, type=guessed_type, bucket=None, currency=t.currency,
+    ))
+    logger.info(
+        "Stubbed new position %s (type guess: %s, bucket: unassigned pending map/override)",
+        t.ticker, guessed_type,
+    )
+
+
 def record_transaction(t: Transaction) -> None:
-    """Append one transaction to the JSONL log (creates the file if needed)."""
+    """Append one transaction to the JSONL log (creates the file if needed).
+
+    Also stubs a Position record for a brand-new ticker (Chunk 2.5) so it has
+    somewhere to hold a future bucket override; see ``_stub_position_if_new``.
+    """
     TRANSACTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     payload = t.model_dump()
     payload["date"] = t.date.isoformat()  # date -> ISO string for JSON
     with TRANSACTIONS_FILE.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(payload) + "\n")
     logger.info("Recorded %s %s %s @ %s", t.action, t.quantity, t.ticker, t.price)
+    if t.action in _QUANTITY_ACTIONS:
+        _stub_position_if_new(t)
 
 
 def _write_all_transactions(txns: list[Transaction]) -> None:

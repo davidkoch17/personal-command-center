@@ -1,15 +1,17 @@
 /**
  * Phase D — Portfolio Hub data hooks.
  *
- * Wraps the new backend endpoints for the five Portfolio-Hub tabs:
+ * Wraps the new backend endpoints for the Portfolio-Hub tabs:
  * - Overview   : net-worth daily series + this-month decomposition
  * - Holdings   : per-position period P&L + realized trade log
  * - Watchlist  : Connected News (captures per ticker) + sector radar + plan card
  * - Captures   : captures list / detail / routing
  * - Research   : reports library + run launcher + hypotheses
+ * - Portfolio  : KPI-band summary + indexed performance chart (Chunk 2)
  *
- * Decision-alerts (Overview strip) reuse `useDecisionSummary` from useFinance;
- * the Decision Log (Research tab) reuses `useDecisions` / `useLogDecision`.
+ * Decision-alerts (Overview + Portfolio strips) reuse `useDecisionSummary`
+ * from useFinance; the Decision Log (Research tab) reuses `useDecisions` /
+ * `useLogDecision`.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
@@ -93,6 +95,8 @@ export interface PnlPosition {
   ticker: string
   name: string
   type: string | null
+  bucket: string
+  bucket_source: "override" | "map" | "unassigned"
   qty: number
   price_eur: number | null
   value_eur: number
@@ -360,6 +364,82 @@ export function useHypotheses() {
     queryFn: () =>
       api.get<{ hypotheses: { text: string }[]; count: number; source: string | null }>(
         "/api/research/hypotheses",
+      ),
+    staleTime: 60_000,
+  })
+}
+
+// --- Portfolio (Chunk 2) -----------------------------------------------------
+
+export interface DashboardTopHolding {
+  ticker: string
+  name: string
+  bucket: string
+  bucket_source: "override" | "map" | "unassigned"
+  value_eur: number
+  day_change_pct: number | null
+  day_change_eur: number | null
+  weight: number | null
+}
+
+export interface DashboardBucketDrift {
+  bucket: string
+  label: string
+  value: number
+  current_weight: number
+  target_weight: number
+  drift: number
+  status: "ok" | "warn" | "alert"
+}
+
+export interface DashboardSummaryResponse {
+  available: boolean
+  benchmark: string
+  benchmark_name: string
+  portfolio_value_eur: number
+  day_change_eur: number | null
+  day_change_pct: number | null
+  ytd_return_pct: number | null
+  ytd_return_eur: number | null
+  benchmark_ytd_return_pct: number | null
+  sharpe_1y: number | null
+  benchmark_sharpe_1y: number | null
+  worst_drift_bucket: DashboardBucketDrift | null
+  top_holdings: DashboardTopHolding[]
+  holdings_count: number
+}
+
+/** KPI band + top-5 holdings — one round trip for the Portfolio tab's first paint. */
+export function useDashboardSummary(benchmark: string) {
+  return useQuery({
+    queryKey: ["hub", "dashboard-summary", benchmark],
+    queryFn: () => api.get<DashboardSummaryResponse>(`/api/finance/dashboard/summary?benchmark=${benchmark}`),
+    staleTime: 60_000,
+  })
+}
+
+export interface DashboardIndexedPoint {
+  date: string
+  portfolio: number
+  benchmark: number
+}
+
+export interface DashboardPerformanceResponse {
+  available: boolean
+  reason?: string
+  period: string
+  benchmark: string
+  benchmark_name?: string
+  series: DashboardIndexedPoint[]
+}
+
+/** Portfolio-tab performance chart: portfolio + benchmark indexed to 100. */
+export function useDashboardPerformance(period: string, benchmark: string) {
+  return useQuery({
+    queryKey: ["hub", "dashboard-performance", period, benchmark],
+    queryFn: () =>
+      api.get<DashboardPerformanceResponse>(
+        `/api/finance/dashboard/performance-indexed?period=${period}&benchmark=${benchmark}`,
       ),
     staleTime: 60_000,
   })

@@ -16,7 +16,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from core.config import DEFAULT_BENCHMARK, BENCHMARKS, get_logger
+from core.config import DEFAULT_BENCHMARK, DEFAULT_RISK_FREE_RATE, BENCHMARKS, get_logger
 from modules.finance.price_history import get_returns
 from modules.finance.positions import current_holdings, list_positions
 
@@ -56,7 +56,7 @@ def get_returns_matrix(tickers: list[str], lookback_years: int = 5) -> pd.DataFr
 def expected_returns_capm(
     tickers: list[str],
     market_ticker: str = "URTH",
-    risk_free: float = 0.04,
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
 ) -> pd.Series:
     """CAPM-implied (equilibrium) annual expected returns per ticker."""
     rets = get_returns_matrix(tickers + [market_ticker])
@@ -144,7 +144,7 @@ def min_variance_portfolio(tickers: list[str], constraints: dict | None = None) 
             "performance": _perf_dict(ef.portfolio_performance())}
 
 
-def max_sharpe_portfolio(tickers: list[str], risk_free: float = 0.04, constraints: dict | None = None) -> dict:
+def max_sharpe_portfolio(tickers: list[str], risk_free: float = DEFAULT_RISK_FREE_RATE, constraints: dict | None = None) -> dict:
     from pypfopt import EfficientFrontier
 
     mu = expected_returns_mean(tickers)
@@ -375,7 +375,7 @@ def current_portfolio_point(tickers: list[str]) -> dict | None:
     w = w.reindex(mu.index).fillna(0.0)
     ret = float(w @ mu)
     vol = float(np.sqrt(w.values @ S.values @ w.values))
-    sharpe = (ret - 0.04) / vol if vol else None
+    sharpe = (ret - DEFAULT_RISK_FREE_RATE) / vol if vol else None
     return {"return": ret, "risk": vol, "sharpe": sharpe,
             "weights": {k: round(float(v), 4) for k, v in w.items()}}
 
@@ -411,4 +411,271 @@ def optimization_signals() -> dict:
         "current_effective_bets": current_conc.get("effective_n_bets"),
         "min_variance_effective_bets": eff_n_mv,
         "max_sharpe_weights": ms.get("weights", {}),
+    }
+
+
+# ============================================================
+# Chunk 3 — constraint modal (bucket caps / position bounds /
+# concentration / currency / vol budget) + CML / distance-from-frontier.
+# ============================================================
+
+# Order the binding-constraint search drops sections in — loosest/most-likely
+# to be the culprit first. Not load-bearing for correctness, just search order.
+_SECTION_ORDER = ["vol_budget", "concentration", "currency_caps", "position_bounds", "bucket_caps"]
+
+
+def _ticker_bucket_map(tickers: list[str]) -> dict[str, str]:
+    """{ticker: resolved bucket}, via Chunk 2.5's resolve_bucket — no new
+    ticker->bucket mapping logic lives here."""
+    from modules.finance.buckets import resolve_bucket
+
+    return {t: resolve_bucket(t) for t in tickers}
+
+
+def _build_constrained_ef(mu: pd.Series, S: pd.DataFrame, tickers: list[str], constraints: dict):
+    """Fresh EfficientFrontier with every *enabled* constraint-modal section
+    applied. A section key that's absent or ``None`` in ``constraints`` means
+    that toggle is off in the UI and is simply never added to the solver —
+    this is what lets "isolate which constraint drives the Sharpe delta" work:
+    the frontend just omits whichever sections are toggled off.
+    """
+    from pypfopt import EfficientFrontier
+    import cvxpy as cp
+
+    position_bounds = constraints.get("position_bounds")
+    if position_bounds:
+        weight_bounds = [
+            (
+                float((position_bounds.get(t) or {}).get("min") or 0.0),
+                float((position_bounds.get(t) or {}).get("max") or 1.0),
+            )
+            for t in tickers
+        ]
+    else:
+        weight_bounds = (0.0, 1.0)
+
+    ef = EfficientFrontier(mu, S, weight_bounds=weight_bounds)
+
+    bucket_caps = constraints.get("bucket_caps")
+    if bucket_caps:
+        bucket_map = _ticker_bucket_map(tickers)
+        sector_lower = {b: float(v["min"]) for b, v in bucket_caps.items() if v.get("min") is not None}
+        sector_upper = {b: float(v["max"]) for b, v in bucket_caps.items() if v.get("max") is not None}
+        if sector_lower or sector_upper:
+            ef.add_sector_constraints(bucket_map, sector_lower, sector_upper)
+
+    concentration = constraints.get("concentration")
+    if concentration:
+        if concentration.get("max_single") is not None:
+            cap = float(concentration["max_single"])
+            ef.add_constraint(lambda w: w <= cap)
+        if concentration.get("max_top5") is not None:
+            top5 = float(concentration["max_top5"])
+            k = min(5, len(tickers))
+            ef.add_constraint(lambda w: cp.sum_largest(w, k) <= top5)
+        if concentration.get("hhi_cap") is not None:
+            hhi = float(concentration["hhi_cap"])
+            ef.add_constraint(lambda w: cp.sum_squares(w) <= hhi)
+
+    currency_caps = constraints.get("currency_caps")
+    if currency_caps:
+        from modules.finance.price_history import quote_currency
+
+        idx_by_ccy: dict[str, list[int]] = {}
+        for i, t in enumerate(tickers):
+            idx_by_ccy.setdefault(quote_currency(t).upper(), []).append(i)
+        for ccy, cap in currency_caps.items():
+            if cap is None:
+                continue
+            idxs = idx_by_ccy.get(ccy.upper(), [])
+            if idxs:
+                ef.add_constraint(lambda w, idxs=idxs, cap=float(cap): cp.sum([w[i] for i in idxs]) <= cap)
+
+    vol_budget = constraints.get("vol_budget")
+    if vol_budget and vol_budget.get("max_vol") is not None:
+        max_vol_sq = float(vol_budget["max_vol"]) ** 2
+        ef.add_constraint(lambda w: cp.quad_form(w, S.values) <= max_vol_sq)
+
+    return ef
+
+
+def _find_binding_constraint(mu: pd.Series, S: pd.DataFrame, tickers: list[str], constraints: dict) -> Optional[str]:
+    """Best-effort localization of *which* constraint section makes the set
+    infeasible: drop one section at a time and retry min_volatility; the first
+    removal that becomes feasible again is reported. This is a coarse,
+    section-level heuristic (at most 5 extra solves) — PyPortfolioOpt/cvxpy
+    don't reliably surface which single constraint an infeasible problem
+    violated, so there's no dual-value read to fall back on here.
+    """
+    for key in _SECTION_ORDER:
+        if not constraints.get(key):
+            continue
+        relaxed = {k: v for k, v in constraints.items() if k != key}
+        try:
+            ef = _build_constrained_ef(mu, S, tickers, relaxed)
+            ef.min_volatility()
+            return key
+        except Exception:  # noqa: BLE001
+            continue
+    return None
+
+
+def _max_feasible_return(mu: pd.Series, S: pd.DataFrame, tickers: list[str], constraints: dict) -> Optional[float]:
+    """Highest annualized return reachable under ``constraints`` (a linear
+    program over the same constraint set), or ``None`` if the solve fails."""
+    try:
+        ef = _build_constrained_ef(mu, S, tickers, constraints)
+        mu_vals = mu.reindex(tickers).values
+        ef.convex_objective(lambda w: -(w @ mu_vals))
+        return float(ef.portfolio_performance()[0])
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Max-feasible-return solve failed: %s", exc)
+        return None
+
+
+def build_frontier_constrained(
+    tickers: list[str],
+    mu: pd.Series,
+    S: pd.DataFrame,
+    constraints: dict,
+    n_points: int = 30,
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
+) -> dict:
+    """Constrained efficient frontier honoring the constraint modal's five
+    independently-toggleable sections (D8). Same point/tangency/mvp shape as
+    the unconstrained :func:`efficient_frontier_points` family, plus
+    ``feasible`` and (when infeasible) a best-effort ``binding_constraint``.
+    """
+    if mu.empty or S.empty:
+        return {"points": [], "tangency": None, "mvp": None, "feasible": False,
+                "binding_constraint": None, "reason": "no priced holdings"}
+
+    try:
+        ef = _build_constrained_ef(mu, S, tickers, constraints)
+        ef.min_volatility()
+        mvp = {"weights": {k: round(float(v), 4) for k, v in ef.clean_weights().items()},
+               "performance": _perf_dict(ef.portfolio_performance())}
+    except Exception as exc:  # noqa: BLE001 — infeasible constraint set
+        logger.info("Constrained min_volatility infeasible: %s", exc)
+        binding = _find_binding_constraint(mu, S, tickers, constraints)
+        reason = "no feasible portfolio under these constraints"
+        if binding:
+            reason += f" — relax {binding.replace('_', ' ')}"
+        return {"points": [], "tangency": None, "mvp": None, "feasible": False,
+                "binding_constraint": binding, "reason": reason}
+
+    try:
+        ef = _build_constrained_ef(mu, S, tickers, constraints)
+        ef.max_sharpe(risk_free_rate=risk_free)
+        tangency = {"weights": {k: round(float(v), 4) for k, v in ef.clean_weights().items()},
+                    "performance": _perf_dict(ef.portfolio_performance(risk_free_rate=risk_free))}
+    except Exception as exc:  # noqa: BLE001 — feasible region exists but no reachable max-sharpe optimum (rare)
+        logger.info("Constrained max_sharpe failed despite a feasible region: %s", exc)
+        tangency = None
+
+    # Sample targets across the *feasible* return range — from the constrained
+    # min-variance return up to the highest return the constraint set allows —
+    # rather than the raw mu range, most of which is unreachable once bucket caps
+    # etc. bind (that left only a handful of points and stopped short of the ★).
+    lo = mvp["performance"]["expected_return"]
+    hi = _max_feasible_return(mu, S, tickers, constraints)
+    if hi is None or hi <= lo:
+        hi = float(mu.max())
+    else:
+        # A target exactly at the max-return vertex is numerically infeasible
+        # (solver tolerance) and would silently drop the last point — back off 1bp.
+        hi -= 1e-4
+    points: list[dict] = []
+    for target in np.linspace(lo, hi, n_points):
+        try:
+            ef = _build_constrained_ef(mu, S, tickers, constraints)
+            ef.efficient_return(target_return=float(target))
+            perf = ef.portfolio_performance()
+            points.append({
+                "target_return": float(target),
+                "risk": float(perf[1]),
+                "return": float(perf[0]),
+                "sharpe": float(perf[2]),
+                "weights": {k: round(float(v), 4) for k, v in ef.clean_weights().items()},
+            })
+        except Exception:  # noqa: BLE001 — infeasible individual targets are simply skipped
+            continue
+
+    return {"points": points, "tangency": tangency, "mvp": mvp,
+            "feasible": True, "binding_constraint": None, "reason": None}
+
+
+def compute_distance_from_frontier(
+    tickers: list[str],
+    current_weights: dict[str, float],
+    mu: pd.Series,
+    S: pd.DataFrame,
+    benchmark_rets: pd.Series,
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
+) -> dict:
+    """Current-portfolio Sharpe vs. the CAPM-tangency Sharpe for whichever
+    benchmark is selected (B2).
+
+    "Tangency" here is deliberately *not* the plain historical-mean tangency
+    the main frontier chart uses — that has no benchmark dependence at all, so
+    switching the Risk tab's Comparison dropdown couldn't move this callout.
+    Instead each ticker's expected return is CAPM-implied against
+    ``benchmark_rets`` ("the market" = whichever ticker is selected), the same
+    beta-based formula :func:`expected_returns_capm` already uses, just fed a
+    pre-fetched return series instead of a ticker string so this can be called
+    with the exact same benchmark series the Risk tab resolved.
+    """
+    from pypfopt import EfficientFrontier
+
+    if not tickers or mu.empty or S.empty:
+        return {"available": False, "reason": "no priced holdings"}
+
+    w = pd.Series({t: current_weights.get(t, 0.0) for t in tickers})
+    total = w.sum()
+    if total <= 0:
+        return {"available": False, "reason": "no priced holdings"}
+    w = w / total
+
+    mu_aligned = mu.reindex(tickers).fillna(0.0)
+    S_aligned = S.reindex(index=tickers, columns=tickers).fillna(0.0)
+    port_ret = float(w @ mu_aligned)
+    port_vol = float(np.sqrt(w.values @ S_aligned.values @ w.values))
+    portfolio_sharpe = (port_ret - risk_free) / port_vol if port_vol else None
+
+    market_mean = benchmark_rets.mean() * TRADING_DAYS
+    market_var = benchmark_rets.var()
+    capm_mu: dict[str, float] = {}
+    if market_var:
+        for t in tickers:
+            r = get_returns(t)
+            aligned = pd.concat([r, benchmark_rets], axis=1).dropna()
+            if aligned.empty:
+                continue
+            beta = aligned.iloc[:, 0].cov(aligned.iloc[:, 1]) / market_var
+            capm_mu[t] = float(risk_free + beta * (market_mean - risk_free))
+
+    if not capm_mu:
+        return {"available": False, "reason": "not enough overlapping history with the benchmark"}
+
+    common = [t for t in tickers if t in capm_mu]
+    try:
+        ef = EfficientFrontier(pd.Series(capm_mu).reindex(common), S.reindex(index=common, columns=common))
+        ef.max_sharpe(risk_free_rate=risk_free)
+        tangency_ret, tangency_vol, tangency_sharpe = ef.portfolio_performance(risk_free_rate=risk_free)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("CAPM tangency solve failed: %s", exc)
+        return {"available": False, "reason": "could not solve for the CAPM tangency portfolio"}
+
+    delta_bps = (
+        round((portfolio_sharpe - tangency_sharpe) * 10000, 1) if portfolio_sharpe is not None else None
+    )
+
+    return {
+        "available": True,
+        "portfolio_sharpe": round(portfolio_sharpe, 4) if portfolio_sharpe is not None else None,
+        "tangency_sharpe": round(float(tangency_sharpe), 4),
+        "delta_bps": delta_bps,
+        "portfolio_vol": round(port_vol, 4),
+        "tangency_vol": round(float(tangency_vol), 4),
+        "risk_free_rate": risk_free,
     }

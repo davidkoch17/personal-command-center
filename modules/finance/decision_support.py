@@ -268,20 +268,31 @@ def conviction_weighted_view() -> dict:
 def current_positions_and_prices() -> tuple[list[dict], dict[str, float]]:
     """Assemble the pure-function inputs from live holdings + the price cache.
 
-    ``positions`` is a list of ``{ticker, quantity, bucket, type}`` dicts; holdings
-    with no position metadata fall back to the ``single_stocks`` bucket so they're
-    never silently dropped from the checks.
+    ``positions`` is a list of ``{ticker, quantity, bucket, type}`` dicts.
+    ``bucket`` goes through the same override/map resolution as the Bucket
+    Allocation panel (Chunk 2.5's buckets.resolve_bucket) rather than a blind
+    "single_stocks" guess, so e.g. a crypto ticker only known via the seed map
+    now gets checked against the crypto cap here too, not the equity one. A
+    truly unresolvable ticker (no override, not in the map) still falls back
+    to "single_stocks" rather than "unassigned" — concentration_alerts() has
+    no "unassigned" branch, and the point of that fallback is that nothing
+    silently skips the checks just for lacking a bucket.
     """
+    from modules.finance.buckets import resolve_bucket
+
     holdings = current_holdings()
     positions: list[dict] = []
     prices: dict[str, float] = {}
     for ticker, qty in holdings.items():
         meta = get_position(ticker)
         prices[ticker] = latest_price(ticker) or 0.0
+        bucket = resolve_bucket(ticker)
+        if bucket not in BUCKET_TARGETS:  # "unassigned" -> safe, checked-anyway default
+            bucket = "single_stocks"
         positions.append({
             "ticker": ticker,
             "quantity": qty,
-            "bucket": meta.bucket if meta else "single_stocks",
+            "bucket": bucket,
             "type": meta.type if meta else None,
         })
     return positions, prices

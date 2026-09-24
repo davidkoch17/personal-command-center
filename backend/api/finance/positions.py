@@ -6,12 +6,15 @@ from datetime import date as date_cls
 
 from fastapi import APIRouter, HTTPException, Query
 
-from core.config import get_logger
+from pydantic import BaseModel
+
+from core.config import BENCHMARKS, DEFAULT_BENCHMARK, get_logger
 from modules.finance import backfill, period_pnl, positions as pos
 from modules.finance import realized
 from modules.finance import risk
+from modules.finance.buckets import resolve_bucket_with_source
 from modules.finance.price_history import get_returns, latest_price_eur
-from modules.finance.positions import Position, Transaction, TransactionUpdate
+from modules.finance.positions import Bucket, Position, Transaction, TransactionUpdate
 
 logger = get_logger(__name__)
 
@@ -41,6 +44,30 @@ def post_position(position: Position) -> dict:
     """Add (or replace) a position's metadata."""
     pos.add_position(position)
     return {"ok": True, "ticker": position.ticker}
+
+
+class BucketOverrideRequest(BaseModel):
+    bucket: Bucket | None = None  # null clears the override -> falls back to the seed map
+
+
+@router.patch("/positions/{ticker}/bucket")
+def patch_position_bucket(ticker: str, req: BucketOverrideRequest) -> dict:
+    """Set (``bucket``) or clear (``null``) a manual per-position bucket override.
+
+    Upserts a minimal Position record if the ticker doesn't have one yet (e.g.
+    it was traded before Chunk 2.5 shipped) — same best-effort type guess
+    ``positions._stub_position_if_new`` uses for brand-new trades. Returns the
+    resolved bucket + its source right after the write, so the frontend can
+    update the Holdings-row indicator straight off this response.
+    """
+    tu = ticker.upper()
+    existing = pos.get_position(tu)
+    if existing is None:
+        guessed_type = "crypto" if tu.endswith(("-USD", "-EUR", "-GBP")) else "equity"
+        existing = Position(ticker=tu, name=tu, type=guessed_type, bucket=None)
+    pos.add_position(existing.model_copy(update={"bucket": req.bucket, "ticker": tu}))
+    bucket, source = resolve_bucket_with_source(tu)
+    return {"ticker": tu, "bucket": bucket, "source": source}
 
 
 @router.get("/transactions")
@@ -104,12 +131,16 @@ def delete_transaction_endpoint(id: str) -> dict:
 
 
 @router.get("/holdings")
-def get_holdings() -> dict:
+def get_holdings(benchmark: str = Query(DEFAULT_BENCHMARK)) -> dict:
     """Current holdings enriched with cost basis, live price + per-position risk.
 
-    Per-position Sharpe / volatility / beta come from each ticker's own daily
-    return history (cached). Weight is market-value share of the portfolio.
+    Per-position Sharpe / volatility come from each ticker's own daily return
+    history (cached). Beta is vs ``benchmark`` (default MSCI World, same
+    Comparison-benchmark dropdown as the Risk tab — see core.config.BENCHMARKS)
+    so switching that dropdown recomputes every holding's beta, not just the
+    portfolio-level one. Weight is market-value share of the portfolio.
     """
+    bench_ticker = BENCHMARKS.get(benchmark, BENCHMARKS[DEFAULT_BENCHMARK])["ticker"]
     holdings = pos.current_holdings()
     rows: list[dict] = []
     market_values: dict[str, float] = {}
@@ -126,11 +157,13 @@ def get_holdings() -> dict:
             market_value = (price or 0.0) * qty
             market_values[ticker] = market_value
             rets = get_returns(ticker)
+            bucket, bucket_source = resolve_bucket_with_source(ticker)
             rows.append({
                 "ticker": ticker,
                 "name": meta.name if meta else ticker,
                 "type": meta.type if meta else None,
-                "bucket": meta.bucket if meta else None,
+                "bucket": bucket,
+                "bucket_source": bucket_source,
                 "currency": meta.currency if meta else "USD",
                 "quantity": round(qty, 8),
                 "avg_cost": avg_cost,
@@ -147,7 +180,7 @@ def get_holdings() -> dict:
                 if (price is not None and total_basis) else None,
                 "sharpe": risk.sharpe(rets),
                 "volatility": risk.annualized_vol(rets),
-                "beta": risk.beta_vs(rets, "^GSPC"),
+                "beta": risk.beta_vs(rets, bench_ticker),
             })
 
     total_mv = sum(market_values.values())
@@ -155,7 +188,12 @@ def get_holdings() -> dict:
         r["weight"] = round(market_values[r["ticker"]] / total_mv, 4) if total_mv > 0 else None
 
     rows.sort(key=lambda r: r["market_value"], reverse=True)
-    return {"holdings": rows, "total_market_value": round(total_mv, 2), "count": len(rows)}
+    return {
+        "holdings": rows,
+        "total_market_value": round(total_mv, 2),
+        "count": len(rows),
+        "beta_benchmark": benchmark,
+    }
 
 
 # --- Phase D: Holdings tab (period P&L + trade log) + Overview (net worth) ----

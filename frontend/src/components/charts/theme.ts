@@ -10,6 +10,10 @@ export const CHART_COLORS = {
   danger: "#EF4444",
   warning: "#F59E0B",
   invest: "#8B5CF6",
+  // Capital Market Line (Chunk 3 B1) — distinct from accent (frontier curve)
+  // and invest (portfolio-tracking violet elsewhere); reads clearly in both
+  // themes without being mistaken for a status color (success/danger/warning).
+  cml: "#06B6D4",
   grid: "rgb(var(--color-border))",
   axis: "rgb(var(--color-text-label))",
 } as const

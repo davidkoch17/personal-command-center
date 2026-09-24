@@ -6,7 +6,7 @@ import warnings
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
-from core.config import get_logger
+from core.config import BENCHMARKS, DEFAULT_BENCHMARK, DEFAULT_RISK_FREE_RATE, get_logger
 from modules.finance import optimization as opt
 
 logger = get_logger(__name__)
@@ -48,6 +48,10 @@ def frontier(
         "max_sharpe": max_sharpe,
         "min_variance": min_var,
         "current": current,
+        # Chunk 3 B1 — the CML is drawn from (0, risk_free_rate) through the
+        # tangency (max_sharpe) point; expose the same constant every Sharpe/
+        # CAPM computation already uses rather than the frontend hardcoding it.
+        "risk_free_rate": DEFAULT_RISK_FREE_RATE,
     }
 
 
@@ -67,7 +71,7 @@ def min_variance(
 @router.get("/optimization/max-sharpe")
 def max_sharpe(
     tickers: str | None = Query(None),
-    risk_free: float = Query(0.04),
+    risk_free: float = Query(DEFAULT_RISK_FREE_RATE),
     max_position: float | None = Query(None, ge=0, le=1),
     min_position: float | None = Query(None, ge=0, le=1),
 ) -> dict:
@@ -118,3 +122,83 @@ def signals() -> dict:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return opt.optimization_signals()
+
+
+# ============================================================
+# Chunk 3 — constraint modal (D8) + distance-from-frontier (B2)
+# ============================================================
+
+class BoundConstraint(BaseModel):
+    min: float | None = None
+    max: float | None = None
+
+
+class ConcentrationConstraint(BaseModel):
+    max_single: float | None = None
+    max_top5: float | None = None
+    hhi_cap: float | None = None
+
+
+class ConstraintSetRequest(BaseModel):
+    """One constraint-modal submission. Each section is ``None`` when its
+    toggle is off in the UI — that section is then never sent to the solver
+    (see modules.finance.optimization._build_constrained_ef)."""
+
+    tickers: list[str] | None = None
+    n_points: int = 30
+    bucket_caps: dict[str, BoundConstraint] | None = None
+    position_bounds: dict[str, BoundConstraint] | None = None
+    concentration: ConcentrationConstraint | None = None
+    currency_caps: dict[str, float] | None = None
+    vol_budget: dict[str, float] | None = None  # {"max_vol": <annualized fraction>}
+
+
+@router.post("/optimization/frontier-with-constraints")
+def frontier_with_constraints(req: ConstraintSetRequest) -> dict:
+    """Constrained efficient frontier for the D8 constraint modal's preview.
+
+    Returns only the constrained side — the frontend already holds the
+    unconstrained frontier from the tab's initial ``/optimization/frontier``
+    load and overlays this on top of it, so this endpoint doesn't redundantly
+    recompute the unconstrained curve.
+    """
+    tk = opt._resolve_tickers([t.strip().upper() for t in (req.tickers or [])] or None)
+    constraints = {
+        "bucket_caps": {k: v.model_dump() for k, v in req.bucket_caps.items()} if req.bucket_caps else None,
+        "position_bounds": {k: v.model_dump() for k, v in req.position_bounds.items()} if req.position_bounds else None,
+        "concentration": req.concentration.model_dump() if req.concentration else None,
+        "currency_caps": req.currency_caps,
+        "vol_budget": req.vol_budget,
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mu = opt.expected_returns_mean(tk)
+        S = opt.covariance_matrix(tk)
+        result = opt.build_frontier_constrained(tk, mu, S, constraints, n_points=req.n_points)
+    return {"tickers": tk, "constrained": result}
+
+
+@router.get("/optimization/distance-from-frontier")
+def distance_from_frontier(
+    benchmark: str = Query(DEFAULT_BENCHMARK),
+    tickers: str | None = Query(None),
+) -> dict:
+    """Current-portfolio Sharpe vs. the CAPM-tangency Sharpe for ``benchmark``
+    (B2's distance-from-frontier callout) — see
+    modules.finance.optimization.compute_distance_from_frontier for why the
+    tangency here is CAPM-based rather than the main chart's historical-mean
+    tangency (this is what makes the callout respond to the benchmark switch)."""
+    from modules.finance.positions import current_holdings
+    from modules.finance.price_history import get_returns, latest_price
+
+    tk = _parse_tickers(tickers)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mu = opt.expected_returns_mean(tk)
+        S = opt.covariance_matrix(tk)
+        holdings = current_holdings()
+        weights = {t: holdings.get(t, 0.0) * (latest_price(t) or 0.0) for t in tk}
+        bench_ticker = BENCHMARKS.get(benchmark, BENCHMARKS[DEFAULT_BENCHMARK])["ticker"]
+        bench_rets = get_returns(bench_ticker)
+        result = opt.compute_distance_from_frontier(tk, weights, mu, S, bench_rets)
+    return {"benchmark": benchmark, **result}

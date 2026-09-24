@@ -8,10 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { BucketCell } from "@/components/finance/bucket-cell"
 import type { FinanceHolding } from "@/hooks/useFinance"
 import { cn, formatCurrency, formatNumber } from "@/lib/utils"
 
-type Kind = "text" | "num" | "currency" | "pct" | "ratio"
+type Kind = "text" | "num" | "currency" | "pct" | "ratio" | "bucket"
 
 interface Col {
   label: string
@@ -22,6 +23,7 @@ interface Col {
 const COLS: Col[] = [
   { label: "position", key: "name", kind: "text" },
   { label: "type", key: "type", kind: "text" },
+  { label: "bucket", key: "bucket", kind: "bucket" },
   { label: "qty", key: "quantity", kind: "num" },
   { label: "avg cost", key: "avg_cost", kind: "currency" },
   { label: "price", key: "current_price", kind: "currency" },
@@ -110,7 +112,13 @@ export const FinanceHoldingsTable = memo(function FinanceHoldingsTable({
             onClick={onRowClick ? () => onRowClick(row) : undefined}
           >
             {COLS.map((c) => (
-              <TableCell key={c.key}>{render(row[c.key], c.kind, row.currency)}</TableCell>
+              <TableCell key={c.key} onClick={c.kind === "bucket" ? (e) => e.stopPropagation() : undefined}>
+                {c.kind === "bucket" ? (
+                  <BucketCell ticker={row.ticker} bucket={row.bucket} bucketSource={row.bucket_source} />
+                ) : (
+                  render(row[c.key], c.kind, row.currency)
+                )}
+              </TableCell>
             ))}
           </TableRow>
         ))}

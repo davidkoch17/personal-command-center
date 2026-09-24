@@ -2,13 +2,18 @@ import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoBarrierBanner } from "@/components/ui/info-barrier-banner"
+import { PortfolioTab } from "@/components/portfolio/portfolio-tab"
 import { OverviewTab } from "@/components/portfolio/overview-tab"
 import { HoldingsTab } from "@/components/portfolio/holdings-tab"
 import { WatchlistTab } from "@/components/portfolio/watchlist-tab"
 import { CapturesTab } from "@/components/portfolio/captures-tab"
 import { ResearchTab } from "@/components/portfolio/research-tab"
 
-const TABS = ["overview", "holdings", "watchlist", "captures", "research"] as const
+// "portfolio" (Chunk 2) is first — David's main portfolio dashboard — the
+// other five are untouched and keep their existing order. Default tab stays
+// "overview" (see the fallback below) so this doesn't change what anyone sees
+// on a bare /portfolio load; it only adds a new leftmost entry to the nav.
+const TABS = ["portfolio", "overview", "holdings", "watchlist", "captures", "research"] as const
 type Tab = (typeof TABS)[number]
 
 /**
@@ -43,6 +48,7 @@ export function Portfolio() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
+          <TabsTrigger value="portfolio">portfolio</TabsTrigger>
           <TabsTrigger value="overview">overview</TabsTrigger>
           <TabsTrigger value="holdings">holdings</TabsTrigger>
           <TabsTrigger value="watchlist">watchlist</TabsTrigger>
@@ -50,6 +56,7 @@ export function Portfolio() {
           <TabsTrigger value="research">research</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="portfolio">{tab === "portfolio" && <PortfolioTab />}</TabsContent>
         <TabsContent value="overview">{tab === "overview" && <OverviewTab />}</TabsContent>
         <TabsContent value="holdings">{tab === "holdings" && <HoldingsTab />}</TabsContent>
         <TabsContent value="watchlist">{tab === "watchlist" && <WatchlistTab />}</TabsContent>

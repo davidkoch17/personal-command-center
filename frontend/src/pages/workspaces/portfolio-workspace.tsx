@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FinanceHoldingsTable } from "@/components/finance/finance-holdings-table"
 import { TransactionForm } from "@/components/finance/transaction-form"
+import { TradeLog } from "@/components/portfolio/holdings-tab"
 import { BucketAllocation } from "@/components/finance/bucket-allocation"
 import { OptimizationTab } from "@/components/finance/optimization-panel"
 import { FactorsTab } from "@/components/finance/factors-panel"
@@ -54,6 +55,7 @@ import {
 } from "@/hooks/useFinance"
 import { useRunSkill } from "@/hooks/useSkills"
 import { useReportingCurrency } from "@/hooks/useReportingCurrency"
+import { useBenchmark, type BenchmarkKey } from "@/hooks/useBenchmark"
 import { InfoTip } from "@/components/ui/info-tip"
 import { metricTip } from "@/components/finance/metric-glossary"
 import { toast } from "@/lib/toast-store"
@@ -245,8 +247,10 @@ export function PortfolioWorkspace() {
 
 // 1. Holdings — transaction-driven holdings with per-position risk.
 function HoldingsTab() {
-  const { data, isLoading } = useFinanceHoldings()
+  const [benchmark] = useBenchmark()
+  const { data, isLoading } = useFinanceHoldings(benchmark)
   const rows = data?.holdings ?? []
+  const benchmarkLabel = BENCHMARKS.find((b) => b.key === (data?.beta_benchmark ?? benchmark))?.label ?? benchmark
 
   return (
     <div className="space-y-4">
@@ -258,7 +262,7 @@ function HoldingsTab() {
         {isLoading ? <Skeleton className="h-40" /> : <FinanceHoldingsTable holdings={rows} />}
         <p className="mt-2 text-xs text-text-label">
           sharpe / vol / beta are per-position from each ticker's daily return history;
-          beta vs s&amp;p 500.
+          beta vs {benchmarkLabel} — set from the Risk tab's Comparison benchmark dropdown.
         </p>
       </Panel>
 
@@ -396,7 +400,9 @@ function PerformanceTab() {
 
 // 5. Risk tab — real metrics.
 function RiskTab() {
-  const [benchmark, setBenchmark] = useState("MSCI_WORLD")
+  // Shared across the workspace (see useBenchmark) so switching this
+  // Comparison benchmark also recomputes per-holding beta on the Holdings tab.
+  const [benchmark, setBenchmark] = useBenchmark()
   const risk = useFinanceRisk(benchmark)
   const corr = useFinanceCorrelation()
   const r: RiskResponse | undefined = risk.data
@@ -408,7 +414,7 @@ function RiskTab() {
   return (
     <div className="space-y-4">
       <div className="flex w-44 items-center">
-        <Select value={benchmark} onValueChange={setBenchmark}>
+        <Select value={benchmark} onValueChange={(v) => setBenchmark(v as BenchmarkKey)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             {BENCHMARKS.map((b) => (
@@ -904,12 +910,10 @@ function TaxTab({ holdings, loading }: { holdings: HoldingRow[]; loading: boolea
           </ul>
         )}
       </Panel>
-      <Panel title="realized gains / losses" statusDotColor="muted">
-        <p className="text-sm text-text-label">
-          realized-gains tracker + abgeltungsteuer + 12-month holding period are a
-          later phase (15c).
-        </p>
-      </Panel>
+      {/* Realized gains / losses — same FIFO trade log + YTD Abgeltungsteuer-base
+          total as Portfolio Hub → Holdings → Trade Log (modules.finance.realized,
+          GET /api/finance/trades/realized via useRealizedTrades). */}
+      <TradeLog />
     </div>
   )
 }

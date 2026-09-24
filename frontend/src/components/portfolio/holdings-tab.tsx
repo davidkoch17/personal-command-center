@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { MetricPanel } from "@/components/finance/metric-panel"
+import { BucketCell } from "@/components/finance/bucket-cell"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { TransactionForm, ACTIONS } from "@/components/finance/transaction-form"
 import {
@@ -123,7 +124,9 @@ function PnlMetric({ label, value, loading }: { label: string; value?: number; l
 }
 
 /** Columns (LOCKED order): Position · Weight · Price · Value · P&L month · P&L YTD ·
- *  P&L all-time (EUR + %) · Qty (far right, muted/de-emphasized). */
+ *  P&L all-time (EUR + %) · Qty (far right, muted/de-emphasized).
+ *  Bucket inserted after Position in Chunk 2.5 — not part of the original
+ *  lock, added for the hybrid bucket-assignment feature. */
 function HoldingsPnlTable({ rows }: { rows: PnlPosition[] }) {
   return (
     <div className="overflow-x-auto">
@@ -131,6 +134,7 @@ function HoldingsPnlTable({ rows }: { rows: PnlPosition[] }) {
         <thead>
           <tr className="border-b border-border text-left text-xs text-text-label">
             <th className="py-2 pr-3 font-normal">position</th>
+            <th className="py-2 px-3 font-normal">bucket</th>
             <th className="py-2 px-3 text-right font-normal">weight</th>
             <th className="py-2 px-3 text-right font-normal">price</th>
             <th className="py-2 px-3 text-right font-normal">value</th>
@@ -146,6 +150,9 @@ function HoldingsPnlTable({ rows }: { rows: PnlPosition[] }) {
               <td className="py-2 pr-3">
                 <div className="font-mono text-text">{r.ticker}</div>
                 <div className="max-w-[14rem] truncate text-xs text-text-secondary">{r.name}</div>
+              </td>
+              <td className="py-2 px-3">
+                <BucketCell ticker={r.ticker} bucket={r.bucket} bucketSource={r.bucket_source} />
               </td>
               <td className="py-2 px-3 text-right">
                 <span className="font-mono tabular-nums text-text-secondary">
@@ -189,7 +196,7 @@ function PnlCell({ eur, pct }: { eur: number; pct: number | null }) {
   )
 }
 
-function TradeLog() {
+export function TradeLog() {
   const { data, isLoading } = useRealizedTrades()
   return (
     <Panel

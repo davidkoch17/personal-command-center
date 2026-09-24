@@ -90,6 +90,14 @@ BENCHMARKS: dict[str, dict[str, str]] = {
 }
 DEFAULT_BENCHMARK = "MSCI_WORLD"
 
+# Single source of truth for the risk-free rate used by Sharpe/Sortino (risk.py),
+# CAPM expected returns and max-Sharpe optimization (optimization.py), and the
+# CML/distance-from-frontier callout (Chunk 3). Was a repeated ``0.04`` literal
+# in five places before Chunk 3 — Chunk 8 is expected to expose this as UI
+# config; until then every caller imports this one name rather than each
+# carrying its own copy of the number.
+DEFAULT_RISK_FREE_RATE = 0.04
+
 # Four-bucket allocation framework — LOCKED in Investment_Philosophy.md § 0.
 # Targets are fractions of total portfolio value. Drift thresholds + trigger
 # alerts mirror the philosophy doc (Crypto > 30% trim, ETF < 45% rebalance).
@@ -105,6 +113,10 @@ BUCKET_LABELS: dict[str, str] = {
     "crypto": "Crypto",
     "wild_cards": "Wild Cards",
 }
+# Chunk 2.5 — seed ticker->bucket map (modules.finance.buckets.infer_bucket).
+# Manual per-position overrides live in data/positions.json instead (Position
+# .bucket), never here — see buckets.py's resolve_bucket for the precedence.
+TICKER_BUCKETS_FILE = REPO_ROOT / "config" / "ticker_buckets.yaml"
 # Drift bands (absolute percentage-point deviation from target): within ``ok`` is
 # green, within ``warn`` is amber, beyond is red.
 BUCKET_DRIFT_OK = 0.02   # ±2 pp

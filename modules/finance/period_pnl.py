@@ -41,6 +41,7 @@ from datetime import date
 from typing import Optional
 
 from core.config import NETWORTH_DAILY_CSV, POSITIONS_DAILY_CSV, get_logger
+from modules.finance import buckets as bucket_mod
 from modules.finance._csv_store import read_rows
 from modules.finance.positions import current_holdings, get_position, list_transactions
 
@@ -149,10 +150,13 @@ def position_period_pnl(on: Optional[date] = None) -> dict:
         pnl_ytd = value - v_year - contrib_y
 
         meta = get_position(ticker)
+        bucket, bucket_source = bucket_mod.resolve_bucket_with_source(ticker)
         out_rows.append({
             "ticker": ticker,
             "name": meta.name if meta else ticker,
             "type": meta.type if meta else None,
+            "bucket": bucket,
+            "bucket_source": bucket_source,
             "qty": round(qty, 8),
             "price_eur": round(price, 4) if price else None,
             "value_eur": round(value, 2),
