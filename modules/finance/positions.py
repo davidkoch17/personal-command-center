@@ -326,3 +326,28 @@ def first_transaction_date(ticker: str) -> Optional[date]:
     """Date of the earliest transaction for ``ticker`` (None if none)."""
     txns = transactions_for(ticker)
     return txns[0].date if txns else None
+
+
+def open_lots(ticker: str) -> list[dict]:
+    """Open FIFO lots for ``ticker`` as ``[{date, quantity, unit_cost}]``, oldest first.
+
+    The same FIFO replay :func:`cost_basis` does (sells consume the oldest lots; fees are
+    folded into each buy lot's per-share cost), but keeping each surviving lot's buy
+    date — what the security-level rebalance needs to say how long the units it would
+    sell have been held (Spekulationsfrist for crypto, Abgeltungsteuer for the rest).
+    A partly-consumed lot keeps its original date with the remaining quantity.
+    """
+    lots: list[list] = []  # each: [buy_date, remaining_qty, per_share_cost]
+    for t in transactions_for(ticker):
+        if t.action == "buy":
+            per_share = t.price + (t.fees / t.quantity if t.quantity else 0.0)
+            lots.append([t.date, t.quantity, per_share])
+        elif t.action == "sell":
+            to_remove = t.quantity
+            while to_remove > 1e-9 and lots:
+                take = min(lots[0][1], to_remove)
+                lots[0][1] -= take
+                to_remove -= take
+                if lots[0][1] <= 1e-9:
+                    lots.pop(0)
+    return [{"date": d, "quantity": q, "unit_cost": c} for d, q, c in lots if q > 1e-9]

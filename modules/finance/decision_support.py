@@ -20,12 +20,13 @@ source of truth the rest of the layer reads.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from modules.finance.positions import (
     cost_basis,
     current_holdings,
     get_position,
+    open_lots,
     transactions_for,
 )
 from modules.finance.price_history import latest_price
@@ -242,6 +243,243 @@ def concentration_alerts(positions: list, prices: dict) -> list[dict]:
 
 
 # ============================================================
+# Quarterly cadence (Chunk 7, D7) — a review alert regardless of drift
+# ============================================================
+
+QUARTER_START_MONTHS = (1, 4, 7, 10)
+QUARTERLY_WINDOW_DAYS = 7  # the alert is live for the first 7 calendar days of the quarter
+
+
+def quarterly_cadence_alert(as_of: date | None = None) -> dict | None:
+    """The "quarterly_review" alert when ``as_of`` is within 7 days of Jan/Apr/Jul/Oct 1.
+
+    Live on days 1-7 of those months (1 Jan through 7 Jan, ...) and silent otherwise,
+    independent of drift — it sits alongside the ±4pp drift trigger, it doesn't replace it.
+    """
+    as_of = as_of or date.today()
+    if as_of.month not in QUARTER_START_MONTHS or as_of.day > QUARTERLY_WINDOW_DAYS:
+        return None
+    quarter = f"Q{(as_of.month - 1) // 3 + 1} {as_of.year}"
+    start = date(as_of.year, as_of.month, 1)
+    return {
+        "type": "quarterly_review",
+        "quarter": quarter,
+        "due_date": start.isoformat(),
+        "window_ends": (start + timedelta(days=QUARTERLY_WINDOW_DAYS - 1)).isoformat(),
+        "severity": "medium",
+        "rationale": f"{quarter} rebalance review due — even without drift, review positions per your quarterly cadence",
+    }
+
+
+def decision_alerts(positions: list, prices: dict, as_of: date | None = None) -> list[dict]:
+    """The full alert list: per-position cap/drift alerts plus the quarterly review (if due)."""
+    alerts = concentration_alerts(positions, prices)
+    quarterly = quarterly_cadence_alert(as_of)
+    return [quarterly, *alerts] if quarterly else alerts
+
+
+# ============================================================
+# Security-level rebalance (Chunk 7, D6) — bucket recs -> specific trades
+# ============================================================
+
+BUCKET_LABELS = {
+    "etf_foundation": "ETF Foundation",
+    "single_stocks": "Single Stocks",
+    "crypto": "Crypto",
+    "wild_cards": "Wild Cards",
+}
+
+# How to choose which crypto to sell inside an over-allocated crypto bucket:
+#   "youngest_first"  — shortest holding period first (the Chunk 7 brief as written)
+#   "tax_free_first"  — positions already past the 365-day Spekulationsfrist first
+# NB: these pull in opposite directions tax-wise. Selling coins held < 365 days realizes
+# *taxable* gains; coins held >= 365 days are tax-free (§23 EStG), which is why
+# harvest_candidates() above treats them the opposite way. The brief's rule is the
+# default; every trade carries an explicit tax note so the consequence is on the page,
+# and this constant is the one-line switch.
+CRYPTO_SELL_ORDER = "youngest_first"
+
+ABGELTUNG_TEXT = "Abgeltungsteuer applies"
+
+
+def _lot_days(lot: dict, today: date) -> int:
+    return (today - lot["date"]).days
+
+
+def sale_tax_note(ticker: str, ptype: str | None, units: float, today: date, lots: list[dict]) -> str:
+    """One-line German tax note for selling ``units`` of ``ticker`` (FIFO, oldest lots first).
+
+    Stocks/ETFs: Abgeltungsteuer applies whatever the holding period. Crypto: gains on
+    units held >= 365 days are tax-free (Spekulationsfrist met); younger units are taxable,
+    and the note says when they'd turn tax-free. Mixed sales are split by lot.
+    """
+    if not lots or units <= 0:
+        return f"{ABGELTUNG_TEXT}" if ptype != "crypto" else "no buy history found — holding period unknown"
+    remaining, consumed = units, []
+    for lot in lots:  # oldest first
+        take = min(lot["quantity"], remaining)
+        consumed.append((lot, take))
+        remaining -= take
+        if remaining <= 1e-9:
+            break
+    oldest_days = _lot_days(consumed[0][0], today)
+    if ptype != "crypto":
+        return f"Held {oldest_days} days — {ABGELTUNG_TEXT}"
+
+    free = sum(q for lot, q in consumed if _lot_days(lot, today) >= 365)
+    taxable_lots = [(lot, q) for lot, q in consumed if _lot_days(lot, today) < 365]
+    taxable = sum(q for _, q in taxable_lots)
+    if not taxable_lots:
+        return f"Held {oldest_days} days — Spekulationsfrist met (crypto only), gains tax-free"
+    youngest = min(_lot_days(lot, today) for lot, _ in taxable_lots)
+    days_left = min(365 - _lot_days(lot, today) for lot, _ in taxable_lots)
+    if free <= 1e-9:
+        return (f"Held {youngest} days — inside the Spekulationsfrist, gains taxable "
+                f"(tax-free in {days_left} days)")
+    return (f"{free:.4g} units held 365+ days (tax-free), {taxable:.4g} units inside the "
+            f"Spekulationsfrist (taxable; youngest {youngest} days)")
+
+
+def _sell_order(candidates: list[dict], ptype_bucket: str) -> list[dict]:
+    """Sort sell candidates. Crypto: by holding period (see CRYPTO_SELL_ORDER); everything
+    else: largest unrealized gain first. Ties -> larger weight (concentration) first."""
+    if ptype_bucket == "crypto":
+        sign = 1 if CRYPTO_SELL_ORDER == "youngest_first" else -1
+        return sorted(candidates, key=lambda c: (sign * c["age_days"], -c["weight"], c["ticker"]))
+    return sorted(candidates, key=lambda c: (-c["unrealized"], -c["weight"], c["ticker"]))
+
+
+def primary_ticker_for_bucket(bucket: str) -> str | None:
+    """The bucket's default buy: the first ticker listed for it in config/ticker_buckets.yaml."""
+    from modules.finance.buckets import _load_ticker_bucket_map
+
+    for t, b in _load_ticker_bucket_map().items():
+        if b == bucket:
+            return t
+    return None
+
+
+def security_level_rebalance(
+    positions: list,
+    prices: dict,
+    recommendations: list[dict],
+    portfolio_value_: float,
+    today: date | None = None,
+    lots_fn=None,
+) -> list[dict]:
+    """Turn bucket-level rebalance recs into specific security trades.
+
+    Sells come out of each over-allocated bucket (order: see :func:`_sell_order`), buys go
+    into each under-allocated bucket — to the holding furthest below its equal-weight
+    share of the bucket first, else the bucket's primary ticker. A crypto trim's proceeds
+    go to the ETF Foundation (Section 0.3). Amounts are in the same valuation basis as the
+    bucket recs (cached native prices), so ``units = eur_amount / price``.
+
+    Returns ``[{action, ticker, units, eur_amount, bucket, reason, tax_note, text}]``;
+    sells first. Empty when no bucket is outside tolerance.
+    """
+    today = today or date.today()
+    lots_fn = lots_fn or open_lots
+    if not recommendations or portfolio_value_ <= 0:
+        return []
+
+    sell_eur: dict[str, float] = {}
+    buy_eur: dict[str, float] = {}
+    for r in recommendations:
+        b = r.get("bucket")
+        if r["action"] in ("sell", "trim_to_target"):
+            amt = abs(r["delta_eur"])
+            sell_eur[b] = max(sell_eur.get(b, 0.0), amt)  # trim_to_target and sell are the same amount
+        elif r["action"] == "buy":
+            buy_eur[b] = buy_eur.get(b, 0.0) + r["delta_eur"]
+
+    # Section 0.3: a crypto trim's proceeds go to ETF Foundation, never back into crypto.
+    surplus = sum(sell_eur.values()) - sum(buy_eur.values())
+    proceeds_to_etf = 0.0
+    if sell_eur.get("crypto") and surplus > 1e-6:
+        proceeds_to_etf = surplus
+        buy_eur["etf_foundation"] = buy_eur.get("etf_foundation", 0.0) + surplus
+
+    by_ticker = {p["ticker"]: p for p in positions}
+    value = {t: p["quantity"] * prices.get(t, 0.0) for t, p in by_ticker.items()}
+    total = sum(value.values()) or 1.0
+    trades: list[dict] = []
+
+    # --- sells -------------------------------------------------------------------------
+    for bucket, need in sell_eur.items():
+        cands = []
+        for t, p in by_ticker.items():
+            price = prices.get(t, 0.0)
+            if p.get("bucket") != bucket or price <= 0 or p["quantity"] <= 0:
+                continue
+            lots = lots_fn(t)
+            avg_cost, _ = cost_basis(t)
+            cands.append({
+                "ticker": t, "type": p.get("type"), "price": price, "quantity": p["quantity"],
+                "weight": value[t] / total, "lots": lots,
+                "age_days": _lot_days(lots[0], today) if lots else 0,
+                "unrealized": (price - avg_cost) * p["quantity"] if avg_cost else 0.0,
+            })
+        remaining = need
+        for c in _sell_order(cands, bucket):
+            if remaining <= 0.5:
+                break
+            eur = min(remaining, c["price"] * c["quantity"])
+            units = round(eur / c["price"], 4)
+            remaining -= eur
+            label = BUCKET_LABELS.get(bucket, bucket)
+            trades.append({
+                "action": "sell", "ticker": c["ticker"], "units": units, "eur_amount": round(eur, 2),
+                "bucket": bucket, "reason": f"{label} over by €{need:,.0f}",
+                "tax_note": sale_tax_note(c["ticker"], c["type"], units, today, c["lots"]),
+            })
+
+    # --- buys --------------------------------------------------------------------------
+    for bucket, need in buy_eur.items():
+        held = [(t, value[t]) for t, p in by_ticker.items() if p.get("bucket") == bucket and prices.get(t, 0) > 0]
+        target_each = (BUCKET_TARGETS.get(bucket, 0.0) * portfolio_value_ / len(held)) if held else 0.0
+        order = sorted(((t, max(0.0, target_each - v)) for t, v in held), key=lambda x: (-x[1], x[0]))
+        remaining = need
+        plan: list[tuple[str, float]] = []
+        for t, shortfall in order:
+            if remaining <= 0.5:
+                break
+            amt = min(remaining, shortfall) if shortfall > 0 else 0.0
+            if amt > 0:
+                plan.append((t, amt))
+                remaining -= amt
+        if remaining > 0.5:  # nothing under its equal-weight share (or no holdings): top up the first / primary
+            target = order[0][0] if order else primary_ticker_for_bucket(bucket)
+            if target:
+                plan.append((target, remaining))
+        label = BUCKET_LABELS.get(bucket, bucket)
+        merged: dict[str, float] = {}  # shortfall fill + leftover top-up may hit the same ticker
+        for t, amt in plan:
+            merged[t] = merged.get(t, 0.0) + amt
+        for t, amt in merged.items():
+            price = prices.get(t) or _fallback_price(t)
+            if not price:
+                continue
+            reason = f"{label} under by €{need:,.0f}"
+            if bucket == "etf_foundation" and proceeds_to_etf > 0:
+                reason = f"crypto trim proceeds → {label} (Section 0.3)"
+            trades.append({
+                "action": "buy", "ticker": t, "units": round(amt / price, 4), "eur_amount": round(amt, 2),
+                "bucket": bucket, "reason": reason, "tax_note": "no tax on a purchase",
+            })
+
+    for tr in trades:
+        verb = "Sell" if tr["action"] == "sell" else "Buy"
+        tr["text"] = f"{verb} {tr['units']:g} units {tr['ticker']} ({tr['reason']})"
+    return trades
+
+
+def _fallback_price(ticker: str) -> float | None:
+    """Price for a buy target that isn't held yet (the bucket's primary ticker)."""
+    return latest_price(ticker)
+
+
+# ============================================================
 # Hypothesis-conviction-weighted views
 # ============================================================
 
@@ -303,17 +541,23 @@ def portfolio_value(positions: list, prices: dict) -> float:
     return sum(p["quantity"] * prices.get(p["ticker"], 0) for p in positions)
 
 
-def decision_summary() -> dict:
-    """Bundle counts + headline figures for the Home 'decision alerts' panel."""
+def decision_summary(as_of: date | None = None) -> dict:
+    """Bundle counts + headline figures for the Home 'decision alerts' panel.
+
+    A due quarterly review counts as one more rebalance item (it is a rebalance-review
+    alert); the alert itself rides along under ``quarterly_review``.
+    """
     positions, prices = current_positions_and_prices()
     pv = portfolio_value(positions, prices)
     allocations = bucket_allocations(positions, prices)
     rebal = rebalance_recommendations(allocations, pv)
     harvest = harvest_candidates(positions, prices)
     alerts = concentration_alerts(positions, prices)
+    quarterly = quarterly_cadence_alert(as_of)
     return {
         "portfolio_value": pv,
-        "rebalance_count": len(rebal),
+        "quarterly_review": quarterly,
+        "rebalance_count": len(rebal) + (1 if quarterly else 0),
         "rebalance_high": sum(1 for r in rebal if r.get("priority") == "high"),
         "concentration_count": len(alerts),
         "concentration_high": sum(1 for a in alerts if a.get("severity") == "high"),

@@ -73,6 +73,10 @@ Chunk 4 (Single Stock tab):
 - ``/api/finance/stock-detail/{ticker}``         (GET)
 - ``/api/finance/peers/{ticker}``                (GET, PATCH)
 
+Chunk 7 (forward what-if + security-level rebalance + quarterly cadence):
+- ``/api/finance/scenarios/forward-whatif``      (POST)
+- ``/api/finance/decisions/rebalance``           (GET, now with security_level_pairs)
+
 Chunk 6 (tranche tracker + CAPM views):
 - ``/api/finance/deployment-plans``              (GET, POST)
 - ``/api/finance/deployment-plans/{id}``         (GET, PATCH, DELETE)
@@ -99,6 +103,7 @@ from backend.api.finance import (
     deployment_plans,
     diagnostics,
     factors,
+    forward_whatif,
     journal,
     optimization,
     performance,
@@ -140,3 +145,5 @@ router.include_router(stock_detail.router)
 router.include_router(benchmarks.router)
 # Chunk 6 — 50/30/20 deployment tranche tracker.
 router.include_router(deployment_plans.router)
+# Chunk 7 — forward EUR what-if simulator.
+router.include_router(forward_whatif.router)

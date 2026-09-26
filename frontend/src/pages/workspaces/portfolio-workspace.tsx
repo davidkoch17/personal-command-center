@@ -24,6 +24,7 @@ import { DecisionsTab } from "@/components/finance/decisions-panel"
 import { JournalTab } from "@/components/finance/journal-panel"
 import { WatchlistComparisonTab } from "@/components/finance/watchlist-comparison"
 import { ScenarioTools } from "@/components/finance/scenarios-panel"
+import { ForwardTradeSimulator } from "@/components/finance/forward-trade-simulator"
 import {
   AllocationBar,
   CategoryDonut,
@@ -791,6 +792,8 @@ function pctStr(v: number | null | undefined, d = 2): string {
 function ScenariosTab() {
   return (
     <div className="space-y-4">
+      {/* Forward EUR what-if (Chunk 7) — above the historical shocks. */}
+      <ForwardTradeSimulator />
       <ScenarioTools />
       <StressTestPanel />
       <Collapsible title="ask claude a free-form scenario" meta="deeper / qualitative">

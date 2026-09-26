@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query"
 import { api } from "@/lib/api"
+import { useBenchmark } from "@/hooks/useBenchmark"
 import type {
   MoneySnapshot,
   WatchlistAddRequest,
@@ -892,11 +893,39 @@ export interface RebalanceRec {
   rationale: string
 }
 
+/** One specific trade implementing a bucket-level rebalance rec (Chunk 7, D6). */
+export interface SecurityTrade {
+  action: "sell" | "buy"
+  ticker: string
+  units: number
+  eur_amount: number
+  bucket: string
+  reason: string
+  /** Abgeltungsteuer (stocks/ETFs) or Spekulationsfrist status (crypto), FIFO lots. */
+  tax_note: string
+  /** "Sell 3.2 units NVDA (Crypto over by €4,200)" */
+  text: string
+}
+
+/** The quarterly-cadence alert (Chunk 7, D7) — live in the first 7 days of Jan/Apr/Jul/Oct. */
+export interface QuarterlyReview {
+  type: "quarterly_review"
+  quarter: string
+  due_date: string
+  window_ends: string
+  severity: string
+  rationale: string
+}
+
 export interface RebalanceResponse {
   portfolio_value: number
   allocations: Record<string, BucketAlloc>
   recommendations: RebalanceRec[]
   drift_tolerance: number
+  security_level_pairs: SecurityTrade[]
+  /** Set (e.g. "no active drift") when there are no security-level trades. */
+  security_level_note: string | null
+  quarterly_review: QuarterlyReview | null
 }
 
 export interface HarvestCandidate {
@@ -916,8 +945,10 @@ export interface HarvestResponse {
 
 export interface ConcentrationAlert {
   type: string
-  ticker: string
-  weight: number
+  /** Absent on the quarterly_review alert. */
+  ticker?: string
+  weight?: number
+  quarter?: string
   rationale: string
   severity: string
 }
@@ -935,6 +966,7 @@ export interface HypothesesViewResponse {
 
 export interface DecisionSummaryResponse {
   portfolio_value: number
+  quarterly_review?: QuarterlyReview | null
   rebalance_count: number
   rebalance_high: number
   concentration_count: number
@@ -985,10 +1017,18 @@ export interface FxShockResponse {
   affected: Record<string, FxAffected>
 }
 
+/** ``?as_of=YYYY-MM-DD`` on the page URL overrides "today" for the decisions endpoints, so the
+ *  quarterly-cadence window can be previewed without waiting for Jan/Apr/Jul/Oct 1. */
+function asOfQuery(): string {
+  const v = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("as_of")
+  return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `?as_of=${v}` : ""
+}
+
 export function useDecisionRebalance() {
+  const asOf = asOfQuery()
   return useQuery({
-    queryKey: ["finance", "decisions", "rebalance"],
-    queryFn: () => api.get<RebalanceResponse>("/api/finance/decisions/rebalance"),
+    queryKey: ["finance", "decisions", "rebalance", asOf],
+    queryFn: () => api.get<RebalanceResponse>(`/api/finance/decisions/rebalance${asOf}`),
   })
 }
 
@@ -1000,9 +1040,10 @@ export function useDecisionHarvest() {
 }
 
 export function useDecisionAlerts() {
+  const asOf = asOfQuery()
   return useQuery({
-    queryKey: ["finance", "decisions", "alerts"],
-    queryFn: () => api.get<AlertsResponse>("/api/finance/decisions/alerts"),
+    queryKey: ["finance", "decisions", "alerts", asOf],
+    queryFn: () => api.get<AlertsResponse>(`/api/finance/decisions/alerts${asOf}`),
   })
 }
 
@@ -1014,9 +1055,10 @@ export function useDecisionHypothesesView() {
 }
 
 export function useDecisionSummary() {
+  const asOf = asOfQuery()
   return useQuery({
-    queryKey: ["finance", "decisions", "summary"],
-    queryFn: () => api.get<DecisionSummaryResponse>("/api/finance/decisions/summary"),
+    queryKey: ["finance", "decisions", "summary", asOf],
+    queryFn: () => api.get<DecisionSummaryResponse>(`/api/finance/decisions/summary${asOf}`),
   })
 }
 
@@ -1597,5 +1639,67 @@ export function useCapmDecomposition(benchmark: string, period: string) {
       ),
     placeholderData: keepPreviousData,
     staleTime: STALE.performance,
+  })
+}
+
+// --- Forward EUR what-if simulator (Chunk 7, D5) --------------------------------------
+
+export interface ForwardMetric {
+  current: number | null
+  projected: number | null
+  delta: number | null
+}
+
+export interface ForwardBucketRow {
+  bucket: string
+  label: string
+  target: number
+  current_weight: number
+  projected_weight: number
+  weight_delta: number
+  current_drift: number
+  projected_drift: number
+  drift_delta: number
+  current_value: number
+  projected_value: number
+}
+
+export interface ForwardWhatIfResponse {
+  ticker: string
+  action: "buy" | "sell"
+  eur_amount: number
+  eur_effective: number
+  units: number
+  price_native: number
+  price_eur: number
+  fx_assumed: boolean
+  capped: boolean
+  benchmark: string
+  bucket: { bucket: string; label: string; source: "override" | "map" | "unassigned" }
+  portfolio_value: { current: number; projected: number }
+  bucket_table: ForwardBucketRow[]
+  metrics: {
+    sharpe_capm: ForwardMetric
+    sharpe_historical: ForwardMetric
+    sortino: ForwardMetric
+    vol: ForwardMetric
+  }
+  projected_holdings: Record<string, number>
+  bucket_band_breaches: { bucket: string; label: string; projected_weight: number; projected_drift: number; new: boolean; worsened: boolean }[]
+  hard_cap_breaches: { bucket: string; rule: string; weight: number }[]
+  position_cap_alerts: { type: string; ticker: string; weight: number; rationale: string; severity: string }[]
+  concentration_breaches: { ticker: string; weight: number; limit: number }[]
+  top1: { ticker: string; weight: number } | null
+  /** Plain-language warnings, ready to render. */
+  warnings: string[]
+}
+
+/** POST /scenarios/forward-whatif. Reads the shared benchmark itself so the forward
+ *  Sharpe uses the same CAPM market as the Optimization tab and the Risk tab. */
+export function useForwardWhatIf() {
+  const [benchmark] = useBenchmark()
+  return useMutation({
+    mutationFn: (req: { ticker: string; action: "buy" | "sell"; eur_amount: number }) =>
+      api.post<ForwardWhatIfResponse>("/api/finance/scenarios/forward-whatif", { ...req, benchmark }),
   })
 }

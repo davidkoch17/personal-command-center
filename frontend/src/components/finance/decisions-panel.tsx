@@ -8,6 +8,7 @@ import {
   useDecisionAlerts,
   useSuggestSize,
   type RebalanceRec,
+  type SecurityTrade,
   type SizeResponse,
 } from "@/hooks/useFinance"
 import { formatCurrency } from "@/lib/utils"
@@ -58,6 +59,17 @@ function RebalancePanel() {
         <Skeleton className="h-48" />
       ) : (
         <div className="space-y-4">
+          {/* Quarterly cadence (Chunk 7): fires in the first 7 days of Jan/Apr/Jul/Oct, drift or not. */}
+          {data?.quarterly_review && (
+            <div role="status" className="flex items-start gap-2 rounded-sm border border-invest/30 bg-invest/10 px-3 py-2 text-sm text-invest">
+              <span aria-hidden>◷</span>
+              <span>
+                <span className="font-mono text-xs uppercase tracking-wider">quarterly review</span>
+                <span className="ml-2 text-text">{data.quarterly_review.rationale}</span>
+              </span>
+            </div>
+          )}
+
           {/* Bucket vs target table. */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -101,9 +113,41 @@ function RebalancePanel() {
               ))}
             </ul>
           )}
+
+          <SecurityLevelRebalance pairs={data?.security_level_pairs ?? []} note={data?.security_level_note ?? null} />
         </div>
       )}
     </Panel>
+  )
+}
+
+/** Security-level rebalance (Chunk 7, D6): the bucket recs above, as specific trades with a tax note each. */
+function SecurityLevelRebalance({ pairs, note }: { pairs: SecurityTrade[]; note: string | null }) {
+  return (
+    <div className="border-t border-border pt-3">
+      <div className="label mb-2">security-level rebalance</div>
+      {pairs.length === 0 ? (
+        <p className="text-sm text-text-label">{note ?? "no active drift — no trades suggested"}</p>
+      ) : (
+        <ul className="space-y-2" aria-label="security-level trades">
+          {pairs.map((t, i) => (
+            <li key={i} className="flex items-start justify-between gap-3 border-b border-border/40 pb-2">
+              <div className="min-w-0">
+                <div className="text-sm">
+                  <span className={`font-mono text-xs uppercase ${t.action === "sell" ? "text-danger" : "text-success"}`}>{t.action}</span>
+                  <span className="ml-2 text-text">{t.text.replace(/^(Sell|Buy) /, "")}</span>
+                </div>
+                <div className="text-xs text-text-label">{t.tax_note}</div>
+              </div>
+              <span className={`shrink-0 font-mono text-sm tabular-nums ${t.action === "buy" ? "text-success" : "text-danger"}`}>
+                {t.action === "buy" ? "+" : "−"}
+                {formatCurrency(t.eur_amount)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 
@@ -172,7 +216,8 @@ function HarvestPanel() {
 
 function ConcentrationPanel() {
   const { data, isLoading } = useDecisionAlerts()
-  const alerts = data?.alerts ?? []
+  // The quarterly-review alert shares this endpoint but is shown in the rebalance panel, not here.
+  const alerts = (data?.alerts ?? []).filter((a) => a.type !== "quarterly_review")
 
   return (
     <Panel

@@ -7,8 +7,9 @@ conviction-weighted hypothesis view. All read live holdings + the price cache vi
 from __future__ import annotations
 
 import warnings
+from datetime import date
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from core.config import get_logger
@@ -34,19 +35,25 @@ def size(req: SizeRequest) -> dict:
 
 
 @router.get("/decisions/rebalance")
-def rebalance() -> dict:
-    """Current bucket allocations vs target + rebalancing trade suggestions."""
+def rebalance(as_of: date | None = Query(None)) -> dict:
+    """Bucket allocations vs target, bucket-level recs, the security-level trades that
+    implement them (``security_level_pairs``, each with a tax note) and the quarterly
+    review alert when due. ``as_of`` overrides today's date (for the cadence window)."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         positions, prices = ds.current_positions_and_prices()
         pv = ds.portfolio_value(positions, prices)
         allocations = ds.bucket_allocations(positions, prices)
         recs = ds.rebalance_recommendations(allocations, pv)
+        pairs = ds.security_level_rebalance(positions, prices, recs, pv, today=as_of)
     return {
         "portfolio_value": pv,
         "allocations": allocations,
         "recommendations": recs,
         "drift_tolerance": ds.BUCKET_DRIFT_TOLERANCE,
+        "security_level_pairs": pairs,
+        "security_level_note": None if pairs else "no active drift — all buckets are within tolerance",
+        "quarterly_review": ds.quarterly_cadence_alert(as_of),
     }
 
 
@@ -61,12 +68,13 @@ def harvest() -> dict:
 
 
 @router.get("/decisions/alerts")
-def alerts() -> dict:
-    """Concentration + drift alerts vs the Section 0 position caps."""
+def alerts(as_of: date | None = Query(None)) -> dict:
+    """Concentration + drift alerts vs the Section 0 position caps, plus the
+    quarterly-review alert (type ``quarterly_review``) in its first 7 days."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         positions, prices = ds.current_positions_and_prices()
-        items = ds.concentration_alerts(positions, prices)
+        items = ds.decision_alerts(positions, prices, as_of)
     return {"alerts": items, "count": len(items)}
 
 
@@ -79,8 +87,8 @@ def hypotheses_view() -> dict:
 
 
 @router.get("/decisions/summary")
-def summary() -> dict:
+def summary(as_of: date | None = Query(None)) -> dict:
     """Compact counts + headline figures for the Home 'decision alerts' panel."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return ds.decision_summary()
+        return ds.decision_summary(as_of)

@@ -38,8 +38,9 @@ _PERIOD_DAYS = {"1d": 1, "1w": 7, "1m": 30, "3m": 91, "6m": 182, "1y": 365, "3y"
 def holdings_value_series(holdings: Optional[dict] = None) -> pd.Series:
     """Daily portfolio market-value series from holdings × cached closes.
 
-    Uses *static* current weights (today's quantities held across all history).
-    Tickers with no price data are skipped. Empty Series if nothing resolves.
+    Uses *static* current weights (today's quantities held across all history), over the
+    window in which every holding has price data (starts at the youngest holding's first
+    date). Tickers with no price data are skipped. Empty Series if nothing resolves.
     """
     holdings = current_holdings() if holdings is None else holdings
     cols: dict[str, pd.Series] = {}
@@ -54,8 +55,13 @@ def holdings_value_series(holdings: Optional[dict] = None) -> pd.Series:
     frame = pd.DataFrame(cols).sort_index()
     # Align on a common business-day grid and forward-fill stale prices so a
     # missing day for one ticker doesn't blank the whole portfolio value.
-    frame = frame.ffill().dropna(how="all")
-    return frame.sum(axis=1, min_count=1).dropna()
+    # Then keep only dates where *every* holding has a price. A static-weight portfolio
+    # only exists from the date its youngest holding starts trading; before that, summing
+    # whatever tickers happen to exist made the value jump each time a new one came in
+    # (e.g. +5,600% on the day a second ticker's history began), which corrupted every
+    # return-based metric downstream (vol, Sharpe, Sortino, VaR).
+    frame = frame.ffill().dropna(how="any")
+    return frame.sum(axis=1).dropna()
 
 
 def portfolio_returns(holdings: Optional[dict] = None, start_date: Optional[date] = None) -> pd.Series:

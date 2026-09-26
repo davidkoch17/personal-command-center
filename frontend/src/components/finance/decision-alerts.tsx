@@ -38,8 +38,14 @@ export function DecisionAlerts() {
           <AlertCard
             label="rebalance"
             count={data?.rebalance_count ?? 0}
-            sub={data?.rebalance_high ? `${data.rebalance_high} high priority` : "within tolerance"}
-            tone={data?.rebalance_high ? "warning" : "muted"}
+            sub={
+              data?.quarterly_review
+                ? `${data.quarterly_review.quarter} review due`
+                : data?.rebalance_high
+                  ? `${data.rebalance_high} high priority`
+                  : "within tolerance"
+            }
+            tone={data?.rebalance_high || data?.quarterly_review ? "warning" : "muted"}
             onClick={open}
           />
           <AlertCard
