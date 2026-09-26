@@ -73,6 +73,13 @@ Chunk 4 (Single Stock tab):
 - ``/api/finance/stock-detail/{ticker}``         (GET)
 - ``/api/finance/peers/{ticker}``                (GET, PATCH)
 
+Chunk 6 (tranche tracker + CAPM views):
+- ``/api/finance/deployment-plans``              (GET, POST)
+- ``/api/finance/deployment-plans/{id}``         (GET, PATCH, DELETE)
+- ``/api/finance/deployment-plans/{id}/tranches/{index}/execute`` (POST)
+- ``/api/finance/performance/sml``               (GET)
+- ``/api/finance/performance/capm-decomposition`` (GET)
+
 Chunk 5 (Benchmarks tab):
 - ``/api/finance/benchmarks/compare``            (GET)
 """
@@ -89,6 +96,7 @@ from backend.api.finance import (
     currency,
     dashboard,
     decisions,
+    deployment_plans,
     diagnostics,
     factors,
     journal,
@@ -130,3 +138,5 @@ router.include_router(dashboard.router)
 router.include_router(stock_detail.router)
 # Chunk 5 — Benchmarks tab: metrics + correlation + indexed series in one call.
 router.include_router(benchmarks.router)
+# Chunk 6 — 50/30/20 deployment tranche tracker.
+router.include_router(deployment_plans.router)

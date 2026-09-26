@@ -4,6 +4,7 @@ import {
   CartesianGrid,
   Cell,
   Legend,
+  LabelList,
   Line,
   LineChart,
   ReferenceLine,
@@ -160,6 +161,112 @@ export function BenchmarkComparisonChart({
           />
         ))}
       </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+// --- Security Market Line (workspace Performance tab, Chunk 6) -----------------
+// x = beta, y = return. The CAPM line is drawn as a ReferenceLine `segment` (same
+// trick as the CML on the frontier chart); each holding is a point coloured by the
+// sign of its alpha — above the line = success, below = danger — and the portfolio
+// roll-up is the violet diamond. Hover shows ticker, beta, actual return and alpha.
+interface SmlChartPoint {
+  ticker: string
+  beta: number
+  expected_return_capm: number
+  actual_return: number
+  alpha: number
+}
+
+function SmlTooltip({ active, payload }: { active?: boolean; payload?: { payload: SmlChartPoint }[] }) {
+  const p = active && payload?.length ? payload[0].payload : null
+  if (!p) return null
+  const pc = (v: number) => `${(v * 100).toFixed(1)}%`
+  return (
+    <div
+      className="rounded-sm border px-2 py-1.5"
+      style={{ background: "rgb(var(--color-bg-panel))", borderColor: CHART_COLORS.grid, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+    >
+      <div style={{ color: CHART_COLORS.axis }}>{p.ticker}</div>
+      <div>β {p.beta.toFixed(2)}</div>
+      <div>actual {pc(p.actual_return)}</div>
+      <div>capm {pc(p.expected_return_capm)}</div>
+      <div style={{ color: p.alpha >= 0 ? CHART_COLORS.success : CHART_COLORS.danger }}>
+        alpha {p.alpha >= 0 ? "+" : ""}{pc(p.alpha)}
+      </div>
+    </div>
+  )
+}
+
+export function SecurityMarketLineChart({
+  line,
+  points,
+  portfolio,
+  market,
+}: {
+  line: { intercept: number; slope: number }
+  points: SmlChartPoint[]
+  portfolio?: SmlChartPoint | null
+  market?: { beta: number; expected_return: number } | null
+}) {
+  const xMax = Math.max(2, Math.ceil((Math.max(1, ...points.map((p) => p.beta), portfolio?.beta ?? 0) + 0.2) * 2) / 2)
+  const segment = [
+    { x: 0, y: line.intercept },
+    { x: xMax, y: line.intercept + line.slope * xMax },
+  ]
+  // A holding that *is* the benchmark has alpha of exactly zero up to float noise (~1e-17);
+  // treat |alpha| < 0.01pp as "on the line" (neutral/above) rather than colouring it red.
+  const above = points.filter((p) => p.alpha >= -1e-4)
+  const below = points.filter((p) => p.alpha < -1e-4)
+  const xTicks = Array.from({ length: Math.floor(xMax / 0.5) + 1 }, (_, i) => i * 0.5)
+  const label = { dataKey: "ticker", position: "top" as const, fontSize: 10, fill: CHART_COLORS.axis }
+
+  return (
+    <ResponsiveContainer width="100%" height={340}>
+      <ScatterChart margin={{ top: 12, right: 24, bottom: 20, left: 8 }}>
+        <CartesianGrid {...GRID_PROPS} vertical />
+        <XAxis
+          type="number"
+          dataKey="beta"
+          name="beta"
+          domain={[0, xMax]}
+          ticks={xTicks}
+          {...AXIS_PROPS}
+          tickFormatter={(v: number) => v.toFixed(1)}
+          label={{ value: "beta (β)", position: "insideBottom", offset: -8, fill: CHART_COLORS.axis, fontSize: 11 }}
+        />
+        <YAxis type="number" dataKey="actual_return" name="return" domain={["auto", "auto"]} {...AXIS_PROPS} width={48} tickFormatter={pctTick} />
+        <ZAxis range={[70, 70]} />
+        <Tooltip content={<SmlTooltip />} cursor={{ strokeDasharray: "3 3", stroke: CHART_COLORS.grid }} />
+        <ReferenceLine y={0} stroke={CHART_COLORS.axis} strokeOpacity={0.4} />
+        <ReferenceLine
+          segment={segment}
+          stroke={CHART_COLORS.cml}
+          strokeWidth={2}
+          ifOverflow="extendDomain"
+          label={{ value: "SML", position: "insideTopRight", fill: CHART_COLORS.cml, fontSize: 11 }}
+        />
+        {market && (
+          <Scatter
+            name="market"
+            data={[{ ticker: "market", beta: market.beta, actual_return: market.expected_return, expected_return_capm: market.expected_return, alpha: 0 }]}
+            fill={CHART_COLORS.accent}
+            shape="circle"
+            isAnimationActive={false}
+          />
+        )}
+        <Scatter name="above the line" data={above} fill={CHART_COLORS.success} isAnimationActive={false}>
+          <LabelList {...label} />
+        </Scatter>
+        <Scatter name="below the line" data={below} fill={CHART_COLORS.danger} isAnimationActive={false}>
+          <LabelList {...label} />
+        </Scatter>
+        {portfolio && (
+          <Scatter name="portfolio" data={[portfolio]} fill={CHART_COLORS.invest} shape="diamond" isAnimationActive={false}>
+            <LabelList {...label} />
+          </Scatter>
+        )}
+      </ScatterChart>
     </ResponsiveContainer>
   )
 }

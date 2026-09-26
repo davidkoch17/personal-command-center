@@ -56,6 +56,7 @@ import {
 import { useRunSkill } from "@/hooks/useSkills"
 import { useReportingCurrency } from "@/hooks/useReportingCurrency"
 import { useBenchmark, type BenchmarkKey } from "@/hooks/useBenchmark"
+import { SecurityMarketLinePanel, CapmDecompositionPanel } from "@/components/finance/capm-panels"
 import { InfoTip } from "@/components/ui/info-tip"
 import { metricTip } from "@/components/finance/metric-glossary"
 import { toast } from "@/lib/toast-store"
@@ -276,7 +277,9 @@ function HoldingsTab() {
 // 3. Performance tab.
 function PerformanceTab() {
   const [period, setPeriod] = useState("1y")
-  const [benchmark, setBenchmark] = useState("MSCI_WORLD")
+  // Shared (useBenchmark) so the SML + CAPM decomposition below, the Risk tab and the
+  // Optimization tab all follow one selection instead of a local one.
+  const [benchmark, setBenchmark] = useBenchmark()
   const metrics = useFinancePerformance(period, benchmark)
   const cumulative = useFinanceCumulative(period, benchmark)
   const rolling = useFinanceRolling(252, benchmark)
@@ -311,7 +314,7 @@ function PerformanceTab() {
           </Select>
         </div>
         <div className="w-44">
-          <Select value={benchmark} onValueChange={setBenchmark}>
+          <Select value={benchmark} onValueChange={(v) => setBenchmark(v as BenchmarkKey)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {BENCHMARKS.map((b) => (
@@ -394,6 +397,10 @@ function PerformanceTab() {
           win rate vs benchmark (monthly): {(m.win_rate * 100).toFixed(0)}%
         </p>
       )}
+
+      {/* CAPM views (Chunk 6): both follow the shared benchmark above. */}
+      <SecurityMarketLinePanel benchmark={benchmark} />
+      <CapmDecompositionPanel benchmark={benchmark} />
     </div>
   )
 }

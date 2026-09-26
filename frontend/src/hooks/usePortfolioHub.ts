@@ -621,3 +621,125 @@ export function useBenchmarkComparison(period: string) {
     staleTime: 5 * 60_000,
   })
 }
+
+// --- Deployment plans / 50-30-20 tranche tracker (Chunk 6) --------------------
+
+export type DeploymentStatus = "in_progress" | "complete" | "cancelled"
+export type DeploymentBucket = "etf_foundation" | "single_stocks" | "crypto" | "wild_cards"
+
+export interface DeploymentTranche {
+  pct: number
+  target_date: string
+  executed: boolean
+  amount_eur: number | null
+  trade_id: string | null
+  executed_date: string | null
+}
+
+export interface DeploymentNextTranche {
+  index: number
+  pct: number
+  target_date: string
+  /** Negative = overdue. */
+  days_until: number
+}
+
+export interface DeploymentProgress {
+  /** Sum of the executed tranches' percentages. */
+  deployed_pct: number
+  deployed_eur: number
+  planned_eur: number
+  executed_count: number
+  tranche_count: number
+  next_tranche: DeploymentNextTranche | null
+}
+
+export interface DeploymentPlan {
+  id: string
+  name: string
+  total_eur: number
+  target_bucket: DeploymentBucket | null
+  target_ticker: string | null
+  schedule: DeploymentTranche[]
+  created_at: string
+  status: DeploymentStatus
+  progress: DeploymentProgress
+}
+
+export interface DeploymentPlansResponse {
+  plans: DeploymentPlan[]
+  summary: {
+    active_count: number
+    total_count: number
+    next_due: (DeploymentNextTranche & { plan_id: string; plan_name: string }) | null
+  }
+}
+
+export function useDeploymentPlans(status?: DeploymentStatus) {
+  return useQuery({
+    queryKey: ["hub", "deployment-plans", status ?? "all"],
+    queryFn: () =>
+      api.get<DeploymentPlansResponse>(`/api/finance/deployment-plans${status ? `?status=${status}` : ""}`),
+    staleTime: 30_000,
+  })
+}
+
+export interface NewDeploymentPlan {
+  name: string
+  total_eur: number
+  target_bucket?: DeploymentBucket | null
+  target_ticker?: string | null
+  /** Omit for the default 50/30/20 at now / +4w / +9w. */
+  schedule?: { pct: number; target_date: string }[]
+}
+
+// Every mutation invalidates all of ["hub"] so the Portfolio tab, and anything
+// else reading plan state, stays in sync (the brief's "broad invalidation").
+function useInvalidateHub() {
+  const qc = useQueryClient()
+  return () => qc.invalidateQueries({ queryKey: ["hub"] })
+}
+
+export function useCreateDeploymentPlan() {
+  const invalidate = useInvalidateHub()
+  return useMutation({
+    mutationFn: (plan: NewDeploymentPlan) => api.post<DeploymentPlan>("/api/finance/deployment-plans", plan),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateDeploymentPlan() {
+  const invalidate = useInvalidateHub()
+  return useMutation({
+    mutationFn: ({ id, ...patch }: {
+      id: string
+      name?: string
+      total_eur?: number
+      target_bucket?: DeploymentBucket | null
+      target_ticker?: string | null
+      status?: DeploymentStatus
+      tranche_dates?: Record<number, string>
+    }) => api.patch<DeploymentPlan>(`/api/finance/deployment-plans/${encodeURIComponent(id)}`, patch),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteDeploymentPlan() {
+  const invalidate = useInvalidateHub()
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ ok: boolean }>(`/api/finance/deployment-plans/${encodeURIComponent(id)}`),
+    onSuccess: invalidate,
+  })
+}
+
+export function useMarkTrancheExecuted() {
+  const invalidate = useInvalidateHub()
+  return useMutation({
+    mutationFn: ({ id, index, ...body }: { id: string; index: number; amount_eur: number; executed_date?: string; trade_id?: string }) =>
+      api.post<DeploymentPlan>(
+        `/api/finance/deployment-plans/${encodeURIComponent(id)}/tranches/${index}/execute`,
+        body,
+      ),
+    onSuccess: invalidate,
+  })
+}

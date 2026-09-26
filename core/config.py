@@ -127,6 +127,10 @@ FUNDAMENTALS_CACHE_DIR = DATA_DIR / "fundamentals_cache"
 FUNDAMENTALS_TTL_SECONDS = 24 * 3600
 PEER_MARKET_CAP_BAND = 0.5   # peers must sit within ±50% of the subject's market cap
 DEFAULT_PEER_COUNT = 4
+
+# Chunk 6 — 50/30/20 lump-sum deployment plans (one JSON object per line).
+DEPLOYMENT_PLANS_FILE = DATA_DIR / "deployment_plans.jsonl"
+
 # Drift bands (absolute percentage-point deviation from target): within ``ok`` is
 # green, within ``warn`` is amber, beyond is red.
 BUCKET_DRIFT_OK = 0.02   # ±2 pp

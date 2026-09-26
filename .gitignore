@@ -11,6 +11,8 @@ data/transactions.jsonl
 data/price_cache/
 # Chunk 4 — yfinance Ticker.info snapshots (24h TTL parquet), per-machine cache.
 data/fundamentals_cache/
+# Chunk 6 — personal deployment plans, per-machine.
+data/deployment_plans.jsonl
 
 # Phase B net worth + history — generated financial CSVs (personal, per-machine).
 data/expenses.csv

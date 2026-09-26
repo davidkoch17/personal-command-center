@@ -100,7 +100,7 @@ export function BenchmarksTab() {
                       </div>
                     </TableCell>
                     <TableCell className={cn("text-right font-mono tabular-nums", ret == null ? "text-text-label" : ret >= 0 ? "text-success" : "text-danger")}>
-                      {ret != null ? formatPercent(ret * 100, 1).replace("%", " %") : dash}
+                      {ret != null ? formatPercent(ret * 100, 1) : dash}
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums">
                       {m.vol != null ? `${formatNumber(m.vol * 100, 1)} %` : dash}

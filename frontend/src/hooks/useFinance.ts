@@ -1,4 +1,5 @@
 import {
+  keepPreviousData,
   useMutation,
   useQueries,
   useQuery,
@@ -1528,5 +1529,73 @@ export function useWealthConfig() {
     queryKey: ["money", "wealth-config"],
     queryFn: () => api.get<WealthConfigResponse>("/api/money/wealth-config"),
     staleTime: 60 * 60_000,
+  })
+}
+
+// --- CAPM views: Security Market Line + return decomposition (Chunk 6) ---------
+
+export interface SmlPoint {
+  ticker: string
+  beta: number
+  /** rf + beta * (E[rm] - rf) — the same CAPM mu the Optimization tab uses. */
+  expected_return_capm: number
+  actual_return: number
+  /** actual - expected: above the line when positive. */
+  alpha: number
+  weight?: number | null
+}
+
+export interface SmlResponse {
+  available: boolean
+  reason?: string | null
+  benchmark: string
+  risk_free_rate: number
+  line: { intercept: number; slope: number } | null
+  market: { beta: number; expected_return: number } | null
+  points: SmlPoint[]
+  portfolio: SmlPoint | null
+  window: { start: string; end: string; days: number } | null
+}
+
+/** SML line + one point per holding; follows the shared benchmark (part of the key). */
+export function useSml(benchmark: string) {
+  return useQuery({
+    queryKey: ["finance", "sml", benchmark],
+    queryFn: () => api.get<SmlResponse>(`/api/finance/performance/sml?benchmark=${benchmark}`),
+    staleTime: STALE.performance,
+  })
+}
+
+export interface CapmDecompRow {
+  ticker: string
+  beta?: number
+  actual_return: number
+  /** beta x the benchmark's return over the period. */
+  market: number
+  alpha: number
+  /** Whatever the market model leaves unexplained (also absorbs compounding). */
+  idiosyncratic: number
+}
+
+export interface CapmDecompositionResponse {
+  available: boolean
+  reason?: string | null
+  benchmark: string
+  period: string
+  market_return: number | null
+  days: number
+  rows: CapmDecompRow[]
+  portfolio: CapmDecompRow | null
+}
+
+export function useCapmDecomposition(benchmark: string, period: string) {
+  return useQuery({
+    queryKey: ["finance", "capm-decomposition", benchmark, period],
+    queryFn: () =>
+      api.get<CapmDecompositionResponse>(
+        `/api/finance/performance/capm-decomposition?benchmark=${benchmark}&period=${period}`,
+      ),
+    placeholderData: keepPreviousData,
+    staleTime: STALE.performance,
   })
 }

@@ -62,7 +62,7 @@ function compact(v: number | null | undefined, ccy?: string | null): string {
  *  (margin, yield, weight, range position): plain "16,4 %" with no sign. */
 function Pct({ v, decimals = 1, signed = false }: { v: number | null | undefined; decimals?: number; signed?: boolean }) {
   if (v == null || Number.isNaN(v)) return <>—</>
-  return <>{signed ? formatPercent(v * 100, decimals).replace("%", " %") : `${formatNumber(v * 100, decimals)} %`}</>
+  return <>{signed ? formatPercent(v * 100, decimals) : `${formatNumber(v * 100, decimals)} %`}</>
 }
 
 /**

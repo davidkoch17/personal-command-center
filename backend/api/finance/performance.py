@@ -7,7 +7,7 @@ import pandas as pd
 from fastapi import APIRouter, Query
 
 from core.config import DEFAULT_BENCHMARK, get_logger
-from modules.finance import performance as perf
+from modules.finance import capm_view, performance as perf
 
 logger = get_logger(__name__)
 
@@ -93,3 +93,26 @@ def _r(value) -> float | None:
         return None
     import math
     return round(f, 4) if math.isfinite(f) else None
+
+
+# --- Chunk 6: CAPM views (Security Market Line + return decomposition) ------------------
+
+@router.get("/performance/sml")
+def security_market_line(benchmark: str = Query(DEFAULT_BENCHMARK)) -> dict:
+    """SML line ``rf + beta*(E[rm]-rf)`` + each holding at (beta, actual return) with its
+    alpha. Same CAPM regression (and rf) as the Optimization tab's expected returns."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return capm_view.security_market_line(benchmark=benchmark)
+
+
+@router.get("/performance/capm-decomposition")
+def capm_decomposition(
+    benchmark: str = Query(DEFAULT_BENCHMARK),
+    period: str = Query("1y", pattern="(?i)^(1m|3m|6m|ytd|1y|3y|all)$"),
+) -> dict:
+    """Per-holding (+ portfolio) actual return split into market (beta x Rm), alpha and
+    idiosyncratic; the three sum to the actual return."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return capm_view.capm_return_decomposition(benchmark=benchmark, period=period)

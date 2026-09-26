@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { MetricPanel } from "@/components/finance/metric-panel"
 import { DecisionAlerts } from "@/components/finance/decision-alerts"
+import { ActiveDeployments } from "@/components/portfolio/active-deployments"
 import { CategoryDonut } from "@/components/charts/finance-charts"
 import { IndexedPerformanceChart } from "@/components/charts/finance-analytics-charts"
 import { useDashboardSummary, useDashboardPerformance, type DashboardTopHolding } from "@/hooks/usePortfolioHub"
@@ -202,6 +203,9 @@ export function PortfolioTab() {
 
       {/* 4. Allocation vs target */}
       <AllocationVsTarget buckets={buckets.data?.buckets ?? []} loading={buckets.isLoading} />
+
+      {/* 4b. Active deployments — the 50/30/20 tranche tracker (Chunk 6). */}
+      <ActiveDeployments />
 
       {/* 5. Top holdings */}
       <Panel

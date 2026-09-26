@@ -103,16 +103,40 @@ def capm_mu_from_returns(rets: pd.DataFrame, market: pd.Series, risk_free: float
     identical to ``pypfopt.expected_returns.capm_return(..., compounding=False)``
     on gap-free data (asserted in tests).
     """
+    reg = capm_regression(rets, market)
+    if reg is None:
+        return pd.Series(dtype="float64")
+    stats, market_mean_daily = reg
+    return risk_free + stats["beta"] * (market_mean_daily * TRADING_DAYS - risk_free)
+
+
+def capm_regression(rets: pd.DataFrame, market: pd.Series) -> tuple[pd.DataFrame, float] | None:
+    """Single-index regression of each asset on the market, in daily terms.
+
+    Returns ``(stats, market_mean_daily)`` where ``stats`` has one row per asset
+    with ``beta`` (cov/var), ``alpha_daily`` (Jensen intercept of the raw-return
+    regression, ``mean_i - beta * mean_m``) and ``mean_daily``; ``None`` when there
+    is too little overlap or the market has no variance. This is the *one* place
+    beta lives: the optimizer's CAPM mu, the Security Market Line and the return
+    decomposition all call it, so they can never disagree about a beta.
+    """
     joined = rets.join(market.rename("__mkt__"), how="inner").dropna()
     if len(joined) < 30:
-        return pd.Series(dtype="float64")
+        return None
     m = joined["__mkt__"]
     var = m.var()
     if not var:
-        return pd.Series(dtype="float64")
-    market_mean = float(m.mean() * TRADING_DAYS)
-    betas = joined.drop(columns="__mkt__").apply(lambda c: c.cov(m)) / var
-    return risk_free + betas * (market_mean - risk_free)
+        return None
+    assets = joined.drop(columns="__mkt__")
+    beta = assets.apply(lambda c: c.cov(m)) / var
+    mean_daily = assets.mean()
+    market_mean_daily = float(m.mean())
+    stats = pd.DataFrame({
+        "beta": beta,
+        "alpha_daily": mean_daily - beta * market_mean_daily,
+        "mean_daily": mean_daily,
+    })
+    return stats, market_mean_daily
 
 
 def mu_cov(
