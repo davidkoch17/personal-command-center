@@ -12,7 +12,7 @@ import warnings
 
 from fastapi import APIRouter, Query
 
-from core.config import DEFAULT_BENCHMARK, get_logger
+from core.config import DEFAULT_BENCHMARK, DEFAULT_RISK_FREE_RATE, get_logger
 from modules.finance import dashboard
 
 logger = get_logger(__name__)
@@ -21,11 +21,11 @@ router = APIRouter()
 
 
 @router.get("/dashboard/summary")
-def dashboard_summary(benchmark: str = Query(DEFAULT_BENCHMARK)) -> dict:
+def dashboard_summary(benchmark: str = Query(DEFAULT_BENCHMARK), rfr: float = Query(DEFAULT_RISK_FREE_RATE, ge=0, le=0.25)) -> dict:
     """KPI band (value/day-delta, YTD, Sharpe, worst-drift bucket) + top-5 holdings."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return dashboard.summary(benchmark=benchmark)
+        return dashboard.summary(benchmark=benchmark, risk_free=rfr)
 
 
 @router.get("/dashboard/performance-indexed")

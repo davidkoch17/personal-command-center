@@ -139,7 +139,11 @@ def test_recs_fixture_is_the_scenario_we_think_it_is(crypto_heavy):
     assert {(r["bucket"], r["action"]) for r in recs} == {("etf_foundation", "buy"), ("crypto", "sell"), ("crypto", "trim_to_target")}
 
 
-def test_security_level_pairs_default_sells_youngest_crypto_first(crypto_heavy):
+def test_default_crypto_rule_is_tax_free_first():
+    assert ds.CRYPTO_SELL_ORDER == "tax_free_first"
+
+
+def test_security_level_pairs_default_sells_tax_free_crypto_first(crypto_heavy):
     positions, prices, recs, pv, lots_fn = crypto_heavy
 
     trades = ds.security_level_rebalance(positions, prices, recs, pv, today=TODAY, lots_fn=lots_fn)
@@ -147,25 +151,25 @@ def test_security_level_pairs_default_sells_youngest_crypto_first(crypto_heavy):
     buys = [t for t in trades if t["action"] == "buy"]
 
     assert [t["action"] for t in trades] == ["sell"] * len(sells) + ["buy"] * len(buys)  # sells first
-    # crypto is over by 34% - 24% = €1,000; the *younger* ETH lot goes first, all from one security
-    assert [(t["ticker"], t["units"], t["eur_amount"]) for t in sells] == [("ETH-USD", 10.0, 1000.0)]
+    # crypto is over by 34% - 24% = €1,000; the 400-day BTC lot (past the Spekulationsfrist) goes first
+    assert [(t["ticker"], t["units"], t["eur_amount"]) for t in sells] == [("BTC-USD", 10.0, 1000.0)]
     assert sells[0]["reason"] == "Crypto over by €1,000"
-    assert "inside the Spekulationsfrist" in sells[0]["tax_note"] and "tax-free in 265 days" in sells[0]["tax_note"]
-    assert sells[0]["text"] == "Sell 10 units ETH-USD (Crypto over by €1,000)"
+    assert sells[0]["tax_note"] == "Held 400 days — Spekulationsfrist met (crypto only), gains tax-free"
+    assert sells[0]["text"] == "Sell 10 units BTC-USD (Crypto over by €1,000)"
     # proceeds go to the ETF Foundation (Section 0.3) — into the one ETF held
     assert [(t["ticker"], t["eur_amount"], t["units"]) for t in buys] == [("VWCE.DE", 1000.0, 10.0)]
     assert "Section 0.3" in buys[0]["reason"]
     assert sum(t["eur_amount"] for t in sells) == pytest.approx(sum(t["eur_amount"] for t in buys))
 
 
-def test_crypto_sell_order_switch_prefers_tax_free_coins(crypto_heavy, monkeypatch):
+def test_crypto_sell_order_switch_can_still_prefer_the_youngest(crypto_heavy, monkeypatch):
     positions, prices, recs, pv, lots_fn = crypto_heavy
-    monkeypatch.setattr(ds, "CRYPTO_SELL_ORDER", "tax_free_first")
+    monkeypatch.setattr(ds, "CRYPTO_SELL_ORDER", "youngest_first")
 
     sells = [t for t in ds.security_level_rebalance(positions, prices, recs, pv, today=TODAY, lots_fn=lots_fn) if t["action"] == "sell"]
 
-    assert [t["ticker"] for t in sells] == ["BTC-USD"]
-    assert sells[0]["tax_note"] == "Held 400 days — Spekulationsfrist met (crypto only), gains tax-free"
+    assert [t["ticker"] for t in sells] == ["ETH-USD"]
+    assert "inside the Spekulationsfrist" in sells[0]["tax_note"] and "tax-free in 265 days" in sells[0]["tax_note"]
 
 
 def test_sell_spans_securities_when_one_position_is_not_enough(crypto_heavy):
@@ -175,21 +179,33 @@ def test_sell_spans_securities_when_one_position_is_not_enough(crypto_heavy):
     trades = ds.security_level_rebalance(positions, prices, big, pv, today=TODAY, lots_fn=lots_fn)
     sells = [t for t in trades if t["action"] == "sell"]
 
-    assert [(t["ticker"], t["eur_amount"]) for t in sells] == [("ETH-USD", 2000.0), ("BTC-USD", 500.0)]
+    assert [(t["ticker"], t["eur_amount"]) for t in sells] == [("BTC-USD", 1400.0), ("ETH-USD", 1100.0)]
     # the €2,500 of proceeds all go to the ETF Foundation, as one line per ticker
     assert [(t["ticker"], t["eur_amount"]) for t in trades if t["action"] == "buy"] == [("VWCE.DE", 2500.0)]
 
 
-def test_stock_sells_prefer_the_largest_unrealized_gain_and_note_abgeltungsteuer(monkeypatch):
+def test_stock_sells_prefer_the_smallest_unrealized_gain_and_note_abgeltungsteuer(monkeypatch):
     positions = [_pos("AAA", 30, "single_stocks"), _pos("BBB", 30, "single_stocks"), _pos("VWCE.DE", 40, "etf_foundation", "etf")]
     prices = {"AAA": 100.0, "BBB": 100.0, "VWCE.DE": 100.0}
-    monkeypatch.setattr(ds, "cost_basis", lambda t: ({"AAA": 90.0, "BBB": 40.0}.get(t, 100.0), 0.0))  # BBB has the bigger gain
+    monkeypatch.setattr(ds, "cost_basis", lambda t: ({"AAA": 90.0, "BBB": 40.0}.get(t, 100.0), 0.0))  # AAA has the smaller gain
     recs = [{"bucket": "single_stocks", "action": "sell", "delta_eur": -1000.0}]
 
     trades = ds.security_level_rebalance(positions, prices, recs, 10000.0, today=TODAY, lots_fn=lambda t: [_lot(120, 30)])
 
-    assert trades[0]["ticker"] == "BBB" and trades[0]["units"] == 10.0
+    assert trades[0]["ticker"] == "AAA" and trades[0]["units"] == 10.0
     assert trades[0]["tax_note"] == "Held 120 days — Abgeltungsteuer applies"
+
+
+def test_stock_sells_take_a_loser_before_any_gainer(monkeypatch):
+    positions = [_pos("WIN", 30, "single_stocks"), _pos("LOSE", 30, "single_stocks")]
+    prices = {"WIN": 100.0, "LOSE": 100.0}
+    monkeypatch.setattr(ds, "cost_basis", lambda t: ({"WIN": 50.0, "LOSE": 130.0}[t], 0.0))
+    recs = [{"bucket": "single_stocks", "action": "sell", "delta_eur": -3500.0}]
+
+    sells = [t for t in ds.security_level_rebalance(positions, prices, recs, 6000.0, today=TODAY, lots_fn=lambda t: [_lot(30, 30)])
+             if t["action"] == "sell"]
+
+    assert [t["ticker"] for t in sells] == ["LOSE", "WIN"]  # the position at a loss goes first
 
 
 def test_buys_top_up_the_holding_furthest_below_its_equal_weight_share(monkeypatch):
@@ -274,3 +290,15 @@ def test_rebalance_endpoint_with_no_drift(monkeypatch):
     body = TestClient(app).get("/api/finance/decisions/rebalance").json()
 
     assert body["security_level_pairs"] == [] and "no active drift" in body["security_level_note"]
+
+
+def test_crypto_type_is_guessed_from_the_ticker_when_there_is_no_position_record(monkeypatch):
+    monkeypatch.setattr(ds, "current_holdings", lambda: {"BTC-USD": 1.0, "AAPL": 2.0})
+    monkeypatch.setattr(ds, "get_position", lambda t: None)   # ledger edited by hand: no Position rows
+    monkeypatch.setattr(ds, "latest_price", lambda t: 100.0)
+    from modules.finance import buckets
+    monkeypatch.setattr(buckets, "resolve_bucket", lambda t: "crypto" if t == "BTC-USD" else "single_stocks")
+
+    positions, _ = ds.current_positions_and_prices()
+
+    assert {p["ticker"]: p["type"] for p in positions} == {"BTC-USD": "crypto", "AAPL": None}

@@ -96,3 +96,24 @@ def test_indexed_performance_two_benchmarks_diverge(monkeypatch):
     assert msci["available"] is True
     assert dax["available"] is True
     assert msci["series"][-1]["benchmark"] != dax["series"][-1]["benchmark"]
+
+
+def test_summary_reports_the_snapshot_date_the_ytd_euro_figure_comes_from(monkeypatch):
+    """Chunk 8: the € YTD is only as fresh as the last daily snapshot — say when that was."""
+    import pandas as pd
+
+    from modules.finance import dashboard as dash
+
+    monkeypatch.setattr(dash, "holdings_with_day_change", lambda: [
+        {"ticker": "A", "name": "A", "bucket": "single_stocks", "bucket_source": "map", "value_eur": 100.0,
+         "day_change_pct": 0.01, "day_change_eur": 1.0, "weight": 1.0}])
+    monkeypatch.setattr(dash, "portfolio_returns", lambda *a, **k: pd.Series(dtype="float64"))
+    monkeypatch.setattr(dash, "get_returns", lambda t, freq="D": pd.Series(dtype="float64"))
+    monkeypatch.setattr(dash, "_worst_drift_bucket", lambda: None)
+    monkeypatch.setattr(dash, "position_period_pnl", lambda: {"count": 1, "pnl_ytd_total": 42.0, "as_of": "2026-09-25"})
+
+    out = dash.summary()
+    assert out["ytd_return_eur"] == 42.0 and out["ytd_as_of"] == "2026-09-25"
+
+    monkeypatch.setattr(dash, "position_period_pnl", lambda: {"count": 0})
+    assert dash.summary()["ytd_as_of"] is None

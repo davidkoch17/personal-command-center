@@ -43,7 +43,7 @@ def world(monkeypatch):
     monkeypatch.setattr(fw, "resolve_bucket_with_source", bucket_of)
     monkeypatch.setattr(fw, "get_position", lambda t: SimpleNamespace(type=WORLD[t][2]) if t in WORLD else None)
     # default risk numbers: a function of the holdings so deltas are non-trivial
-    monkeypatch.setattr(fw, "_risk_metrics", lambda h, p, b: {
+    monkeypatch.setattr(fw, "_risk_metrics", lambda h, p, b, risk_free=0.04: {
         "sharpe_capm": 0.5 + 0.01 * len(h), "sharpe_historical": 1.0 - 0.001 * sum(h.values()),
         "sortino": 1.5, "vol": 0.10 + 0.001 * len(h),
     })

@@ -145,6 +145,35 @@ def correlation_matrix(tickers: list[str]) -> pd.DataFrame:
     return df.corr()
 
 
+BENCHMARK_ORDER = ["MSCI_WORLD", "SPY", "DAX", "STOXX_600"]
+
+
+def benchmark_labels() -> list[str]:
+    """Display names of the four comparison benchmarks, in display order."""
+    return [BENCHMARKS[k]["name"] for k in BENCHMARK_ORDER]
+
+
+def correlation_matrix_with_benchmarks(tickers: list[str], include_benchmarks: bool = True) -> pd.DataFrame:
+    """Like :func:`correlation_matrix`, with the four comparison benchmarks *prepended*
+    (MSCI World, S&P 500, DAX 40, STOXX 600 — labelled by name, not ticker, so a held URTH
+    and the MSCI World benchmark stay distinct rows). Same dropna alignment as the plain
+    version, so adding benchmarks can only shorten the common window, never change how
+    holdings correlate with each other on it."""
+    series = {}
+    if include_benchmarks:
+        for key in BENCHMARK_ORDER:
+            r = get_returns(BENCHMARKS[key]["ticker"])
+            if not r.empty:
+                series[BENCHMARKS[key]["name"]] = r
+    for t in tickers:
+        r = get_returns(t)
+        if not r.empty:
+            series[t] = r
+    if not series:
+        return pd.DataFrame()
+    return pd.DataFrame(series).dropna().corr()
+
+
 def concentration_metrics(holdings: Optional[dict] = None,
                           prices: Optional[dict] = None) -> dict:
     """Herfindahl index, effective number of bets, and top-N weights."""

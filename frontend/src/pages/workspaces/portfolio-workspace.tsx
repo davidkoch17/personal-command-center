@@ -59,6 +59,8 @@ import { useReportingCurrency } from "@/hooks/useReportingCurrency"
 import { useBenchmark, type BenchmarkKey } from "@/hooks/useBenchmark"
 import { SecurityMarketLinePanel, CapmDecompositionPanel } from "@/components/finance/capm-panels"
 import { InfoTip } from "@/components/ui/info-tip"
+import { RiskFreeRateInput } from "@/components/finance/risk-free-rate-input"
+import { useAlphaPerHolding } from "@/hooks/useFinance"
 import { metricTip } from "@/components/finance/metric-glossary"
 import { toast } from "@/lib/toast-store"
 import { formatCurrency } from "@/lib/utils"
@@ -282,6 +284,7 @@ function PerformanceTab() {
   // Optimization tab all follow one selection instead of a local one.
   const [benchmark, setBenchmark] = useBenchmark()
   const metrics = useFinancePerformance(period, benchmark)
+  const alphas = useAlphaPerHolding(benchmark, period)
   const cumulative = useFinanceCumulative(period, benchmark)
   const rolling = useFinanceRolling(252, benchmark)
   const m = metrics.data
@@ -374,23 +377,52 @@ function PerformanceTab() {
         </Panel>
       </div>
 
-      <Panel title="contribution" meta={`${period} · per position`} statusDotColor="muted">
+      <Panel
+        title="contribution & alpha"
+        meta={`${period} · per position · vs ${m?.benchmark_name ?? benchmark}`}
+        statusDotColor="muted"
+        titleSuffix={<InfoTip text="Contribution is over the selected period. β, α (annualized Jensen's alpha, using the risk-free rate set on the Risk tab) and R² are regressed on the comparison benchmark over each holding's own full history within the period." />}
+      >
         {(m?.contribution?.length ?? 0) === 0 ? (
           <p className="text-sm text-text-label">no contribution data</p>
         ) : (
-          <ul className="space-y-1 text-sm">
-            {m!.contribution!.map((c) => (
-              <li key={c.ticker} className="flex items-center justify-between gap-2">
-                <span className="text-text">{c.ticker}</span>
-                <span className="flex items-center gap-4">
-                  <span className="font-mono text-xs text-text-secondary">
-                    w {(c.weight * 100).toFixed(1)}%
-                  </span>
-                  <NumberDisplay value={c.contribution * 100} format="percent" signed decimals={2} />
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-text-label">
+                  <th className="py-1.5 pr-2 font-normal">position</th>
+                  <th className="px-2 py-1.5 text-right font-normal">weight</th>
+                  <th className="px-2 py-1.5 text-right font-normal">contribution</th>
+                  <th className="px-2 py-1.5 text-right font-normal">β</th>
+                  <th className="px-2 py-1.5 text-right font-normal">α (ann.)</th>
+                  <th className="py-1.5 pl-2 text-right font-normal">R²</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {m!.contribution!.map((c) => {
+                  const a = alphas.data?.holdings?.[c.ticker]
+                  return (
+                    <tr key={c.ticker} className="border-b border-border/40">
+                      <td className="py-1.5 pr-2 font-sans text-text">{c.ticker}</td>
+                      <td className="px-2 py-1.5 text-right text-text-secondary">{(c.weight * 100).toFixed(1)}%</td>
+                      <td className="px-2 py-1.5 text-right">
+                        <NumberDisplay value={c.contribution * 100} format="percent" signed decimals={2} />
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-text-secondary">{a?.beta != null ? a.beta.toFixed(2) : "—"}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        {a?.alpha != null ? (
+                          <NumberDisplay value={a.alpha * 100} format="percent" signed decimals={1} />
+                        ) : (
+                          <span className="text-text-label">{alphas.isLoading ? "…" : "—"}</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 pl-2 text-right text-text-secondary">{a?.r_squared != null ? a.r_squared.toFixed(2) : "—"}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
       {m?.win_rate != null && (
@@ -415,22 +447,34 @@ function RiskTab() {
   const corr = useFinanceCorrelation()
   const r: RiskResponse | undefined = risk.data
 
-  if (risk.isLoading) return <Skeleton className="h-64" />
-  if (!r?.available) return <p className="text-sm text-text-label">{r?.reason ?? "no risk data"}</p>
+  // Controls render in every state (loading / no data too), so the benchmark and the
+  // risk-free rate can always be changed.
+  const controls = (
+    <div className="flex flex-wrap items-end gap-4">
+      <div>
+        <div className="label mb-1">comparison benchmark</div>
+        <div className="w-44">
+          <Select value={benchmark} onValueChange={(v) => setBenchmark(v as BenchmarkKey)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {BENCHMARKS.map((b) => (
+                <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <RiskFreeRateInput />
+    </div>
+  )
+
+  if (risk.isLoading) return <div className="space-y-4">{controls}<Skeleton className="h-64" /></div>
+  if (!r?.available) return <div className="space-y-4">{controls}<p className="text-sm text-text-label">{r?.reason ?? "no risk data"}</p></div>
 
   const dd = r.max_drawdown
   return (
     <div className="space-y-4">
-      <div className="flex w-44 items-center">
-        <Select value={benchmark} onValueChange={(v) => setBenchmark(v as BenchmarkKey)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {BENCHMARKS.map((b) => (
-              <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {controls}
 
       {/* Ratios + vol. */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
@@ -486,7 +530,18 @@ function RiskTab() {
           {corr.isLoading ? (
             <Skeleton className="h-40" />
           ) : (
-            <CorrelationHeatmap tickers={corr.data?.tickers ?? []} matrix={corr.data?.matrix ?? []} />
+            <>
+              <CorrelationHeatmap
+                tickers={corr.data?.tickers ?? []}
+                matrix={corr.data?.matrix ?? []}
+                italicTickers={corr.data?.benchmarks}
+              />
+              {(corr.data?.benchmarks?.length ?? 0) > 0 && (
+                <p className="mt-2 text-xs text-text-label">
+                  <span className="italic">italic</span> = comparison benchmark; the rest are your holdings.
+                </p>
+              )}
+            </>
           )}
         </Panel>
 

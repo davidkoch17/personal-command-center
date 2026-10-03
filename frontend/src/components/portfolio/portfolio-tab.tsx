@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
+import { TimeframePills } from "@/components/ui/timeframe-pills"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { MetricPanel } from "@/components/finance/metric-panel"
 import { DecisionAlerts } from "@/components/finance/decision-alerts"
@@ -46,7 +47,7 @@ const DRIFT_STATUS_COLOR: Record<BucketRow["status"], "success" | "warning" | "d
  */
 export function PortfolioTab() {
   const [benchmark] = useBenchmark()
-  const [timeframe, setTimeframe] = useState<string>("1w")
+  const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]["key"]>("1w")
 
   const summary = useDashboardSummary(benchmark)
   const perf = useDashboardPerformance(timeframe, benchmark)
@@ -97,6 +98,7 @@ export function PortfolioTab() {
               <span className="flex flex-col gap-0.5">
                 <span>
                   <NumberDisplay value={s.ytd_return_eur} format="currency" signed /> ytd
+                  <span className="text-text-label"> · € as of {s.ytd_as_of ?? "last snapshot"}</span>
                 </span>
                 <span className="text-text-label">
                   {s.benchmark_name} ytd:{" "}
@@ -169,23 +171,7 @@ export function PortfolioTab() {
         meta={perf.data?.available ? `vs ${perf.data.benchmark_name}` : undefined}
         statusDotColor="invest"
       >
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf.key}
-              type="button"
-              onClick={() => setTimeframe(tf.key)}
-              className={cn(
-                "rounded-sm border px-3 py-1 font-mono text-xs transition-colors",
-                timeframe === tf.key
-                  ? "border-accent text-accent bg-bg-panel-hover"
-                  : "border-border text-text-secondary hover:text-text",
-              )}
-            >
-              {tf.label}
-            </button>
-          ))}
-        </div>
+        <TimeframePills options={TIMEFRAMES} value={timeframe} onChange={setTimeframe} className="mb-3" />
 
         {perf.isLoading ? (
           <Skeleton className="h-64" />

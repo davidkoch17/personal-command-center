@@ -5,6 +5,7 @@ import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
+import { TimeframePills } from "@/components/ui/timeframe-pills"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -75,7 +76,7 @@ function Pct({ v, decimals = 1, signed = false }: { v: number | null | undefined
 export function SingleStockTab() {
   const [params, setParams] = useSearchParams()
   const [benchmark] = useBenchmark()
-  const [period, setPeriod] = useState<string>("1y")
+  const [period, setPeriod] = useState<(typeof TIMEFRAMES)[number]["key"]>("1y")
 
   const universe = useStockUniverse()
   const held = universe.data?.held ?? []
@@ -157,23 +158,7 @@ export function SingleStockTab() {
               ) : undefined
             }
           >
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              {TIMEFRAMES.map((tf) => (
-                <button
-                  key={tf.key}
-                  type="button"
-                  onClick={() => setPeriod(tf.key)}
-                  className={cn(
-                    "rounded-sm border px-3 py-1 font-mono text-xs transition-colors",
-                    period === tf.key
-                      ? "border-accent text-accent bg-bg-panel-hover"
-                      : "border-border text-text-secondary hover:text-text",
-                  )}
-                >
-                  {tf.label}
-                </button>
-              ))}
-            </div>
+            <TimeframePills options={TIMEFRAMES} value={period} onChange={setPeriod} className="mb-3" />
             {detail.isLoading ? (
               <Skeleton className="h-60" />
             ) : d && d.series.points.length > 1 ? (

@@ -19,7 +19,7 @@ import empyrical as ep
 import numpy as np
 import pandas as pd
 
-from core.config import BENCHMARKS, DEFAULT_BENCHMARK, get_logger
+from core.config import BENCHMARKS, DEFAULT_BENCHMARK, DEFAULT_RISK_FREE_RATE, get_logger
 from modules.finance.positions import current_holdings, list_transactions
 from modules.finance.price_history import get_closes, get_returns
 
@@ -319,3 +319,40 @@ def compute_all(period: str = "ytd", benchmark: str = DEFAULT_BENCHMARK) -> dict
         "best_worst": best_worst_periods(returns),
         "contribution": per_position_contribution(period=period),
     }
+
+
+# --- Chunk 8: per-holding alpha -------------------------------------------------------------
+
+def alpha_per_holding(
+    tickers: Optional[list[str]] = None,
+    benchmark_ticker: Optional[str] = None,
+    period: str = "all",
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
+) -> dict[str, dict]:
+    """``{ticker: {alpha, beta, r_squared, n}}`` — Jensen's alpha of each holding vs a benchmark.
+
+    Single-index regression of the ticker's daily returns on the benchmark's, over the
+    dates *that ticker* shares with the benchmark within ``period`` (each ticker uses its own
+    full available history — no common-window truncation). ``alpha`` is annualized
+    (arithmetic): ``(mean_i - rf_d) - beta * (mean_m - rf_d)`` times 252, i.e. the same
+    "actual minus CAPM-expected" the Security Market Line shows, using the shared risk-free
+    rate. Tickers with fewer than 30 overlapping days get ``None`` values rather than a
+    meaningless estimate.
+    """
+    tickers = list(current_holdings().keys()) if tickers is None else tickers
+    benchmark_ticker = benchmark_ticker or BENCHMARKS[DEFAULT_BENCHMARK]["ticker"]
+    bench = filter_by_period(get_returns(benchmark_ticker), period)
+    rf_d = risk_free / TRADING_DAYS
+    out: dict[str, dict] = {}
+    for t in tickers:
+        empty = {"alpha": None, "beta": None, "r_squared": None, "n": 0}
+        r = filter_by_period(get_returns(t), period)
+        joined = pd.concat([r, bench], axis=1, keys=["r", "m"]).dropna()
+        if len(joined) < 30 or not joined["m"].var():
+            out[t] = {**empty, "n": len(joined)}
+            continue
+        beta = float(joined["r"].cov(joined["m"]) / joined["m"].var())
+        alpha = ((joined["r"].mean() - rf_d) - beta * (joined["m"].mean() - rf_d)) * TRADING_DAYS
+        r2 = float(joined["r"].corr(joined["m"]) ** 2)
+        out[t] = {"alpha": float(alpha), "beta": beta, "r_squared": r2, "n": len(joined)}
+    return out

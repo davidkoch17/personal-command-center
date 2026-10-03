@@ -19,6 +19,7 @@ import {
 } from "@/hooks/useOptimizationConstrained"
 import { useConstraintScenarios } from "@/hooks/useConstraintScenarios"
 import { useBenchmark } from "@/hooks/useBenchmark"
+import { useRiskFreeRate } from "@/hooks/useRiskFreeRate"
 import { toast } from "@/lib/toast-store"
 import { cn } from "@/lib/utils"
 
@@ -117,12 +118,13 @@ export function ConstraintsModal({
   const preview = useOptimizationConstrained()
   const { scenarios, saveScenario } = useConstraintScenarios()
   const [benchmark] = useBenchmark()
+  const [rfr] = useRiskFreeRate()
 
   // The preview was solved against the previous benchmark's expected returns.
   useEffect(() => {
     preview.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [benchmark])
+  }, [benchmark, rfr])
 
   function resetAll() {
     setState(defaultState(rows, currentVol))

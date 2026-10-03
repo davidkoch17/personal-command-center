@@ -6,7 +6,7 @@ import warnings
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from core.config import DEFAULT_BENCHMARK, get_logger
+from core.config import DEFAULT_BENCHMARK, DEFAULT_RISK_FREE_RATE, get_logger
 from modules.finance import forward_whatif as fw
 
 logger = get_logger(__name__)
@@ -19,6 +19,7 @@ class ForwardWhatIfRequest(BaseModel):
     action: str  # "buy" | "sell"
     eur_amount: float
     benchmark: str = DEFAULT_BENCHMARK  # CAPM market for the forward Sharpe (shared useBenchmark)
+    rfr: float = DEFAULT_RISK_FREE_RATE  # risk-free rate for every Sharpe/Sortino/CAPM figure (shared useRiskFreeRate)
 
 
 @router.post("/scenarios/forward-whatif")
@@ -30,6 +31,6 @@ def forward_whatif(req: ForwardWhatIfRequest) -> dict:
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            return fw.simulate_forward_trade(req.ticker, req.action, req.eur_amount, req.benchmark)
+            return fw.simulate_forward_trade(req.ticker, req.action, req.eur_amount, req.benchmark, req.rfr)
     except fw.WhatIfError as exc:
         raise HTTPException(status_code=422, detail=str(exc))

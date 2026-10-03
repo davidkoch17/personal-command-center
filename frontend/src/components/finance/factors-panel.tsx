@@ -22,6 +22,7 @@ import {
 import { CHART_COLORS } from "@/components/charts/theme"
 import { InfoTip } from "@/components/ui/info-tip"
 import { metricTip } from "@/components/finance/metric-glossary"
+import { FactorLoadingsComparisonPanel, RollingFactorBetasPanel } from "@/components/finance/factor-extras"
 
 const REGIONS = ["US", "Europe", "Global"]
 
@@ -61,15 +62,26 @@ export function FactorsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex w-44 items-center">
-        <Select value={region} onValueChange={setRegion}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {REGIONS.map((rg) => (
-              <SelectItem key={rg} value={rg}>{rg}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <div className="mb-1 flex items-center gap-1.5">
+            <span className="label">factor region (ken french library)</span>
+            <InfoTip text="The Fama-French MKT factor is a region-specific market-minus-riskfree return constructed on Ken French's methodology, used for factor regression only. This is different from the 'Comparison benchmark' in the Risk tab (MSCI World / S&P 500 / DAX / STOXX 600), which is used for performance comparison and beta calculation." />
+          </div>
+          <div className="w-44">
+            <Select value={region} onValueChange={setRegion}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {REGIONS.map((rg) => (
+                  <SelectItem key={rg} value={rg}>{rg}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <p className="max-w-md pb-2 text-xs text-text-label">
+          factor regressions use Ken French's own monthly risk-free series — not the risk-free rate set on the Risk tab.
+        </p>
       </div>
 
       {ff3.isLoading ? (
@@ -108,6 +120,10 @@ export function FactorsTab() {
               <FactorBetaBars data={betaData} />
             </Panel>
           </div>
+
+          {/* Chunk 8 — how the exposures have moved, and how they compare with the benchmark's. */}
+          <RollingFactorBetasPanel region={region} />
+          <FactorLoadingsComparisonPanel region={region} />
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel title="variance decomposition" meta="what drives your returns" statusDotColor="accent">

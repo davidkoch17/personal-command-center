@@ -6,7 +6,7 @@ import warnings
 import pandas as pd
 from fastapi import APIRouter, Query
 
-from core.config import DEFAULT_BENCHMARK, get_logger
+from core.config import BENCHMARKS, DEFAULT_BENCHMARK, DEFAULT_RISK_FREE_RATE, get_logger
 from modules.finance import capm_view, performance as perf
 
 logger = get_logger(__name__)
@@ -98,12 +98,12 @@ def _r(value) -> float | None:
 # --- Chunk 6: CAPM views (Security Market Line + return decomposition) ------------------
 
 @router.get("/performance/sml")
-def security_market_line(benchmark: str = Query(DEFAULT_BENCHMARK)) -> dict:
+def security_market_line(benchmark: str = Query(DEFAULT_BENCHMARK), rfr: float = Query(DEFAULT_RISK_FREE_RATE, ge=0, le=0.25)) -> dict:
     """SML line ``rf + beta*(E[rm]-rf)`` + each holding at (beta, actual return) with its
     alpha. Same CAPM regression (and rf) as the Optimization tab's expected returns."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return capm_view.security_market_line(benchmark=benchmark)
+        return capm_view.security_market_line(benchmark=benchmark, risk_free=rfr)
 
 
 @router.get("/performance/capm-decomposition")
@@ -116,3 +116,20 @@ def capm_decomposition(
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return capm_view.capm_return_decomposition(benchmark=benchmark, period=period)
+
+
+# --- Chunk 8: per-holding alpha ------------------------------------------------------------
+
+@router.get("/performance/alpha-per-holding")
+def alpha_per_holding(
+    benchmark: str = Query(DEFAULT_BENCHMARK),
+    period: str = Query("all", pattern="(?i)^(1m|3m|6m|ytd|1y|3y|5y|all)$"),
+    rfr: float = Query(DEFAULT_RISK_FREE_RATE, ge=0, le=0.25),
+) -> dict:
+    """Jensen's alpha (annualized, vs the comparison benchmark), beta and R² for every holding,
+    each over its own full available history within ``period``."""
+    bt = BENCHMARKS.get(benchmark, BENCHMARKS[DEFAULT_BENCHMARK])["ticker"]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        rows = perf.alpha_per_holding(benchmark_ticker=bt, period=period.lower(), risk_free=rfr)
+    return {"benchmark": benchmark, "period": period.lower(), "risk_free_rate": rfr, "holdings": rows}

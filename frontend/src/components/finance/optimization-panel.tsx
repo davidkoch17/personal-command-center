@@ -17,6 +17,7 @@ import {
   type OptPortfolio,
 } from "@/hooks/useFinance"
 import { useBenchmark, type BenchmarkKey } from "@/hooks/useBenchmark"
+import { useRiskFreeRate } from "@/hooks/useRiskFreeRate"
 import type { ConstrainedFrontierResult } from "@/hooks/useOptimizationConstrained"
 import { ConstraintsModal } from "@/components/portfolio/constraints-modal"
 import { cn } from "@/lib/utils"
@@ -62,6 +63,7 @@ function toPoint(p: OptPortfolio | null | undefined): { risk: number; return: nu
 
 function FrontierSubtab() {
   const [benchmark, setBenchmark] = useBenchmark()
+  const [rfr] = useRiskFreeRate()
   const { data, isLoading } = useOptFrontier(50, benchmark)
   const holdings = useFinanceHoldings()
   const distance = useDistanceFromFrontier(benchmark)
@@ -72,7 +74,7 @@ function FrontierSubtab() {
   // returns; drawing it over the new base frontier would mix two different mu's.
   useEffect(() => {
     setConstrained(null)
-  }, [benchmark])
+  }, [benchmark, rfr])
 
   const overlay =
     constrained && constrained.feasible
@@ -183,19 +185,22 @@ function OptimalSubtab() {
   const holdings = useFinanceHoldings()
   const riskParity = useOptRiskParity()
   const [benchmark] = useBenchmark()
+  const [rfr] = useRiskFreeRate()
 
   const qs = new URLSearchParams()
   if (maxPos) qs.set("max_position", maxPos)
   if (minPos) qs.set("min_position", minPos)
   qs.set("benchmark", benchmark)
+  qs.set("rfr", String(rfr)) // min-variance reads rfr
+  qs.set("risk_free", String(rfr)) // max-sharpe reads risk_free
   const suffix = qs.toString() ? `?${qs.toString()}` : ""
 
   const maxSharpe = useQuery({
-    queryKey: ["finance", "max-sharpe", maxPos, minPos, benchmark],
+    queryKey: ["finance", "max-sharpe", maxPos, minPos, benchmark, rfr],
     queryFn: () => api.get<OptPortfolio & { tickers: string[] }>(`/api/finance/optimization/max-sharpe${suffix}`),
   })
   const minVar = useQuery({
-    queryKey: ["finance", "min-variance", maxPos, minPos, benchmark],
+    queryKey: ["finance", "min-variance", maxPos, minPos, benchmark, rfr],
     queryFn: () => api.get<OptPortfolio & { tickers: string[] }>(`/api/finance/optimization/min-variance${suffix}`),
   })
 

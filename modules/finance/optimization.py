@@ -179,26 +179,36 @@ def _perf_dict(perf: tuple) -> dict:
     }
 
 
-def efficient_frontier_points(tickers: list[str], n_points: int = 50, benchmark_ticker: Optional[str] = None) -> list[dict]:
+def efficient_frontier_points(
+    tickers: list[str],
+    n_points: int = 50,
+    benchmark_ticker: Optional[str] = None,
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
+) -> list[dict]:
     """Efficient frontier as (risk, return, weights) triplets, sampled from the
     minimum-variance return up to the highest reachable return."""
-    mu, S = mu_cov(tickers, benchmark_ticker)
+    mu, S = mu_cov(tickers, benchmark_ticker, risk_free)
     if mu.empty or S.empty:
         return []
-    return build_frontier_constrained(list(mu.index), mu, S, {}, n_points=n_points)["points"]
+    return build_frontier_constrained(list(mu.index), mu, S, {}, n_points=n_points, risk_free=risk_free)["points"]
 
 
-def min_variance_portfolio(tickers: list[str], constraints: dict | None = None, benchmark_ticker: Optional[str] = None) -> dict:
+def min_variance_portfolio(
+    tickers: list[str],
+    constraints: dict | None = None,
+    benchmark_ticker: Optional[str] = None,
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
+) -> dict:
     from pypfopt import EfficientFrontier
 
-    mu, S = mu_cov(tickers, benchmark_ticker)
+    mu, S = mu_cov(tickers, benchmark_ticker, risk_free)
     if mu.empty or S.empty:
         return {"weights": {}, "performance": None}
     ef = EfficientFrontier(mu, S)
     _apply_constraints(ef, constraints)
     ef.min_volatility()
     return {"weights": {k: round(float(v), 4) for k, v in ef.clean_weights().items()},
-            "performance": _perf_dict(ef.portfolio_performance())}
+            "performance": _perf_dict(ef.portfolio_performance(risk_free_rate=risk_free))}
 
 
 def _max_sharpe_from(mu: pd.Series, S: pd.DataFrame, risk_free: float, constraints: dict | None = None) -> dict | None:
@@ -238,7 +248,7 @@ def max_sharpe_portfolio(
         _apply_constraints(ef, constraints)
         ef.min_volatility()
     return {"weights": {k: round(float(v), 4) for k, v in ef.clean_weights().items()},
-            "performance": _perf_dict(ef.portfolio_performance())}
+            "performance": _perf_dict(ef.portfolio_performance(risk_free_rate=risk_free))}
 
 
 def risk_parity_weights(tickers: list[str]) -> dict:
@@ -430,7 +440,9 @@ def hypotheses_as_views() -> list[dict]:
     return views
 
 
-def current_portfolio_point(tickers: list[str], benchmark_ticker: Optional[str] = None) -> dict | None:
+def current_portfolio_point(
+    tickers: list[str], benchmark_ticker: Optional[str] = None, risk_free: float = DEFAULT_RISK_FREE_RATE,
+) -> dict | None:
     """(risk, return, sharpe) of the *current* market-value-weighted portfolio.
 
     Plotted as the highlighted dot against the efficient frontier. Uses the same
@@ -445,13 +457,13 @@ def current_portfolio_point(tickers: list[str], benchmark_ticker: Optional[str] 
     if total <= 0:
         return None
     w = pd.Series({t: weights[t] / total for t in tickers})
-    mu, S = mu_cov(tickers, benchmark_ticker)
+    mu, S = mu_cov(tickers, benchmark_ticker, risk_free)
     if mu.empty or S.empty:
         return None
     w = w.reindex(mu.index).fillna(0.0)
     ret = float(w @ mu)
     vol = float(np.sqrt(w.values @ S.values @ w.values))
-    sharpe = (ret - DEFAULT_RISK_FREE_RATE) / vol if vol else None
+    sharpe = (ret - risk_free) / vol if vol else None
     return {"return": ret, "risk": vol, "sharpe": sharpe,
             "weights": {k: round(float(v), 4) for k, v in w.items()}}
 

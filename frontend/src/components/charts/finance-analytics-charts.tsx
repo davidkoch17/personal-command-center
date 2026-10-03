@@ -16,7 +16,9 @@ import {
   YAxis,
   ZAxis,
 } from "recharts"
-import { AXIS_PROPS, CHART_COLORS, GRID_PROPS } from "./theme"
+import { AXIS_PROPS, CHART_COLORS, FACTOR_COLORS, GRID_PROPS } from "./theme"
+
+import { cn } from "@/lib/utils"
 
 const LEGEND_STYLE = {
   fontSize: 11,
@@ -271,6 +273,73 @@ export function SecurityMarketLineChart({
   )
 }
 
+// --- Rolling factor betas (Factors tab, Chunk 8) ----------------------------------------
+export function RollingFactorBetasChart({
+  dates,
+  series,
+}: {
+  dates: string[]
+  series: Record<string, number[]>
+}) {
+  const keys = Object.keys(series)
+  const data = dates.map((d, i) => ({ date: d, ...Object.fromEntries(keys.map((k) => [k, series[k][i]])) }))
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+        <CartesianGrid {...GRID_PROPS} />
+        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={(d: string) => d.slice(2)} minTickGap={48} />
+        <YAxis {...AXIS_PROPS} width={40} tickFormatter={(v: number) => v.toFixed(1)} />
+        <Tooltip
+          contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+          formatter={(v: number, name: string) => [v.toFixed(2), `β ${name}`]}
+          labelStyle={{ color: CHART_COLORS.axis }}
+        />
+        <Legend verticalAlign="top" align="left" wrapperStyle={{ ...LEGEND_STYLE, paddingBottom: 8 }} formatter={(v: string) => `β ${v}`} />
+        <ReferenceLine y={0} stroke={CHART_COLORS.axis} strokeDasharray="2 2" />
+        {keys.map((k) => (
+          <Line key={k} type="monotone" dataKey={k} name={k.toUpperCase()} stroke={FACTOR_COLORS[k] ?? CHART_COLORS.axis}
+            strokeWidth={k === "mkt" ? 2.25 : 1.75} dot={false} isAnimationActive={false} />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+// --- Portfolio vs benchmark factor loadings (Chunk 8) -----------------------------------
+// Two series per factor: the portfolio solid, the comparison benchmark hatched/muted.
+export function FactorLoadingsComparisonChart({
+  data,
+  benchmarkName,
+}: {
+  data: { factor: string; portfolio: number; benchmark: number }[]
+  benchmarkName: string
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} barGap={4}>
+        <defs>
+          <pattern id="bench-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="6" height="6" fill="rgb(var(--color-bg-panel))" />
+            <line x1="0" y1="0" x2="0" y2="6" stroke={CHART_COLORS.axis} strokeWidth="3" />
+          </pattern>
+        </defs>
+        <CartesianGrid {...GRID_PROPS} />
+        <XAxis dataKey="factor" {...AXIS_PROPS} />
+        <YAxis {...AXIS_PROPS} width={40} tickFormatter={(v: number) => v.toFixed(1)} />
+        <Tooltip
+          contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
+          formatter={(v: number) => v.toFixed(2)}
+          cursor={{ fill: "rgba(148,163,184,0.12)" }}
+        />
+        <Legend verticalAlign="top" align="left" wrapperStyle={{ ...LEGEND_STYLE, paddingBottom: 8 }} />
+        <ReferenceLine y={0} stroke={CHART_COLORS.axis} />
+        <Bar dataKey="portfolio" name="portfolio" fill={CHART_COLORS.accent} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+        <Bar dataKey="benchmark" name={benchmarkName} fill="url(#bench-hatch)" stroke={CHART_COLORS.axis} strokeWidth={1} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
 // --- Rolling Sharpe ---------------------------------------------------------
 export function RollingSharpeChart({
   data,
@@ -514,6 +583,7 @@ export function CorrelationHeatmap({
   matrix,
   scale = "diverging",
   size = "sm",
+  italicTickers,
 }: {
   tickers: string[]
   matrix: Record<string, string | number>[]
@@ -521,7 +591,11 @@ export function CorrelationHeatmap({
   scale?: "diverging" | "invest"
   /** "lg" = roomy cells for small (e.g. 4×4) matrices. */
   size?: "sm" | "lg"
+  /** Labels rendered in italics (the Risk tab marks the comparison benchmarks this way). */
+  italicTickers?: string[]
 }) {
+  const italic = new Set(italicTickers ?? [])
+  const wideLabels = italic.size > 0
   const color = scale === "invest" ? investCorrColor : corrColor
   const large = size === "lg"
   if (tickers.length === 0) return <p className="text-sm text-text-label">no correlation data</p>
@@ -531,9 +605,9 @@ export function CorrelationHeatmap({
       <table className="border-separate border-spacing-0.5">
         <thead>
           <tr>
-            <th className={large ? "w-28" : "w-14"} />
+            <th className={wideLabels ? "" : large ? "w-28" : "w-14"} />
             {tickers.map((t) => (
-              <th key={t} className={large ? "px-2 py-1.5 font-mono text-xs text-text-secondary" : "px-1.5 py-1 font-mono text-[10px] text-text-secondary"}>
+              <th key={t} className={cn(large ? "px-2 py-1.5 font-mono text-xs text-text-secondary" : "px-1.5 py-1 font-mono text-[10px] text-text-secondary", italic.has(t) && "italic")}>
                 {t}
               </th>
             ))}
@@ -542,7 +616,7 @@ export function CorrelationHeatmap({
         <tbody>
           {tickers.map((row) => (
             <tr key={row}>
-              <td className={large ? "pr-3 text-right font-mono text-xs text-text-secondary" : "pr-2 text-right font-mono text-[10px] text-text-secondary"}>{row}</td>
+              <td className={cn(large ? "pr-3 text-right font-mono text-xs text-text-secondary" : "pr-2 text-right font-mono text-[10px] text-text-secondary", italic.has(row) && "italic", wideLabels && "whitespace-nowrap")}>{row}</td>
               {tickers.map((col) => {
                 const v = Number(byTicker.get(row)?.[col] ?? 0)
                 return (

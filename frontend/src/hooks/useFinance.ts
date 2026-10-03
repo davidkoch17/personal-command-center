@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import { useBenchmark } from "@/hooks/useBenchmark"
+import { useRiskFreeRate } from "@/hooks/useRiskFreeRate"
 import type {
   MoneySnapshot,
   WatchlistAddRequest,
@@ -211,6 +212,8 @@ export interface RiskResponse {
 export interface CorrelationResponse {
   tickers: string[]
   matrix: Record<string, string | number>[]
+  /** Labels of the comparison benchmarks among ``tickers`` (Chunk 8) — shown in italics. */
+  benchmarks?: string[]
 }
 
 export interface BucketRow {
@@ -242,9 +245,10 @@ export interface TransactionRequest {
 }
 
 export function useFinanceHoldings(benchmark = "MSCI_WORLD") {
+  const [rfr] = useRiskFreeRate() // per-holding Sharpe depends on it
   return useQuery({
-    queryKey: ["finance", "holdings", benchmark],
-    queryFn: () => api.get<FinanceHoldingsResponse>(`/api/finance/holdings?benchmark=${benchmark}`),
+    queryKey: ["finance", "holdings", benchmark, rfr],
+    queryFn: () => api.get<FinanceHoldingsResponse>(`/api/finance/holdings?benchmark=${benchmark}&rfr=${rfr}`),
     // Holdings carry per-position price + risk (network-heavy); 5 min is plenty.
     staleTime: 5 * 60_000,
   })
@@ -294,9 +298,10 @@ export function useFinanceRolling(window = 252, benchmark = "MSCI_WORLD") {
 }
 
 export function useFinanceRisk(benchmark = "MSCI_WORLD") {
+  const [rfr] = useRiskFreeRate()
   return useQuery({
-    queryKey: ["finance", "risk", benchmark],
-    queryFn: () => api.get<RiskResponse>(`/api/finance/risk?benchmark=${benchmark}`),
+    queryKey: ["finance", "risk", benchmark, rfr],
+    queryFn: () => api.get<RiskResponse>(`/api/finance/risk?benchmark=${benchmark}&rfr=${rfr}`),
     staleTime: STALE.performance,
   })
 }
@@ -752,11 +757,12 @@ export interface DecompositionResponse {
  *  (the shared useBenchmark() selection), so the curve, star, diamond and ✕ all
  *  change with it — the benchmark is part of the query key so switching refetches. */
 export function useOptFrontier(nPoints = 50, benchmark = "MSCI_WORLD") {
+  const [rfr] = useRiskFreeRate() // CAPM mu, the tangency and the CML all depend on it
   return useQuery({
-    queryKey: ["finance", "frontier", nPoints, benchmark],
+    queryKey: ["finance", "frontier", nPoints, benchmark, rfr],
     queryFn: () =>
       api.get<FrontierResponse>(
-        `/api/finance/optimization/frontier?n_points=${nPoints}&benchmark=${benchmark}`,
+        `/api/finance/optimization/frontier?n_points=${nPoints}&benchmark=${benchmark}&rfr=${rfr}`,
       ),
   })
 }
@@ -764,11 +770,12 @@ export function useOptFrontier(nPoints = 50, benchmark = "MSCI_WORLD") {
 /** B2 — current portfolio Sharpe vs. the CAPM tangency Sharpe for
  *  ``benchmark`` (the shared useBenchmark() selection — Chunk 1 pattern). */
 export function useDistanceFromFrontier(benchmark: string) {
+  const [rfr] = useRiskFreeRate()
   return useQuery({
-    queryKey: ["finance", "distance-from-frontier", benchmark],
+    queryKey: ["finance", "distance-from-frontier", benchmark, rfr],
     queryFn: () =>
       api.get<DistanceFromFrontierResponse>(
-        `/api/finance/optimization/distance-from-frontier?benchmark=${benchmark}`,
+        `/api/finance/optimization/distance-from-frontier?benchmark=${benchmark}&rfr=${rfr}`,
       ),
     staleTime: 60_000,
   })
@@ -1601,9 +1608,10 @@ export interface SmlResponse {
 
 /** SML line + one point per holding; follows the shared benchmark (part of the key). */
 export function useSml(benchmark: string) {
+  const [rfr] = useRiskFreeRate()
   return useQuery({
-    queryKey: ["finance", "sml", benchmark],
-    queryFn: () => api.get<SmlResponse>(`/api/finance/performance/sml?benchmark=${benchmark}`),
+    queryKey: ["finance", "sml", benchmark, rfr],
+    queryFn: () => api.get<SmlResponse>(`/api/finance/performance/sml?benchmark=${benchmark}&rfr=${rfr}`),
     staleTime: STALE.performance,
   })
 }
@@ -1698,8 +1706,86 @@ export interface ForwardWhatIfResponse {
  *  Sharpe uses the same CAPM market as the Optimization tab and the Risk tab. */
 export function useForwardWhatIf() {
   const [benchmark] = useBenchmark()
+  const [rfr] = useRiskFreeRate()
   return useMutation({
     mutationFn: (req: { ticker: string; action: "buy" | "sell"; eur_amount: number }) =>
-      api.post<ForwardWhatIfResponse>("/api/finance/scenarios/forward-whatif", { ...req, benchmark }),
+      api.post<ForwardWhatIfResponse>("/api/finance/scenarios/forward-whatif", { ...req, benchmark, rfr }),
+  })
+}
+
+// --- Chunk 8: per-holding alpha, rolling factor betas, factor-loadings comparison ----------
+
+export interface AlphaHolding {
+  /** Annualized Jensen's alpha vs the comparison benchmark (uses the shared risk-free rate). */
+  alpha: number | null
+  beta: number | null
+  r_squared: number | null
+  n: number
+}
+
+export interface AlphaPerHoldingResponse {
+  benchmark: string
+  period: string
+  risk_free_rate: number
+  holdings: Record<string, AlphaHolding>
+}
+
+export function useAlphaPerHolding(benchmark: string, period: string) {
+  const [rfr] = useRiskFreeRate()
+  return useQuery({
+    queryKey: ["finance", "alpha-per-holding", benchmark, period, rfr],
+    queryFn: () =>
+      api.get<AlphaPerHoldingResponse>(
+        `/api/finance/performance/alpha-per-holding?benchmark=${benchmark}&period=${period}&rfr=${rfr}`,
+      ),
+    staleTime: STALE.performance,
+  })
+}
+
+export interface RollingFactorBetasResponse {
+  available: boolean
+  reason?: string
+  region?: string
+  model?: string
+  window_months?: number
+  /** "YYYY-MM" month-ends, one per rolling window. */
+  dates?: string[]
+  /** factor key (mkt / smb / hml / rmw / cma) -> beta per date. */
+  series?: Record<string, number[]>
+}
+
+export function useRollingFactorBetas(region: string, model: "ff3" | "ff5", window = 36) {
+  return useQuery({
+    queryKey: ["finance", "factors", "rolling", region, model, window],
+    queryFn: () =>
+      api.get<RollingFactorBetasResponse>(
+        `/api/finance/factors/rolling?region=${region}&model=${model}&window=${window}`,
+      ),
+    staleTime: STALE.factors,
+  })
+}
+
+export interface FactorLoadingsComparisonResponse {
+  available: boolean
+  reason?: string
+  region: string
+  model: string
+  benchmark: string
+  benchmark_name: string
+  n_observations?: number
+  factors?: { factor: string; portfolio: number; benchmark: number }[]
+  portfolio?: { alpha_annual: number; r_squared: number | null }
+  benchmark_fit?: { alpha_annual: number; r_squared: number | null }
+}
+
+/** Portfolio vs the comparison benchmark's factor loadings, over the same months. */
+export function useFactorLoadingsComparison(region: string, model: "ff3" | "ff5", benchmark: string) {
+  return useQuery({
+    queryKey: ["finance", "factors", "loadings-comparison", region, model, benchmark],
+    queryFn: () =>
+      api.get<FactorLoadingsComparisonResponse>(
+        `/api/finance/factors/loadings-comparison?region=${region}&model=${model}&benchmark=${benchmark}`,
+      ),
+    staleTime: STALE.factors,
   })
 }

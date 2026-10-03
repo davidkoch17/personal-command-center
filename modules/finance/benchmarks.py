@@ -70,7 +70,7 @@ def _available(frame: pd.DataFrame) -> list[str]:
     return [k for k in ORDER if k in frame.columns]
 
 
-def _metrics(frame: pd.DataFrame) -> dict[str, dict]:
+def _metrics(frame: pd.DataFrame, risk_free: float = DEFAULT_RISK_FREE_RATE) -> dict[str, dict]:
     out: dict[str, dict] = {k: dict(_EMPTY_METRICS) for k in ORDER}
     if len(frame) < 2:
         return out
@@ -81,7 +81,7 @@ def _metrics(frame: pd.DataFrame) -> dict[str, dict]:
         out[key] = {
             "return": float(frame[key].iloc[-1] / frame[key].iloc[0] - 1),
             "vol": risk.annualized_vol(r),
-            "sharpe": risk.sharpe(r),
+            "sharpe": risk.sharpe(r, risk_free),
             "correlation_to_msci": (
                 risk._f(corr.loc[key, PRIMARY]) if corr is not None and PRIMARY in corr.columns else None
             ),
@@ -112,7 +112,7 @@ def _series(frame: pd.DataFrame) -> list[dict]:
     ]
 
 
-def benchmark_metrics(period: str = DEFAULT_PERIOD) -> dict[str, dict]:
+def benchmark_metrics(period: str = DEFAULT_PERIOD, risk_free: float = DEFAULT_RISK_FREE_RATE) -> dict[str, dict]:
     """``{key: {return, vol, sharpe, correlation_to_msci}}`` for every benchmark.
 
     ``return`` is the simple total return over the window, ``vol`` the annualized
@@ -120,7 +120,7 @@ def benchmark_metrics(period: str = DEFAULT_PERIOD) -> dict[str, dict]:
     ``correlation_to_msci`` is 1.0 for MSCI World itself (the UI shows it as
     "—"); unavailable benchmarks get all-``None``.
     """
-    return _metrics(_aligned_window(normalize_period(period)))
+    return _metrics(_aligned_window(normalize_period(period)), risk_free)
 
 
 def benchmark_correlation_matrix(period: str = DEFAULT_PERIOD) -> dict:
@@ -138,7 +138,7 @@ def benchmark_indexed_series(period: str = DEFAULT_PERIOD) -> list[dict]:
     return _series(_aligned_window(normalize_period(period)))
 
 
-def compare(period: str = DEFAULT_PERIOD) -> dict:
+def compare(period: str = DEFAULT_PERIOD, risk_free: float = DEFAULT_RISK_FREE_RATE) -> dict:
     """Everything the Benchmarks tab renders, in one call (metrics + matrix +
     series), off a single aligned window so all three views agree."""
     period = normalize_period(period)
@@ -147,13 +147,13 @@ def compare(period: str = DEFAULT_PERIOD) -> dict:
         "period": period,
         "start": frame.index[0].date().isoformat() if not frame.empty else None,
         "end": frame.index[-1].date().isoformat() if not frame.empty else None,
-        "risk_free_rate": DEFAULT_RISK_FREE_RATE,
+        "risk_free_rate": risk_free,
         "benchmarks": [
             {"key": k, "name": BENCHMARKS[k]["name"], "ticker": BENCHMARKS[k]["ticker"],
              "available": k in frame.columns}
             for k in ORDER
         ],
-        "metrics": _metrics(frame),
+        "metrics": _metrics(frame, risk_free),
         "correlation": _matrix(frame),
         "series": _series(frame),
     }

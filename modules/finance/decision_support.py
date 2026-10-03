@@ -290,14 +290,12 @@ BUCKET_LABELS = {
 }
 
 # How to choose which crypto to sell inside an over-allocated crypto bucket:
-#   "youngest_first"  — shortest holding period first (the Chunk 7 brief as written)
-#   "tax_free_first"  — positions already past the 365-day Spekulationsfrist first
-# NB: these pull in opposite directions tax-wise. Selling coins held < 365 days realizes
-# *taxable* gains; coins held >= 365 days are tax-free (§23 EStG), which is why
-# harvest_candidates() above treats them the opposite way. The brief's rule is the
-# default; every trade carries an explicit tax note so the consequence is on the page,
-# and this constant is the one-line switch.
-CRYPTO_SELL_ORDER = "youngest_first"
+#   "tax_free_first"  — positions already past the 365-day Spekulationsfrist first, so the
+#                       sale is not a tax event (§23 EStG)   <- David's decision (Chunk 8)
+#   "youngest_first"  — shortest holding period first (the original Chunk 7 brief; realizes
+#                       *taxable* gains first — kept as the alternative)
+# Every trade carries an explicit tax note either way; this constant is the one-line switch.
+CRYPTO_SELL_ORDER = "tax_free_first"
 
 ABGELTUNG_TEXT = "Abgeltungsteuer applies"
 
@@ -342,11 +340,12 @@ def sale_tax_note(ticker: str, ptype: str | None, units: float, today: date, lot
 
 def _sell_order(candidates: list[dict], ptype_bucket: str) -> list[dict]:
     """Sort sell candidates. Crypto: by holding period (see CRYPTO_SELL_ORDER); everything
-    else: largest unrealized gain first. Ties -> larger weight (concentration) first."""
+    else: *smallest* unrealized gain first (losses before gains), which minimizes the
+    immediate Abgeltungsteuer burden. Ties -> larger weight (concentration) first."""
     if ptype_bucket == "crypto":
         sign = 1 if CRYPTO_SELL_ORDER == "youngest_first" else -1
         return sorted(candidates, key=lambda c: (sign * c["age_days"], -c["weight"], c["ticker"]))
-    return sorted(candidates, key=lambda c: (-c["unrealized"], -c["weight"], c["ticker"]))
+    return sorted(candidates, key=lambda c: (c["unrealized"], -c["weight"], c["ticker"]))
 
 
 def primary_ticker_for_bucket(bucket: str) -> str | None:
@@ -531,7 +530,10 @@ def current_positions_and_prices() -> tuple[list[dict], dict[str, float]]:
             "ticker": ticker,
             "quantity": qty,
             "bucket": bucket,
-            "type": meta.type if meta else None,
+            # No Position record (e.g. ledger edited by hand): guess crypto from the yfinance pair
+            # suffix, the same guess positions._stub_position_if_new makes — so a crypto sale still
+            # gets its Spekulationsfrist note instead of a stock's Abgeltungsteuer one.
+            "type": meta.type if meta else ("crypto" if ticker.upper().endswith(("-USD", "-EUR", "-GBP")) else None),
         })
     return positions, prices
 

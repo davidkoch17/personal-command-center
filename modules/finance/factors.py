@@ -17,8 +17,9 @@ from datetime import date, timedelta
 
 import pandas as pd
 
-from core.config import DATA_DIR, get_logger
-from modules.finance.performance import portfolio_returns
+from core.config import BENCHMARKS, DATA_DIR, DEFAULT_BENCHMARK, get_logger
+from modules.finance.performance import filter_by_period, portfolio_returns
+from modules.finance.price_history import get_returns
 
 logger = get_logger(__name__)
 
@@ -326,4 +327,134 @@ def momentum_factor(port_returns: pd.Series | None = None, region: str = "US") -
         "t_umd": float(model.tvalues["UMD"]),
         "betas": {c.lower(): float(model.params[c]) for c in cols},
         "t_stats": {c.lower(): float(model.tvalues[c]) for c in cols},
+    }
+
+
+# ============================================================
+# Chunk 8 — rolling factor betas + portfolio-vs-benchmark loadings
+# ============================================================
+
+_MODEL_COLS = {
+    "ff3": ["MKT", "SMB", "HML"],
+    "ff5": ["MKT", "SMB", "HML", "RMW", "CMA"],
+}
+ROLLING_WINDOW_MONTHS = 36  # the institutional-norm window
+
+
+def _factor_frame(model: str, region: str) -> pd.DataFrame:
+    """Monthly factor returns for ``model`` (columns = factors + RF)."""
+    return get_ff5_factors(region) if model == "ff5" else get_ff3_factors(region)
+
+
+def _monthly(returns: pd.Series) -> pd.Series:
+    return (1 + returns).resample("ME").prod() - 1
+
+
+def _aligned_excess(monthly: pd.Series, frame: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    """``[excess, *factor cols]`` on the months the return series and the factors share."""
+    joined = pd.concat([monthly.rename("port"), frame], axis=1).dropna()
+    out = joined[cols].copy()
+    out.insert(0, "excess", joined["port"] - joined["RF"])
+    return out
+
+
+def _ols(aligned: pd.DataFrame, cols: list[str]) -> dict:
+    """OLS of excess returns on ``cols`` -> {alpha_annual, r_squared, betas, n}."""
+    import numpy as np
+
+    X = np.column_stack([np.ones(len(aligned)), aligned[cols].to_numpy()])
+    y = aligned["excess"].to_numpy()
+    coef, *_ = np.linalg.lstsq(X, y, rcond=None)
+    resid = y - X @ coef
+    ss_tot = float(((y - y.mean()) ** 2).sum())
+    return {
+        "alpha_annual": float(coef[0] * 12),
+        "r_squared": (1 - float((resid ** 2).sum()) / ss_tot) if ss_tot > 0 else None,
+        "betas": {c.lower(): float(b) for c, b in zip(cols, coef[1:])},
+        "n_observations": int(len(aligned)),
+    }
+
+
+def rolling_factor_betas(
+    returns: pd.Series,
+    factor_returns: pd.DataFrame,
+    window_months: int = ROLLING_WINDOW_MONTHS,
+    model: str = "ff3",
+) -> dict:
+    """Rolling-window factor betas (β_MKT / β_SMB / β_HML, plus RMW / CMA for ``ff5``).
+
+    ``returns`` are daily portfolio returns (compounded to months here); ``factor_returns``
+    the monthly Ken French frame incl. ``RF``. Each point is an OLS of excess portfolio
+    returns on the factors over the trailing ``window_months`` months (36 by default);
+    the first point is dated at the end of the first full window.
+    """
+    cols = _MODEL_COLS.get(model, _MODEL_COLS["ff3"])
+    if returns is None or returns.empty:
+        return {"available": False, "reason": "no portfolio return series"}
+    aligned = _aligned_excess(_monthly(returns), factor_returns, cols)
+    n = len(aligned)
+    if n < window_months:
+        return {"available": False, "reason": f"only {n} aligned months (need ≥{window_months} for a {window_months}-month window)"}
+
+    dates: list[str] = []
+    series: dict[str, list[float]] = {c.lower(): [] for c in cols}
+    for end in range(window_months, n + 1):
+        fit = _ols(aligned.iloc[end - window_months:end], cols)
+        dates.append(aligned.index[end - 1].strftime("%Y-%m"))
+        for k, v in fit["betas"].items():
+            series[k].append(v)
+    return {"available": True, "model": model, "window_months": window_months, "dates": dates, "series": series}
+
+
+def portfolio_rolling_factor_betas(region: str = "US", model: str = "ff3", window_months: int = ROLLING_WINDOW_MONTHS) -> dict:
+    """:func:`rolling_factor_betas` for the current portfolio and a Ken French region."""
+    out = rolling_factor_betas(portfolio_returns(), _factor_frame(model, region), window_months, model)
+    return {**out, "region": region}
+
+
+def benchmark_factor_loadings(benchmark_ticker: str, region: str = "US", period: str = "all", model: str = "ff3") -> dict:
+    """The same factor regression, run on a comparison benchmark's own return series."""
+    cols = _MODEL_COLS.get(model, _MODEL_COLS["ff3"])
+    r = filter_by_period(get_returns(benchmark_ticker), period)
+    if r.empty:
+        return {"available": False, "reason": "no benchmark price history"}
+    aligned = _aligned_excess(_monthly(r), _factor_frame(model, region), cols)
+    if len(aligned) < len(cols) + 4:
+        return {"available": False, "reason": f"only {len(aligned)} aligned months"}
+    return {"available": True, "region": region, "model": model, **_ols(aligned, cols)}
+
+
+def factor_loadings_comparison(
+    benchmark: str = DEFAULT_BENCHMARK, region: str = "US", period: str = "all", model: str = "ff3",
+) -> dict:
+    """Portfolio vs comparison-benchmark factor loadings, side by side.
+
+    Both regressions are run over the *same* months (the intersection of the portfolio's
+    history, the benchmark's and the factor data, within ``period``), so a difference in
+    loading is a real difference and not a different sample window.
+    """
+    cols = _MODEL_COLS.get(model, _MODEL_COLS["ff3"])
+    meta = BENCHMARKS.get(benchmark, BENCHMARKS[DEFAULT_BENCHMARK])
+    base = {"region": region, "model": model, "benchmark": benchmark, "benchmark_name": meta["name"], "period": period}
+    port = filter_by_period(portfolio_returns(), period)
+    bench = filter_by_period(get_returns(meta["ticker"]), period)
+    if port.empty:
+        return {**base, "available": False, "reason": "no portfolio return series"}
+    if bench.empty:
+        return {**base, "available": False, "reason": "no benchmark price history"}
+
+    frame = _factor_frame(model, region)
+    p = _aligned_excess(_monthly(port), frame, cols)
+    b = _aligned_excess(_monthly(bench), frame, cols)
+    common = p.index.intersection(b.index)
+    if len(common) < len(cols) + 4:
+        return {**base, "available": False, "reason": f"only {len(common)} months in common (need ≥{len(cols) + 4})"}
+    fp, fb = _ols(p.loc[common], cols), _ols(b.loc[common], cols)
+    return {
+        **base,
+        "available": True,
+        "n_observations": len(common),
+        "factors": [{"factor": c, "portfolio": fp["betas"][c.lower()], "benchmark": fb["betas"][c.lower()]} for c in cols],
+        "portfolio": {"alpha_annual": fp["alpha_annual"], "r_squared": fp["r_squared"]},
+        "benchmark_fit": {"alpha_annual": fb["alpha_annual"], "r_squared": fb["r_squared"]},
     }

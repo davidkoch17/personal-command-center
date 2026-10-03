@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import { useBenchmark } from "@/hooks/useBenchmark"
+import { useRiskFreeRate } from "@/hooks/useRiskFreeRate"
 import type { FrontierPoint, OptPortfolio } from "@/hooks/useFinance"
 
 export interface BoundConstraint {
@@ -44,11 +45,13 @@ export interface ConstrainedFrontierResponse {
  *  same CAPM expected returns as the base frontier it is drawn over. */
 export function useOptimizationConstrained() {
   const [benchmark] = useBenchmark()
+  const [rfr] = useRiskFreeRate()
   return useMutation({
     mutationFn: (req: ConstraintSet & { tickers?: string[]; n_points?: number }) =>
       api.post<ConstrainedFrontierResponse>("/api/finance/optimization/frontier-with-constraints", {
         ...req,
         benchmark,
+        rfr,
       }),
   })
 }

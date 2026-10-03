@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from pydantic import BaseModel
 
-from core.config import BENCHMARKS, DEFAULT_BENCHMARK, get_logger
+from core.config import BENCHMARKS, DEFAULT_BENCHMARK, DEFAULT_RISK_FREE_RATE, get_logger
 from modules.finance import backfill, period_pnl, positions as pos
 from modules.finance import realized
 from modules.finance import risk
@@ -131,7 +131,7 @@ def delete_transaction_endpoint(id: str) -> dict:
 
 
 @router.get("/holdings")
-def get_holdings(benchmark: str = Query(DEFAULT_BENCHMARK)) -> dict:
+def get_holdings(benchmark: str = Query(DEFAULT_BENCHMARK), rfr: float = Query(DEFAULT_RISK_FREE_RATE, ge=0, le=0.25)) -> dict:
     """Current holdings enriched with cost basis, live price + per-position risk.
 
     Per-position Sharpe / volatility come from each ticker's own daily return
@@ -178,7 +178,7 @@ def get_holdings(benchmark: str = Query(DEFAULT_BENCHMARK)) -> dict:
                 "unrealized_pnl": round(market_value - total_basis, 2) if price is not None else None,
                 "unrealized_pnl_pct": round((market_value - total_basis) / total_basis, 4)
                 if (price is not None and total_basis) else None,
-                "sharpe": risk.sharpe(rets),
+                "sharpe": risk.sharpe(rets, rfr),
                 "volatility": risk.annualized_vol(rets),
                 "beta": risk.beta_vs(rets, bench_ticker),
             })

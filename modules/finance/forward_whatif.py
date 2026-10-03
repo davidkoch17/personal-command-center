@@ -85,7 +85,9 @@ def _positions_for(holdings: dict[str, float]) -> list[dict]:
     return out
 
 
-def _risk_metrics(holdings: dict[str, float], prices: dict[str, float], benchmark_ticker: str) -> dict:
+def _risk_metrics(
+    holdings: dict[str, float], prices: dict[str, float], benchmark_ticker: str, risk_free: float = DEFAULT_RISK_FREE_RATE,
+) -> dict:
     """Sharpe (CAPM, forward), Sharpe / Sortino / vol (historical) for a holdings dict."""
     empty = {"sharpe_capm": None, "sharpe_historical": None, "sortino": None, "vol": None}
     if not holdings:
@@ -93,10 +95,10 @@ def _risk_metrics(holdings: dict[str, float], prices: dict[str, float], benchmar
     rets = portfolio_returns(holdings)
     out = dict(empty)
     if not rets.empty:
-        out.update(sharpe_historical=risk.sharpe(rets), sortino=risk.sortino(rets), vol=risk.annualized_vol(rets))
+        out.update(sharpe_historical=risk.sharpe(rets, risk_free), sortino=risk.sortino(rets, risk_free), vol=risk.annualized_vol(rets))
 
     tickers = list(holdings)
-    mu, S = mu_cov(tickers, benchmark_ticker)
+    mu, S = mu_cov(tickers, benchmark_ticker, risk_free)
     if not mu.empty:
         mv = {t: holdings[t] * (prices.get(t) or 0.0) for t in mu.index}
         total = sum(mv.values())
@@ -104,7 +106,7 @@ def _risk_metrics(holdings: dict[str, float], prices: dict[str, float], benchmar
             w = np.array([mv[t] / total for t in mu.index])
             ret = float(w @ mu.values)
             vol = float(math.sqrt(max(w @ S.values @ w, 0.0)))
-            out["sharpe_capm"] = (ret - DEFAULT_RISK_FREE_RATE) / vol if vol else None
+            out["sharpe_capm"] = (ret - risk_free) / vol if vol else None
     return out
 
 
@@ -117,6 +119,7 @@ def simulate_forward_trade(
     action: str,
     eur_amount: float,
     benchmark: str = DEFAULT_BENCHMARK,
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
 ) -> dict:
     """Simulate buying or selling ``eur_amount`` EUR of ``ticker`` (see module docstring).
 
@@ -206,8 +209,8 @@ def simulate_forward_trade(
         for t, w in sorted(checked.items(), key=lambda kv: -kv[1]) if w > MAX_SINGLE_POSITION
     ]
 
-    m_now = _risk_metrics(holdings, prices, bench_ticker)
-    m_new = _risk_metrics(projected, prices, bench_ticker)
+    m_now = _risk_metrics(holdings, prices, bench_ticker, risk_free)
+    m_new = _risk_metrics(projected, prices, bench_ticker, risk_free)
     metrics = {k: _delta(m_now[k], m_new[k]) for k in m_now}
 
     bucket, source = resolve_bucket_with_source(tk)

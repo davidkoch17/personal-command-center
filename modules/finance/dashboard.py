@@ -20,7 +20,7 @@ from typing import Optional
 
 import pandas as pd
 
-from core.config import BENCHMARKS, DEFAULT_BENCHMARK, get_logger
+from core.config import BENCHMARKS, DEFAULT_BENCHMARK, DEFAULT_RISK_FREE_RATE, get_logger
 from modules.finance import risk as risk_mod
 from modules.finance.buckets import bucket_allocation, resolve_bucket_with_source
 from modules.finance.performance import filter_by_period, portfolio_returns, time_weighted_return
@@ -78,7 +78,7 @@ def _worst_drift_bucket() -> Optional[dict]:
     return worst
 
 
-def summary(benchmark: str = DEFAULT_BENCHMARK) -> dict:
+def summary(benchmark: str = DEFAULT_BENCHMARK, risk_free: float = DEFAULT_RISK_FREE_RATE) -> dict:
     """KPI-band + top-holdings bundle for the Portfolio tab's first paint."""
     rows = holdings_with_day_change()
     total_value = round(sum(r["value_eur"] for r in rows), 2)
@@ -99,8 +99,8 @@ def summary(benchmark: str = DEFAULT_BENCHMARK) -> dict:
     pnl = position_period_pnl() if rows else {}
     ytd_eur = pnl.get("pnl_ytd_total") if pnl.get("count") else None
 
-    sharpe_1y = risk_mod.sharpe(filter_by_period(port_returns, "1y")) if not port_returns.empty else None
-    bench_sharpe_1y = risk_mod.sharpe(filter_by_period(bench_returns, "1y")) if not bench_returns.empty else None
+    sharpe_1y = risk_mod.sharpe(filter_by_period(port_returns, "1y"), risk_free) if not port_returns.empty else None
+    bench_sharpe_1y = risk_mod.sharpe(filter_by_period(bench_returns, "1y"), risk_free) if not bench_returns.empty else None
 
     return {
         "available": len(rows) > 0,
@@ -111,6 +111,9 @@ def summary(benchmark: str = DEFAULT_BENCHMARK) -> dict:
         "day_change_pct": day_change_pct,
         "ytd_return_pct": ytd_pct,
         "ytd_return_eur": ytd_eur,
+        # Date of the last daily snapshot the € figure is derived from (positions_daily.csv), so the
+        # UI can say "as of ..." — the % above is live, the € is only as fresh as that snapshot.
+        "ytd_as_of": pnl.get("as_of") if pnl.get("count") else None,
         "benchmark_ytd_return_pct": bench_ytd_pct,
         "sharpe_1y": sharpe_1y,
         "benchmark_sharpe_1y": bench_sharpe_1y,

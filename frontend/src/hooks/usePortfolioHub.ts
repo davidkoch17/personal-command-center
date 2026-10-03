@@ -16,6 +16,7 @@
  */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
+import { useRiskFreeRate } from "@/hooks/useRiskFreeRate"
 
 // --- Overview ---------------------------------------------------------------
 
@@ -402,6 +403,8 @@ export interface DashboardSummaryResponse {
   day_change_pct: number | null
   ytd_return_pct: number | null
   ytd_return_eur: number | null
+  /** Date of the daily snapshot the € YTD figure is derived from. */
+  ytd_as_of: string | null
   benchmark_ytd_return_pct: number | null
   sharpe_1y: number | null
   benchmark_sharpe_1y: number | null
@@ -412,9 +415,10 @@ export interface DashboardSummaryResponse {
 
 /** KPI band + top-5 holdings — one round trip for the Portfolio tab's first paint. */
 export function useDashboardSummary(benchmark: string) {
+  const [rfr] = useRiskFreeRate() // the 1y Sharpe KPI depends on it
   return useQuery({
-    queryKey: ["hub", "dashboard-summary", benchmark],
-    queryFn: () => api.get<DashboardSummaryResponse>(`/api/finance/dashboard/summary?benchmark=${benchmark}`),
+    queryKey: ["hub", "dashboard-summary", benchmark, rfr],
+    queryFn: () => api.get<DashboardSummaryResponse>(`/api/finance/dashboard/summary?benchmark=${benchmark}&rfr=${rfr}`),
     staleTime: 60_000,
   })
 }
@@ -614,9 +618,10 @@ export interface BenchmarkComparisonResponse {
 /** Metrics + correlation matrix + indexed series for all four benchmarks, one call.
  *  The previous period stays on screen while the next one loads (no blank flash). */
 export function useBenchmarkComparison(period: string) {
+  const [rfr] = useRiskFreeRate()
   return useQuery({
-    queryKey: ["hub", "benchmarks", period],
-    queryFn: () => api.get<BenchmarkComparisonResponse>(`/api/finance/benchmarks/compare?period=${period}`),
+    queryKey: ["hub", "benchmarks", period, rfr],
+    queryFn: () => api.get<BenchmarkComparisonResponse>(`/api/finance/benchmarks/compare?period=${period}&rfr=${rfr}`),
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
   })

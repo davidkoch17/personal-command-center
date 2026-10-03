@@ -5,7 +5,7 @@ import warnings
 
 from fastapi import APIRouter, Query
 
-from core.config import get_logger
+from core.config import DEFAULT_BENCHMARK, get_logger
 from modules.finance import factors
 
 logger = get_logger(__name__)
@@ -45,3 +45,30 @@ def momentum(region: str = Query("US", pattern=_REGION)) -> dict:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return factors.momentum_factor(region=region)
+
+
+# --- Chunk 8: rolling betas + portfolio-vs-benchmark loadings -------------------------------
+
+@router.get("/factors/rolling")
+def rolling(
+    region: str = Query("US", pattern=_REGION),
+    model: str = Query("ff3", pattern="^(ff3|ff5)$"),
+    window: int = Query(36, ge=12, le=120),
+) -> dict:
+    """Rolling-window factor betas (default 36 months): MKT/SMB/HML, plus RMW/CMA for ff5."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return factors.portfolio_rolling_factor_betas(region=region, model=model, window_months=window)
+
+
+@router.get("/factors/loadings-comparison")
+def loadings_comparison(
+    region: str = Query("US", pattern=_REGION),
+    model: str = Query("ff3", pattern="^(ff3|ff5)$"),
+    benchmark: str = Query(DEFAULT_BENCHMARK),
+    period: str = Query("all", pattern="(?i)^(1y|3y|5y|all)$"),
+) -> dict:
+    """Portfolio and the selected comparison benchmark regressed on the same factors over the same months."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return factors.factor_loadings_comparison(benchmark=benchmark, region=region, period=period.lower(), model=model)

@@ -18,6 +18,15 @@ export const CHART_COLORS = {
   axis: "rgb(var(--color-text-label))",
 } as const
 
+/** Fama-French factor lines (Chunk 8) — one distinct hue per factor. */
+export const FACTOR_COLORS: Record<string, string> = {
+  mkt: CHART_COLORS.accent,
+  smb: CHART_COLORS.warning,
+  hml: CHART_COLORS.invest,
+  rmw: "#14B8A6",
+  cma: "#EC4899",
+}
+
 /**
  * Benchmark comparison series (Chunk 5). MSCI World is the primary reference and
  * takes the portfolio-tracking violet; the rest are distinct, deliberately
