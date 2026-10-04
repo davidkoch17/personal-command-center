@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { MetricPanel } from "@/components/finance/metric-panel"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { DecisionAlerts } from "@/components/finance/decision-alerts"
+import { OptimizationSignals } from "@/components/finance/optimization-signals"
 import { AXIS_PROPS, CHART_COLORS, GRID_PROPS } from "@/components/charts/theme"
 import { CockpitTooltip } from "@/components/charts/cockpit-tooltip"
 import { NetWorthBridgeWaterfall, type BridgeStep } from "@/components/charts/finance-charts"
@@ -154,6 +155,10 @@ export function OverviewTab() {
 
       {/* Portfolio decision-alerts strip */}
       <DecisionAlerts />
+
+      {/* Chunk 9.5, B1 — current-vs-optimal Sharpe (CAPM-implied mu), built since
+          Phase 15c but never actually wired into a page until now. */}
+      <OptimizationSignals />
     </div>
   )
 }

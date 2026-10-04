@@ -238,6 +238,22 @@ def concentration_alerts(positions: list, prices: dict) -> list[dict]:
                     "rationale": f"{p['ticker']} at {weight*100:.1f}% — Section 0.4 caps each wild card at 2%",
                     "severity": "high",
                 })
+        elif bucket == "unassigned":
+            # Chunk 9.5, decision A2: an unassigned position gets its own warning
+            # class instead of silently being checked against the single_stocks
+            # cap (or any other bucket's) — a ticker with no map entry and no
+            # override hasn't actually been judged against *any* rule yet, so
+            # saying "within single_stocks' 5%" would be a false all-clear.
+            if weight > 0.05:
+                alerts.append({
+                    "type": "unassigned_position_warning",
+                    "ticker": p["ticker"],
+                    "weight": weight,
+                    "rationale": f"Unassigned position: {p['ticker']} at {weight*100:.1f}%. Add it to "
+                                 "config/ticker_buckets.yaml or set an override to include it in "
+                                 "concentration + rebalance checks",
+                    "severity": "medium",
+                })
 
     return alerts
 
@@ -510,10 +526,11 @@ def current_positions_and_prices() -> tuple[list[dict], dict[str, float]]:
     Allocation panel (Chunk 2.5's buckets.resolve_bucket) rather than a blind
     "single_stocks" guess, so e.g. a crypto ticker only known via the seed map
     now gets checked against the crypto cap here too, not the equity one. A
-    truly unresolvable ticker (no override, not in the map) still falls back
-    to "single_stocks" rather than "unassigned" — concentration_alerts() has
-    no "unassigned" branch, and the point of that fallback is that nothing
-    silently skips the checks just for lacking a bucket.
+    truly unresolvable ticker (no override, not in the map) is passed through
+    as "unassigned" (Chunk 9.5, decision A2) rather than folded into
+    "single_stocks" — concentration_alerts() has its own "unassigned" branch
+    now, so a ticker nobody has classified yet gets its own warning instead of
+    a false all-clear from a bucket it was never actually checked against.
     """
     from modules.finance.buckets import resolve_bucket
 
@@ -524,8 +541,6 @@ def current_positions_and_prices() -> tuple[list[dict], dict[str, float]]:
         meta = get_position(ticker)
         prices[ticker] = latest_price(ticker) or 0.0
         bucket = resolve_bucket(ticker)
-        if bucket not in BUCKET_TARGETS:  # "unassigned" -> safe, checked-anyway default
-            bucket = "single_stocks"
         positions.append({
             "ticker": ticker,
             "quantity": qty,

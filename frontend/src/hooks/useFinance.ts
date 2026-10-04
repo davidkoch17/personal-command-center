@@ -813,9 +813,11 @@ export function useBlackLitterman() {
 }
 
 export function useOptSignals() {
+  const [benchmark] = useBenchmark() // Chunk 9.5, B1 — now on the same CAPM mu as the Optimization tab
+  const [rfr] = useRiskFreeRate()
   return useQuery({
-    queryKey: ["finance", "opt-signals"],
-    queryFn: () => api.get<OptSignalsResponse>("/api/finance/optimization/signals"),
+    queryKey: ["finance", "opt-signals", benchmark, rfr],
+    queryFn: () => api.get<OptSignalsResponse>(`/api/finance/optimization/signals?benchmark=${benchmark}&rfr=${rfr}`),
   })
 }
 

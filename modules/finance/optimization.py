@@ -471,8 +471,17 @@ def current_portfolio_point(
             "weights": {k: round(float(v), 4) for k, v in w.items()}}
 
 
-def optimization_signals() -> dict:
-    """Compact current-vs-optimal summary for the Home 'optimization signals' block."""
+def optimization_signals(benchmark_ticker: str = "URTH", risk_free: float = DEFAULT_RISK_FREE_RATE) -> dict:
+    """Compact current-vs-optimal summary for the Home 'optimization signals' block.
+
+    Chunk 9.5, decision B1: ``mu_cov`` defaults to historical-mean mu when no
+    ``benchmark_ticker`` is given (see its docstring) — this was the one caller
+    left on that path since Chunk 3.5 moved everything else to CAPM-implied mu,
+    so its max-Sharpe/min-variance targets could silently disagree with the
+    Optimization tab's. Passing the benchmark here puts it on the same (mu, S)
+    source as everywhere else; ``risk_free`` follows the same shared-rate
+    pattern as the rest of the app (``useRiskFreeRate``).
+    """
     from modules.finance import risk
     from modules.finance.performance import portfolio_returns
 
@@ -481,11 +490,11 @@ def optimization_signals() -> dict:
         return {"available": False, "reason": "need at least 2 priced holdings"}
 
     returns = portfolio_returns()
-    current_sharpe = risk.sharpe(returns) if not returns.empty else None
+    current_sharpe = risk.sharpe(returns, risk_free=risk_free) if not returns.empty else None
     current_conc = risk.concentration_metrics()
 
-    ms = max_sharpe_portfolio(tickers)
-    mv = min_variance_portfolio(tickers)
+    ms = max_sharpe_portfolio(tickers, risk_free=risk_free, benchmark_ticker=benchmark_ticker)
+    mv = min_variance_portfolio(tickers, benchmark_ticker=benchmark_ticker, risk_free=risk_free)
     max_sharpe_val = ms["performance"]["sharpe"] if ms.get("performance") else None
 
     # Effective N of the min-variance portfolio (diversification target).

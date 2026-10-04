@@ -29,6 +29,32 @@ const LEGEND_STYLE = {
 const pctTick = (v: number) => `${(v * 100).toFixed(0)}%`
 const shortDate = (d: string) => (d.length >= 7 ? d.slice(2, 7) : d)
 
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/** "YYYY-MM-DD" -> "Sep 26" (falls back to the raw string if it doesn't parse). */
+function monthDayLabel(d: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d)
+  if (!m) return d
+  const month = MONTH_ABBR[Number(m[2]) - 1]
+  return month ? `${month} ${m[3]}` : d
+}
+
+/**
+ * Chunk 9.5 — a window that sits inside a single month reads as noise under
+ * "YY-MM" (every tick repeats the same two numbers); switch to "Mon DD" when
+ * the series' first and last date are within 35 days of each other, otherwise
+ * keep the coarser "YY-MM" so a multi-year axis doesn't crowd with day numbers.
+ */
+function dateTickFormatter(dates: string[]): (d: string) => string {
+  const first = dates[0]
+  const last = dates[dates.length - 1]
+  if (first && last) {
+    const span = Math.abs(new Date(last).getTime() - new Date(first).getTime()) / 86_400_000
+    if (Number.isFinite(span) && span <= 35) return monthDayLabel
+  }
+  return shortDate
+}
+
 // --- Cumulative return: portfolio vs benchmark ------------------------------
 export function CumulativeReturnChart({
   data,
@@ -37,11 +63,12 @@ export function CumulativeReturnChart({
   data: { date: string; portfolio: number; benchmark: number }[]
   benchmarkName?: string
 }) {
+  const tickFmt = dateTickFormatter(data.map((d) => d.date))
   return (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
         <CartesianGrid {...GRID_PROPS} />
-        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={shortDate} minTickGap={40} />
+        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={tickFmt} minTickGap={40} />
         <YAxis {...AXIS_PROPS} width={48} tickFormatter={pctTick} />
         <Tooltip
           contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
@@ -68,11 +95,12 @@ export function IndexedPerformanceChart({
   data: { date: string; portfolio: number; benchmark: number }[]
   benchmarkName?: string
 }) {
+  const tickFmt = dateTickFormatter(data.map((d) => d.date))
   return (
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
         <CartesianGrid {...GRID_PROPS} />
-        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={shortDate} minTickGap={40} />
+        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={tickFmt} minTickGap={40} />
         <YAxis {...AXIS_PROPS} width={44} domain={["auto", "auto"]} />
         <Tooltip
           contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
@@ -112,7 +140,7 @@ export function PriceSparkline({
     <ResponsiveContainer width="100%" height={240}>
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
         <CartesianGrid {...GRID_PROPS} />
-        <XAxis dataKey="date" {...AXIS_PROPS} ticks={ticks} tickFormatter={(d: string) => (long ? d.slice(2, 7) : d.slice(5))} minTickGap={40} />
+        <XAxis dataKey="date" {...AXIS_PROPS} ticks={ticks} tickFormatter={(d: string) => (long ? d.slice(2, 7) : monthDayLabel(d))} minTickGap={40} />
         <YAxis {...AXIS_PROPS} width={52} domain={["auto", "auto"]} tickFormatter={(v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 0 })} />
         <Tooltip
           contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
@@ -137,11 +165,12 @@ export function BenchmarkComparisonChart({
   data: Record<string, string | number>[]
   series: { key: string; name: string; color: string }[]
 }) {
+  const tickFmt = dateTickFormatter(data.map((d) => String(d.date)))
   return (
     <ResponsiveContainer width="100%" height={320}>
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
         <CartesianGrid {...GRID_PROPS} />
-        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={shortDate} minTickGap={48} />
+        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={tickFmt} minTickGap={48} />
         <YAxis {...AXIS_PROPS} width={44} domain={["auto", "auto"]} />
         <Tooltip
           contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}
@@ -346,11 +375,12 @@ export function RollingSharpeChart({
 }: {
   data: { date: string; sharpe: number | null }[]
 }) {
+  const tickFmt = dateTickFormatter(data.map((d) => d.date))
   return (
     <ResponsiveContainer width="100%" height={240}>
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
         <CartesianGrid {...GRID_PROPS} />
-        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={shortDate} minTickGap={40} />
+        <XAxis dataKey="date" {...AXIS_PROPS} tickFormatter={tickFmt} minTickGap={40} />
         <YAxis {...AXIS_PROPS} width={40} />
         <Tooltip
           contentStyle={{ background: "rgb(var(--color-bg-panel))", border: `1px solid ${CHART_COLORS.grid}`, fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}

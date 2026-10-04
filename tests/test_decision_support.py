@@ -302,3 +302,43 @@ def test_crypto_type_is_guessed_from_the_ticker_when_there_is_no_position_record
     positions, _ = ds.current_positions_and_prices()
 
     assert {p["ticker"]: p["type"] for p in positions} == {"BTC-USD": "crypto", "AAPL": None}
+
+
+# --- concentration alerts: unassigned positions (Chunk 9.5, decision A2) ------------------------
+
+def test_unassigned_position_over_five_percent_gets_its_own_warning():
+    positions = [_pos("MYSTERY", 15, "unassigned"), _pos("AAPL", 85, "single_stocks")]
+    prices = {p["ticker"]: 1.0 for p in positions}
+
+    alerts = ds.concentration_alerts(positions, prices)
+
+    unassigned = [a for a in alerts if a["ticker"] == "MYSTERY"]
+    assert len(unassigned) == 1
+    assert unassigned[0]["type"] == "unassigned_position_warning"
+    assert unassigned[0]["weight"] == pytest.approx(0.15)
+    assert "MYSTERY" in unassigned[0]["rationale"] and "ticker_buckets.yaml" in unassigned[0]["rationale"]
+    # Not also (mis)checked against the single_stocks 5%/7% cap it was never assigned to.
+    assert not any(a["ticker"] == "MYSTERY" and a["type"] != "unassigned_position_warning" for a in alerts)
+
+
+def test_unassigned_position_under_five_percent_is_silent():
+    positions = [_pos("MYSTERY", 4, "unassigned"), _pos("AAPL", 96, "single_stocks")]
+    prices = {p["ticker"]: 1.0 for p in positions}
+
+    alerts = ds.concentration_alerts(positions, prices)
+
+    assert not any(a["ticker"] == "MYSTERY" for a in alerts)
+
+
+def test_current_positions_and_prices_passes_unassigned_through(monkeypatch):
+    """Chunk 9.5, A2: a truly unresolvable ticker is no longer folded into
+    single_stocks before it reaches concentration_alerts()."""
+    monkeypatch.setattr(ds, "current_holdings", lambda: {"MYSTERY": 1.0})
+    monkeypatch.setattr(ds, "get_position", lambda t: None)
+    monkeypatch.setattr(ds, "latest_price", lambda t: 100.0)
+    from modules.finance import buckets
+    monkeypatch.setattr(buckets, "resolve_bucket", lambda t: "unassigned")
+
+    positions, _ = ds.current_positions_and_prices()
+
+    assert positions[0]["bucket"] == "unassigned"

@@ -313,3 +313,49 @@ def _app() -> FastAPI:
     app = FastAPI()
     app.include_router(opt_api.router, prefix="/api/finance")
     return app
+
+
+# ============================================================
+# Chunk 9.5, decision B1 — Home optimization signals on CAPM mu
+# ============================================================
+
+def test_optimization_signals_uses_capm_mu_matching_the_optimization_tab(price_world):
+    """optimization_signals() must load its max-Sharpe target from the same
+    (benchmark, risk_free) CAPM mu as the Optimization tab's own
+    max_sharpe_portfolio call — mu_cov defaulted it to historical-mean mu
+    before this fix, so the two could silently disagree."""
+    out = opt.optimization_signals(benchmark_ticker="URTH", risk_free=0.03)
+    expected = opt.max_sharpe_portfolio(TICKERS, risk_free=0.03, benchmark_ticker="URTH")
+
+    assert out["available"]
+    assert out["max_sharpe"] == pytest.approx(expected["performance"]["sharpe"], abs=1e-9)
+    assert out["max_sharpe_weights"] == expected["weights"]
+
+    # ...and it's materially different from the old historical-mean target, so
+    # this isn't a tautology against a mu_cov default that happens to coincide.
+    historical = opt.max_sharpe_portfolio(TICKERS, risk_free=0.03)
+    assert out["max_sharpe_weights"] != historical["weights"]
+
+
+def test_optimization_signals_follows_a_benchmark_change(price_world):
+    """Same holdings, different CAPM benchmark -> a different max-Sharpe target,
+    same as the frontier endpoint (test_frontier_reshapes_on_benchmark_change)."""
+    world = opt.optimization_signals(benchmark_ticker="URTH")
+    spy = opt.optimization_signals(benchmark_ticker="^GSPC")
+    assert world["max_sharpe_weights"] != spy["max_sharpe_weights"]
+
+
+def test_signals_endpoint_passes_benchmark_and_rfr_through(price_world, monkeypatch):
+    seen = []
+
+    def fake(benchmark_ticker=None, risk_free=None):
+        seen.append((benchmark_ticker, risk_free))
+        return {"available": False, "reason": "x"}
+
+    monkeypatch.setattr(opt, "optimization_signals", fake)
+    client = TestClient(_app())
+
+    client.get("/api/finance/optimization/signals")
+    client.get("/api/finance/optimization/signals?benchmark=SPY&rfr=0.06")
+
+    assert seen == [("URTH", 0.04), ("^GSPC", 0.06)]

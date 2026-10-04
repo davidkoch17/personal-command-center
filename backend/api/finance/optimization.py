@@ -140,11 +140,14 @@ def black_litterman(req: BlackLittermanRequest) -> dict:
 
 
 @router.get("/optimization/signals")
-def signals() -> dict:
+def signals(
+    benchmark: str = Query(DEFAULT_BENCHMARK),
+    rfr: float = Query(DEFAULT_RISK_FREE_RATE, ge=0, le=0.25),
+) -> dict:
     """Current-vs-optimal summary for the Home 'optimization signals' block."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return opt.optimization_signals()
+        return opt.optimization_signals(benchmark_ticker=_bench_ticker(benchmark), risk_free=rfr)
 
 
 # ============================================================
