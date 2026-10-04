@@ -30,7 +30,7 @@ import hashlib
 import json
 import uuid
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -66,6 +66,9 @@ class CashflowEntry(BaseModel):
 
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     date: date
+    timestamp: Optional[datetime] = None  # when the source carries one (e.g. a TR PDF's
+                                           # Uhrzeit) — see _is_duplicate_of; None for
+                                           # date-only sources (Amex, Haspa screenshots).
     direction: Direction
     amount: float                      # positive magnitude
     category: str
@@ -80,10 +83,40 @@ class CashflowEntry(BaseModel):
 
 # --- Ledger (cashflow_transactions.jsonl) ------------------------------------
 
+DEDUPE_TIMESTAMP_WINDOW_SECONDS = 60
+
+
 def _dedupe_key(e: CashflowEntry) -> str:
-    """Content hash so re-feeding the same statement twice never double-counts."""
+    """Content hash (ignoring ``timestamp``) so re-feeding the same statement
+    twice never double-counts. Two entries sharing this key are only
+    *candidates* for being the same entry — see :func:`_is_duplicate_of` for
+    how a timestamp narrows that down further when both sides have one.
+    """
     raw = f"{e.date.isoformat()}|{e.direction}|{e.amount:.2f}|{e.category}|{e.account}|{e.description}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+
+def _is_duplicate_of(candidate: CashflowEntry, existing: CashflowEntry) -> bool:
+    """Whether ``existing`` already in the ledger should block ``candidate``.
+
+    The base key (date/direction/amount/category/account/description) always
+    has to match. Chunk 9.6: two genuinely separate charges can share that
+    whole key — same amount, same merchant, same day (the DOJO Marylebone
+    case: two real €9.43 charges hours apart) — so when *both* sides carry a
+    ``timestamp`` (a source precise enough to have one, e.g. a Trade Republic
+    PDF's Uhrzeit), they're only treated as the same entry when within
+    :data:`DEDUPE_TIMESTAMP_WINDOW_SECONDS` of each other. If either side has
+    no timestamp (Amex/Haspa statements carry date only), that signal doesn't
+    exist, so the base key alone decides — the ledger's original, unchanged
+    behavior, which is also what keeps all 536 pre-Chunk-9.6 rows deduping
+    exactly as before.
+    """
+    if _dedupe_key(candidate) != _dedupe_key(existing):
+        return False
+    if candidate.timestamp is not None and existing.timestamp is not None:
+        delta = abs((candidate.timestamp - existing.timestamp).total_seconds())
+        return delta <= DEDUPE_TIMESTAMP_WINDOW_SECONDS
+    return True
 
 
 def list_entries() -> list[CashflowEntry]:
@@ -103,13 +136,11 @@ def list_entries() -> list[CashflowEntry]:
 
 
 def add_entry(e: CashflowEntry) -> bool:
-    """Append one entry. Returns False (no-op) if an identical entry already exists."""
-    existing = {_dedupe_key(x) for x in list_entries()}
-    if _dedupe_key(e) in existing:
+    """Append one entry. Returns False (no-op) if it's a duplicate of an existing one."""
+    if any(_is_duplicate_of(e, x) for x in list_entries()):
         return False
     CASHFLOW_TRANSACTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    payload = e.model_dump()
-    payload["date"] = e.date.isoformat()
+    payload = e.model_dump(mode="json")  # serializes date/timestamp to ISO strings
     with CASHFLOW_TRANSACTIONS_FILE.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(payload) + "\n")
     return True
@@ -132,8 +163,7 @@ def _write_all_entries(entries: list[CashflowEntry]) -> None:
     CASHFLOW_TRANSACTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     lines = []
     for e in entries:
-        payload = e.model_dump()
-        payload["date"] = e.date.isoformat()
+        payload = e.model_dump(mode="json")  # serializes date/timestamp to ISO strings
         lines.append(json.dumps(payload))
     CASHFLOW_TRANSACTIONS_FILE.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 

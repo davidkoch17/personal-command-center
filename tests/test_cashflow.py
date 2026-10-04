@@ -1,7 +1,7 @@
 """Tests for modules/finance/cashflow.py's ledger CRUD + needs-review flow."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -36,6 +36,63 @@ def test_add_entries_appends_and_dedupes():
 
     assert result == {"added": 2, "skipped": 1}
     assert len(cashflow.list_entries()) == 2
+
+
+def test_dedupe_collapses_when_timestamps_within_60s():
+    """Same base key, timestamps 30s apart -> still the same charge."""
+    e1 = make_entry(amount=9.43, description="DOJO Marylebone",
+                     timestamp=datetime(2026, 8, 1, 20, 14, 33))
+    e2 = make_entry(amount=9.43, description="DOJO Marylebone",
+                     timestamp=datetime(2026, 8, 1, 20, 15, 3))  # +30s
+    result = cashflow.add_entries([e1, e2])
+
+    assert result == {"added": 1, "skipped": 1}
+    assert len(cashflow.list_entries()) == 1
+
+
+def test_dedupe_separates_when_timestamps_over_60s():
+    """Same base key, timestamps hours apart -> two genuinely separate charges
+    (the DOJO Marylebone case that used to collapse wrongly)."""
+    e1 = make_entry(amount=9.43, description="DOJO Marylebone",
+                     timestamp=datetime(2026, 8, 1, 20, 14, 33))
+    e2 = make_entry(amount=9.43, description="DOJO Marylebone",
+                     timestamp=datetime(2026, 8, 1, 22, 47, 11))  # +2h33m
+    result = cashflow.add_entries([e1, e2])
+
+    assert result == {"added": 2, "skipped": 0}
+    assert len(cashflow.list_entries()) == 2
+
+
+def test_dedupe_falls_back_when_timestamp_null():
+    """Either side missing a timestamp -> base key alone decides, as before."""
+    with_ts = make_entry(amount=13.0, description="Bundesamt",
+                          timestamp=datetime(2026, 8, 1, 9, 0, 0))
+    without_ts = make_entry(amount=13.0, description="Bundesamt")  # timestamp=None
+    result = cashflow.add_entries([with_ts, without_ts])
+
+    assert result == {"added": 1, "skipped": 1}
+    assert len(cashflow.list_entries()) == 1
+
+
+def test_dedupe_backward_compat_existing_rows():
+    """Historical rows (no timestamp field at all) dedupe exactly as before a
+    re-ingest of the same statement."""
+    rows = [
+        make_entry(amount=100.0, category="Rent", description="abrdn rent"),
+        make_entry(amount=9.43, description="Dojo"),
+        make_entry(amount=13.0, category="Taxes & Fees", description="Bundesamt"),
+    ]
+    first = cashflow.add_entries(rows)
+    assert first == {"added": 3, "skipped": 0}
+
+    # Re-ingesting the identical statement should collapse all 3, same as pre-9.6.
+    second = cashflow.add_entries([make_entry(**r) for r in (
+        dict(amount=100.0, category="Rent", description="abrdn rent"),
+        dict(amount=9.43, description="Dojo"),
+        dict(amount=13.0, category="Taxes & Fees", description="Bundesamt"),
+    )])
+    assert second == {"added": 0, "skipped": 3}
+    assert len(cashflow.list_entries()) == 3
 
 
 def test_list_entries_sorted_by_date():
