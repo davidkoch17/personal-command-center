@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Outlet, useLocation } from "react-router-dom"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/toaster"
+import { UpdateBanner } from "@/components/ui/update-banner"
 import { Sidebar, MobileNav } from "./sidebar"
 import { Header } from "./header"
 import { SearchPalette } from "./search-palette"
@@ -35,6 +36,7 @@ export function AppShell() {
           </main>
         </div>
         <Toaster />
+        <UpdateBanner />
         <SearchPalette />
         <JarvisDock />
       </div>

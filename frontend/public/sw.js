@@ -2,9 +2,17 @@
  *
  * Goals: make the app installable (PWA) and keep the shell available offline.
  * It deliberately does NOT cache /api responses — those are live data and must
- * always hit the network. Bump CACHE when the shell needs to be invalidated.
+ * always hit the network.
+ *
+ * CACHE (Chunk 9.8): __BUILD_HASH__ is substituted by vite.config.ts's
+ * sw-cache-bust plugin at build time with a hash of dist/assets' own
+ * filenames — so every build that actually changes a file gets a genuinely
+ * new cache name (and old caches get swept in `activate` below), instead of
+ * a hand-bumped "v1" that silently never changed across deploys. The build
+ * fails outright if this placeholder is ever missing from dist/sw.js — see
+ * that plugin's comment.
  */
-const CACHE = "cc-shell-v1";
+const CACHE = "cc-shell-__BUILD_HASH__";
 const SHELL = [
   "/",
   "/manifest.json",
