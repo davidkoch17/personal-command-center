@@ -80,7 +80,11 @@ export function CategoryDonut({
   data,
   height = 260,
 }: {
-  data: { name: string; value: number }[]
+  /** `color` is optional per-item — when a caller has a fixed semantic palette
+   * (e.g. BUCKET_COLORS so a bucket's donut slice matches its own legend
+   * dot elsewhere), pass it; omitted items fall back to the sequential
+   * CHART_SERIES ramp, same as before. */
+  data: { name: string; value: number; color?: string }[]
   height?: number
 }) {
   return (
@@ -95,8 +99,8 @@ export function CategoryDonut({
           paddingAngle={2}
           stroke="rgb(var(--color-bg))"
         >
-          {data.map((_, i) => (
-            <Cell key={i} fill={CHART_SERIES[i % CHART_SERIES.length]} />
+          {data.map((d, i) => (
+            <Cell key={i} fill={d.color ?? CHART_SERIES[i % CHART_SERIES.length]} />
           ))}
         </Pie>
         <Tooltip content={<CockpitTooltip />} />

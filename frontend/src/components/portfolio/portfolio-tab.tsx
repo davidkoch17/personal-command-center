@@ -9,6 +9,7 @@ import { MetricPanel } from "@/components/finance/metric-panel"
 import { DecisionAlerts } from "@/components/finance/decision-alerts"
 import { ActiveDeployments } from "@/components/portfolio/active-deployments"
 import { CategoryDonut } from "@/components/charts/finance-charts"
+import { BUCKET_COLORS } from "@/components/charts/theme"
 import { IndexedPerformanceChart } from "@/components/charts/finance-analytics-charts"
 import { useDashboardSummary, useDashboardPerformance, type DashboardTopHolding } from "@/hooks/usePortfolioHub"
 import { useBuckets, type BucketRow } from "@/hooks/useFinance"
@@ -23,13 +24,6 @@ const TIMEFRAMES = [
   { key: "1y", label: "1Y" },
   { key: "all", label: "ALL" },
 ] as const
-
-const BUCKET_COLOR: Record<string, string> = {
-  etf_foundation: "#2563EB",
-  single_stocks: "#14B8A6",
-  crypto: "#F59E0B",
-  wild_cards: "#A855F7",
-}
 
 const DRIFT_STATUS_COLOR: Record<BucketRow["status"], "success" | "warning" | "danger"> = {
   ok: "success",
@@ -262,7 +256,7 @@ function AllocationVsTarget({ buckets, loading }: { buckets: BucketRow[]; loadin
   const total = buckets.reduce((s, b) => s + b.value, 0)
   const donutData = buckets
     .filter((b) => b.value > 0)
-    .map((b) => ({ name: b.label, value: b.value }))
+    .map((b) => ({ name: b.label, value: b.value, color: BUCKET_COLORS[b.bucket] ?? "#64748B" }))
 
   return (
     <Panel title="allocation vs target" statusDotColor="accent">
@@ -284,7 +278,7 @@ function AllocationVsTarget({ buckets, loading }: { buckets: BucketRow[]; loadin
               <div key={b.bucket} className="flex items-center gap-2.5">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: BUCKET_COLOR[b.bucket] ?? "#64748B" }}
+                  style={{ backgroundColor: BUCKET_COLORS[b.bucket] ?? "#64748B" }}
                 />
                 <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">{b.label}</span>
                 <span className="font-mono text-sm tabular-nums text-text">

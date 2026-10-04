@@ -1,5 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
-import { CHART_COLORS, CHART_SERIES } from "@/components/charts/theme"
+import { CHART_COLORS, NETWORTH_SEGMENT_COLORS } from "@/components/charts/theme"
 import { CockpitTooltip } from "@/components/charts/cockpit-tooltip"
 import { formatCurrency } from "@/lib/utils"
 import { cn } from "@/lib/utils"
@@ -17,9 +17,11 @@ const SEGMENT_DEFS: { key: keyof NetworthBreakdown; label: string }[] = [
 /**
  * Hero donut (Chunk 9.7, Section 1) — asset-class breakdown with the current
  * total centered in the hole. Zero-value segments (Single Stocks, Wild Cards
- * today) are omitted entirely rather than rendered as empty slivers; same
- * one-accent-hue-family palette as the existing Allocation-vs-Target donut
- * (CHART_SERIES), not a categorical rainbow.
+ * today) are omitted entirely rather than rendered as empty slivers.
+ * Colors come from NETWORTH_SEGMENT_COLORS (theme.ts), the same source the
+ * Portfolio tab's Allocation-vs-Target donut uses for its bucket slices — so
+ * e.g. Crypto is the same amber on both pages, not an arbitrary shade picked
+ * by slice order.
  */
 export function NetworthDonut({
   breakdown,
@@ -28,10 +30,10 @@ export function NetworthDonut({
   breakdown: NetworthBreakdown
   deltaThisMonth: number | null
 }) {
-  const segments = SEGMENT_DEFS.map((def, i) => ({
+  const segments = SEGMENT_DEFS.map((def) => ({
     name: def.label,
     value: breakdown[def.key] as number,
-    color: CHART_SERIES[i % CHART_SERIES.length],
+    color: NETWORTH_SEGMENT_COLORS[def.key],
   })).filter((s) => s.value > 0)
 
   const total = breakdown.total

@@ -40,6 +40,38 @@ export const BENCHMARK_COLORS: Record<string, string> = {
 }
 
 /**
+ * Four-bucket allocation palette (Investment_Philosophy.md § 0) — the single
+ * source of truth for bucket color everywhere it appears: the Portfolio tab's
+ * Allocation-vs-Target donut + its own side legend, the bucket-allocation
+ * strip's bars + dots, and the Net Worth donut's ETF/Single Stocks/Crypto/
+ * Wild Cards slices (below). Previously duplicated (and silently diverging
+ * from the donut's own sequential CHART_SERIES ramp) across
+ * portfolio-tab.tsx and bucket-allocation.tsx — fixed by having both import
+ * this instead of keeping their own copy.
+ */
+export const BUCKET_COLORS: Record<string, string> = {
+  etf_foundation: CHART_COLORS.accent, // #2563EB
+  single_stocks: "#14B8A6", // teal
+  crypto: CHART_COLORS.warning, // #F59E0B, amber
+  wild_cards: "#A855F7", // purple
+}
+
+/**
+ * Net Worth donut (Chunk 9.7) asset-class palette — bucket slices reuse
+ * BUCKET_COLORS so a color means the same bucket on both pages; cash and
+ * liabilities get their own neutral/danger colors since they aren't buckets.
+ */
+export const NETWORTH_SEGMENT_COLORS: Record<string, string> = {
+  bank_cash: "#64748B", // slate-500
+  brokerage_cash: "#94A3B8", // slate-400, lighter — distinct from bank cash
+  etfs: BUCKET_COLORS.etf_foundation,
+  single_stocks: BUCKET_COLORS.single_stocks,
+  crypto: BUCKET_COLORS.crypto,
+  wild_cards: BUCKET_COLORS.wild_cards,
+  liabilities: CHART_COLORS.danger,
+}
+
+/**
  * Fixed color meanings — reuse everywhere, never repurpose for anything else:
  * income = success (green), expenses = danger (red), net = accent (blue),
  * reserve = success (green), investments = invest (violet, its own accent

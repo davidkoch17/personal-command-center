@@ -1,16 +1,9 @@
 import { AlertTriangle } from "lucide-react"
 import { Panel } from "@/components/ui/panel"
 import { Skeleton } from "@/components/ui/skeleton"
+import { BUCKET_COLORS } from "@/components/charts/theme"
 import { useBuckets, type BucketRow } from "@/hooks/useFinance"
 import { cn, formatCurrency } from "@/lib/utils"
-
-/** Per-bucket segment color (matches the cockpit categorical ramp). */
-const BUCKET_COLOR: Record<string, string> = {
-  etf_foundation: "#2563EB",
-  single_stocks: "#14B8A6",
-  crypto: "#F59E0B",
-  wild_cards: "#A855F7",
-}
 
 const STATUS_TEXT: Record<BucketRow["status"], string> = {
   ok: "text-success",
@@ -55,7 +48,7 @@ export function BucketAllocation({ compact = false }: { compact?: boolean }) {
           b.current_weight > 0 ? (
             <div
               key={b.bucket}
-              style={{ width: `${b.current_weight * 100}%`, backgroundColor: BUCKET_COLOR[b.bucket] }}
+              style={{ width: `${b.current_weight * 100}%`, backgroundColor: BUCKET_COLORS[b.bucket] }}
               title={`${b.label}: ${pct(b.current_weight)}`}
             />
           ) : null,
@@ -68,7 +61,7 @@ export function BucketAllocation({ compact = false }: { compact?: boolean }) {
         {buckets.map((b) => (
           <div key={b.bucket} className="rounded-sm border border-border bg-bg-panel p-2.5">
             <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: BUCKET_COLOR[b.bucket] }} />
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: BUCKET_COLORS[b.bucket] }} />
               <span className="truncate text-xs text-text-secondary">{b.label}</span>
             </div>
             <div className="mt-1 flex items-baseline gap-1.5">
