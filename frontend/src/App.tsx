@@ -19,6 +19,9 @@ import { Chat } from "@/pages/chat"
 // lazy-load it like the workspaces so it doesn't weigh down the main shell
 // bundle for pillars that don't need it.
 const CashFlow = lazy(() => import("@/pages/cashflow").then((m) => ({ default: m.CashFlow })))
+// Net Worth (Chunk 9.7) pulls in the same charting lib for its donut/trend —
+// lazy-load for the same reason.
+const Networth = lazy(() => import("@/pages/networth").then((m) => ({ default: m.Networth })))
 
 // Workspaces are heavy (charts, dossiers) and opened on demand in a new tab —
 // lazy-load them so they never weigh down the main shell bundle.
@@ -61,7 +64,9 @@ const router = createBrowserRouter([
     children: [
       // v3 entry point is the Portfolio Hub pillar (Home archived — spec § f).
       { path: "/", element: <Navigate to="/portfolio" replace /> },
-      // --- v3 sidebar: 3 pillars + Background Runs + Search + Settings --------
+      // --- v4 sidebar: Net Worth + 3 pillars + Background Runs + Search + Settings ---
+      // (v3 locked exactly 3; David explicitly overrode that lock Oct 2026 — Chunk 9.7.)
+      { path: "/networth", element: <Lazy><Networth /></Lazy> }, // pillar 0 — Net Worth
       { path: "/portfolio", element: <Portfolio /> },   // pillar 1 — Portfolio Hub
       { path: "/cashflow", element: <Lazy><CashFlow /></Lazy> },      // pillar 2 — Cash Flow
       { path: "/projects", element: <Projects /> },      // pillar 3 — Projects

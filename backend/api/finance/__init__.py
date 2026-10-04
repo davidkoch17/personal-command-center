@@ -86,6 +86,9 @@ Chunk 6 (tranche tracker + CAPM views):
 
 Chunk 5 (Benchmarks tab):
 - ``/api/finance/benchmarks/compare``            (GET)
+
+Chunk 9.7 (Net Worth pillar — 4th sidebar pillar, /networth):
+- ``/api/finance/networth/snapshot``             (GET)
 """
 from __future__ import annotations
 
@@ -105,6 +108,7 @@ from backend.api.finance import (
     factors,
     forward_whatif,
     journal,
+    networth,
     optimization,
     performance,
     positions,
@@ -147,3 +151,5 @@ router.include_router(benchmarks.router)
 router.include_router(deployment_plans.router)
 # Chunk 7 — forward EUR what-if simulator.
 router.include_router(forward_whatif.router)
+# Chunk 9.7 — Net Worth pillar (4th sidebar pillar, bundled /networth/snapshot).
+router.include_router(networth.router)

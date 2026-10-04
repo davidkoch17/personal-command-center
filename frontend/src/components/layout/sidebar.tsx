@@ -1,5 +1,7 @@
+import { Fragment } from "react"
 import { NavLink } from "react-router-dom"
 import {
+  TrendingUp,
   Wallet,
   PiggyBank,
   FolderKanban,
@@ -16,6 +18,7 @@ interface NavLinkDef {
   icon: LucideIcon
   to?: string // route link…
   action?: () => void // …or an action (e.g. open the search palette)
+  dividerAfter?: boolean // renders a visual divider below this entry
 }
 
 interface NavGroup {
@@ -23,14 +26,18 @@ interface NavGroup {
   links: NavLinkDef[]
 }
 
-// v3 sidebar (Dashboard_v3_Build_Spec § f) originally locked exactly two
-// pillars; Cash Flow was added as a deliberate third (income/expense ledger,
-// separate domain from Portfolio's net worth/holdings). Everything else is
-// folded into a pillar and stays reachable by URL only (no sidebar entry).
+// v4 sidebar: Net Worth + 3 pillars (added Oct 2026 per David's explicit
+// override of the v3 lock). v3 (Dashboard_v3_Build_Spec § f) originally
+// locked exactly two pillars; Cash Flow was added as a deliberate third
+// (income/expense ledger, separate domain from Portfolio's net worth/
+// holdings), and Net Worth is the fourth — a holistic bank+brokerage+holdings
+// rollup, separate again from both. Everything else is folded into a pillar
+// and stays reachable by URL only (no sidebar entry).
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "pillars",
     links: [
+      { to: "/networth", label: "net worth", icon: TrendingUp, dividerAfter: true },
       { to: "/portfolio", label: "portfolio", icon: Wallet },
       { to: "/cashflow", label: "cash flow", icon: PiggyBank },
       { to: "/projects", label: "projects", icon: FolderKanban },
@@ -75,36 +82,45 @@ function NavList({
                 </span>
               )
               return (
-                <li key={link.label}>
-                  {link.to ? (
-                    <NavLink
-                      to={link.to}
-                      onClick={onNavigate}
-                      aria-label={link.label}
-                      title={link.label}
-                      className={({ isActive }) =>
-                        cn(ITEM_CLASS, isActive ? ACTIVE_CLASS : INACTIVE_CLASS)
-                      }
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {labelSpan}
-                    </NavLink>
-                  ) : (
-                    <button
-                      type="button"
-                      aria-label={link.label}
-                      title={`${link.label} (⌘K)`}
-                      onClick={() => {
-                        link.action?.()
-                        onNavigate?.()
-                      }}
-                      className={cn(ITEM_CLASS, INACTIVE_CLASS)}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {labelSpan}
-                    </button>
+                <Fragment key={link.label}>
+                  <li>
+                    {link.to ? (
+                      <NavLink
+                        to={link.to}
+                        onClick={onNavigate}
+                        aria-label={link.label}
+                        title={link.label}
+                        className={({ isActive }) =>
+                          cn(ITEM_CLASS, isActive ? ACTIVE_CLASS : INACTIVE_CLASS)
+                        }
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        {labelSpan}
+                      </NavLink>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label={link.label}
+                        title={`${link.label} (⌘K)`}
+                        onClick={() => {
+                          link.action?.()
+                          onNavigate?.()
+                        }}
+                        className={cn(ITEM_CLASS, INACTIVE_CLASS)}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        {labelSpan}
+                      </button>
+                    )}
+                  </li>
+                  {/* Same visual pattern as the gap between the "pillars" and
+                      "system" groups below (a border + vertical space), used
+                      here to set Net Worth apart within one group instead of
+                      starting a second "pillars" label. */}
+                  {link.dividerAfter && (
+                    <li aria-hidden="true" className="my-2 border-t border-border" />
                   )}
-                </li>
+                </Fragment>
               )
             })}
           </ul>

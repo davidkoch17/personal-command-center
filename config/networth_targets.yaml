@@ -1,0 +1,7 @@
+# Net Worth pillar milestone (Chunk 9.7). Edit by hand to set a new goal once
+# the current one is reached — modules.finance.networth reads only
+# `current_goal`; past goals aren't tracked here, just replace it.
+current_goal:
+  label: "First €25k"
+  target_eur: 25000
+  created: 2026-10-04

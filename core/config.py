@@ -53,6 +53,9 @@ EXPENSES_CSV = DATA_DIR / "expenses.csv"                    # date, amount_eur, 
 INCOME_CSV = DATA_DIR / "income.csv"                        # date, amount_eur, source, raw_description
 NETWORTH_DAILY_CSV = DATA_DIR / "networth_daily.csv"        # date, bank_total, portfolio_total_eur, crypto_total_eur, debts_total, net_worth_eur
 POSITIONS_DAILY_CSV = DATA_DIR / "positions_daily.csv"      # date, ticker, qty, price_eur, value_eur, cost_basis_eur
+# Chunk 9.7 — Net Worth pillar milestone target(s). David edits this yaml by
+# hand to set/retire goals; see modules.finance.networth.compute_milestone_projection.
+NETWORTH_TARGETS_FILE = REPO_ROOT / "config" / "networth_targets.yaml"
 REALIZED_TRADES_CSV = DATA_DIR / "realized_trades.csv"      # ticker, date_bought, date_sold, qty, buy_price_eur, sell_price_eur, fees_eur, realized_gain_eur, holding_days
 
 # --- Phase A: capture pipeline (iOS Shortcut -> OneDrive inbox -> SQLite) -----
