@@ -83,30 +83,72 @@ export function NetworthDonut({
         </div>
       </div>
 
-      <ul className="w-full max-w-sm space-y-1.5 lg:max-w-[260px]">
+      <ul className="w-full max-w-sm space-y-1.5 lg:max-w-[320px]">
         {segments.map((s) => (
-          <li key={s.name} className="flex items-center justify-between gap-2 text-sm">
-            <span className="flex items-center gap-2 text-text-secondary">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: s.color }} />
-              {s.name}
-            </span>
-            <span className="font-mono tabular-nums text-text">
-              {((s.value / total) * 100).toFixed(1)}% · {formatCurrency(s.value)}
-            </span>
-          </li>
+          <LegendRow
+            key={s.name}
+            color={s.color}
+            label={s.name}
+            pct={`${((s.value / total) * 100).toFixed(1)}%`}
+            value={formatCurrency(s.value)}
+          />
         ))}
         {hasLiability && (
-          <li className="flex items-center justify-between gap-2 text-sm">
-            <span className="flex items-center gap-2 text-text-secondary">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: CHART_COLORS.danger }} />
-              Liabilities
-            </span>
-            <span className="font-mono tabular-nums text-danger">
-              −{formatCurrency(breakdown.liabilities)}
-            </span>
-          </li>
+          <LegendRow
+            color={CHART_COLORS.danger}
+            label="Liabilities"
+            pct=""
+            value={`−${formatCurrency(breakdown.liabilities)}`}
+            valueClassName="text-danger"
+          />
         )}
       </ul>
     </div>
+  )
+}
+
+/**
+ * One legend line. Desktop (≥480px): a 4-column grid (swatch / label / % /
+ * €) so every row's numbers line up instead of the label's length pushing
+ * the value onto its own wrapped line (the bug this replaces — "Brokerage
+ * Cash" + its value no longer fit on one line at the old flex-justify-between
+ * layout's width). Below 480px: the two inner wrappers switch from
+ * `contents` (dissolving into the grid) to a plain flex row, so the row
+ * naturally stacks as label-then-numbers instead of cramming four columns
+ * into a narrow screen.
+ */
+function LegendRow({
+  color,
+  label,
+  pct,
+  value,
+  valueClassName,
+}: {
+  color: string
+  label: string
+  pct: string
+  value: string
+  valueClassName?: string
+}) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-[480px]:grid min-[480px]:grid-cols-[12px_1fr_55px_90px] min-[480px]:items-center">
+      <div className="flex w-full items-center gap-2 min-[480px]:contents">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: color }} />
+        <span className="min-w-0 flex-1 truncate text-sm text-text-secondary min-[480px]:flex-none">
+          {label}
+        </span>
+      </div>
+      <div className="ml-[18px] flex items-center gap-3 min-[480px]:contents">
+        <span className="font-mono text-sm tabular-nums text-text min-[480px]:text-right">{pct}</span>
+        <span
+          className={cn(
+            "font-mono text-sm tabular-nums min-[480px]:text-right",
+            valueClassName ?? "text-text",
+          )}
+        >
+          {value}
+        </span>
+      </div>
+    </li>
   )
 }
