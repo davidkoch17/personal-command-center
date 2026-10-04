@@ -42,6 +42,7 @@ from core.config import (
     CASHFLOW_ALERT_RESERVE_NEAR_FULL,
     CASHFLOW_ALERT_RUNWAY_MONTHS,
     CASHFLOW_BUDGET_FILE,
+    CASHFLOW_EXCLUDE_FROM_PERSONAL,
     CASHFLOW_EXPECTED_INCOME_FILE,
     CASHFLOW_GOAL_FILE,
     CASHFLOW_INVESTABLE_INCOME_CATEGORIES,
@@ -194,10 +195,16 @@ def monthly_income_by_category(month: str) -> dict[str, float]:
 
 
 def monthly_expenses_by_category(month: str) -> list[dict]:
-    """Expense totals per category for ``month``, sorted descending."""
+    """Expense totals per category for ``month``, sorted descending.
+
+    Categories in ``CASHFLOW_EXCLUDE_FROM_PERSONAL`` (e.g. work-reimbursed
+    meals) are left out — this feeds every "what did I actually spend" view
+    (summary totals, trend, spending tab, spike alerts), not the raw
+    Transactions list, which still shows those rows individually.
+    """
     totals: dict[str, float] = defaultdict(float)
     for e in entries_for_month(month):
-        if e.direction == "expense":
+        if e.direction == "expense" and e.category not in CASHFLOW_EXCLUDE_FROM_PERSONAL:
             totals[e.category] += e.amount
     rows = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
     return [{"category": k, "amount": round(v, 2)} for k, v in rows]

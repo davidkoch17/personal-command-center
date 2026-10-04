@@ -249,13 +249,18 @@ CASHFLOW_ALERT_RESERVE_NEAR_FULL = 500
 CASHFLOW_EXPENSE_CATEGORIES = [
     "Rent", "Groceries", "Dining", "Transport", "Travel", "Subscriptions",
     "Utilities", "Insurance", "Health", "Shopping", "Entertainment",
-    "Taxes & Fees", "Other",
+    "Taxes & Fees", "Other", "Work Meal (Reimbursed)",
 ]
 CASHFLOW_INCOME_CATEGORIES = ["Salary", "Freelance", "Reimbursement", "Gift", "Interest", "Other"]
 # Income categories that count as real earned surplus for the reserve/invest
 # split — excludes reimbursements/gifts/interest, which are money moving or
 # being made whole rather than new investable income.
 CASHFLOW_INVESTABLE_INCOME_CATEGORIES = ["Salary", "Freelance"]
+# Expense categories that are real spend but not *personal* spend — the work
+# pays it back, so they're excluded from the category breakdown / totals /
+# spike alerts that are meant to answer "what did I actually spend", while
+# still listed individually on the Transactions tab for auditability.
+CASHFLOW_EXCLUDE_FROM_PERSONAL = ["Work Meal (Reimbursed)"]
 
 # --- System checkpoints (modules/system/checkpoints.py) -----------------------
 # Durable "we are here" markers recorded when a period (e.g. a month) is

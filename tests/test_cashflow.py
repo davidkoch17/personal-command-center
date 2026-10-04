@@ -204,6 +204,26 @@ def test_top_categories_ranks_and_shares_total():
     assert top[0]["percent_of_total"] == 60.0  # 300 / 500
 
 
+def test_work_meal_reimbursed_excluded_from_personal_totals():
+    """Ingestion chunk: a reimbursed work meal is real spend but not personal
+    spend — it must not inflate expenses_total/category totals, while still
+    showing up on the raw per-month transaction list."""
+    cashflow.add_entries([
+        make_entry(direction="expense", amount=100, category="Groceries"),
+        make_entry(direction="expense", amount=33, category="Work Meal (Reimbursed)"),
+    ])
+
+    by_cat = cashflow.monthly_expenses_by_category("2026-07")
+    assert [c["category"] for c in by_cat] == ["Groceries"]
+
+    summary = cashflow.monthly_summary("2026-07")
+    assert summary["expenses_total"] == 100.0
+
+    # Still listed individually — not hidden from the raw transaction view.
+    rows = cashflow.monthly_transactions("2026-07")
+    assert any(r["category"] == "Work Meal (Reimbursed)" for r in rows)
+
+
 def test_biggest_mover_none_below_full_window():
     cashflow.add_entries(month_entries("2026-06", 0, 100))
     assert cashflow.biggest_mover("2026-07") is None

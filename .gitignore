@@ -9,6 +9,9 @@ data/cache/
 data/positions.json
 data/transactions.jsonl
 data/price_cache/
+# Pre-write backups (Finance_Tracker.xlsx-style *.bak-{timestamp} siblings) of the
+# gitignored data/ files above — never personal-data-free, never committed.
+data/*.bak-*
 # Chunk 4 — yfinance Ticker.info snapshots (24h TTL parquet), per-machine cache.
 data/fundamentals_cache/
 # Chunk 6 — personal deployment plans, per-machine.
