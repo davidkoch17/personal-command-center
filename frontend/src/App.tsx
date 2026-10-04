@@ -82,7 +82,7 @@ const router = createBrowserRouter([
       // Pages archived to _archive/; legacy deep-links redirect to the tab so no
       // reachable route duplicates a Portfolio tab.
       { path: "/watchlist", element: <Navigate to="/portfolio?tab=watchlist" replace /> },
-      { path: "/money", element: <Navigate to="/portfolio?tab=overview" replace /> },
+      { path: "/money", element: <Navigate to="/portfolio?tab=portfolio" replace /> },
       { path: "/inbox", element: <Navigate to="/portfolio?tab=captures" replace /> },
       // /plan /ventures /wealth /system: v2 super-pages archived (Phase H). Their
       // content lives in the two pillars + Background Runs + Settings; the task /

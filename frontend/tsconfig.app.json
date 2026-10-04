@@ -26,5 +26,10 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Dead, unrouted pages kept only for historical reference (nothing in
+  // App.tsx imports them) — excluded so a stale reference in one of them
+  // (e.g. to a hook deleted in Chunk 9.8) can't block the production build,
+  // the way the constraints-modal.tsx unused-import did before this change.
+  "exclude": ["src/_archive"]
 }

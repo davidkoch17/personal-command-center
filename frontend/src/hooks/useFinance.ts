@@ -1496,28 +1496,6 @@ export function useFinanceDiagnostics(enabled: boolean, probe = false) {
 
 // --- v2 Wealth page: net-worth trend (N1) + after-tax-return (D2) + config ---
 
-export interface NetWorthPoint {
-  month: string
-  total: number | null
-  source: string
-}
-
-export interface NetWorthHistoryResponse {
-  history: NetWorthPoint[]
-  count: number
-  latest: NetWorthPoint | null
-  change_since_start: number | null
-}
-
-/** Monthly net-worth trend (N1) — sheet backbone overlaid with live snapshots. */
-export function useNetWorthHistory() {
-  return useQuery({
-    queryKey: ["money", "networth-history"],
-    queryFn: () => api.get<NetWorthHistoryResponse>("/api/money/networth-history"),
-    staleTime: 5 * 60_000,
-  })
-}
-
 export interface AfterTaxReturnResponse {
   gross_return: number
   after_tax_return: number

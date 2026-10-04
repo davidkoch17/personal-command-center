@@ -58,20 +58,6 @@ def snapshot() -> dict:
     }
 
 
-@router.get("/networth-history")
-def networth_history_endpoint() -> dict:
-    """Monthly net-worth trend (N1) — sheet history overlaid with live snapshots."""
-    series = networth_history.history()
-    latest = series[-1] if series else None
-    first = series[0] if series else None
-    change = (
-        round(latest["total"] - first["total"], 2)
-        if latest and first and latest["total"] is not None and first["total"] is not None
-        else None
-    )
-    return {"history": series, "count": len(series), "latest": latest, "change_since_start": change}
-
-
 @router.get("/available-months")
 def available_months() -> dict:
     """Months that have transaction data, sorted ascending."""
