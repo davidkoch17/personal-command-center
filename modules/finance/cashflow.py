@@ -187,9 +187,17 @@ def entries_for_month(month: str) -> list[CashflowEntry]:
 # --- Monthly analytics --------------------------------------------------------
 
 def monthly_income_by_category(month: str) -> dict[str, float]:
+    """Income totals per category for ``month``.
+
+    Categories in ``CASHFLOW_EXCLUDE_FROM_PERSONAL`` (e.g. a roommate's rent
+    pass-through reimbursement) are left out — same mechanism and same reason
+    as :func:`monthly_expenses_by_category`: it's real money moving through
+    the account, not personal income, so every "what did I actually earn"
+    view should skip it while the raw Transactions list still shows it.
+    """
     totals: dict[str, float] = defaultdict(float)
     for e in entries_for_month(month):
-        if e.direction == "income":
+        if e.direction == "income" and e.category not in CASHFLOW_EXCLUDE_FROM_PERSONAL:
             totals[e.category] += e.amount
     return {k: round(v, 2) for k, v in totals.items()}
 

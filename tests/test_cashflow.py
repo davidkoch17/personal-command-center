@@ -224,6 +224,37 @@ def test_work_meal_reimbursed_excluded_from_personal_totals():
     assert any(r["category"] == "Work Meal (Reimbursed)" for r in rows)
 
 
+def test_rent_pass_through_excluded_on_both_directions():
+    """Rent Pass-Through is real money movement on both sides of the ledger —
+    David's expense when he fronts the full rent, a roommate's income when
+    they pay their share back — and must be excluded from personal totals on
+    whichever direction it appears, while staying visible in Transactions."""
+    cashflow.add_entries([
+        make_entry(direction="expense", amount=1100, category="Rent"),
+        make_entry(direction="expense", amount=2333.48, category="Rent Pass-Through",
+                   description="abrdn full rent minus David's share"),
+        make_entry(direction="income", amount=1254.60, category="Rent Pass-Through",
+                   description="roommate reimbursement"),
+        make_entry(direction="income", amount=5000, category="Salary"),
+    ])
+
+    expenses = cashflow.monthly_expenses_by_category("2026-07")
+    assert [c["category"] for c in expenses] == ["Rent"]
+
+    income = cashflow.monthly_income_by_category("2026-07")
+    assert income == {"Salary": 5000.0}
+
+    summary = cashflow.monthly_summary("2026-07")
+    assert summary["expenses_total"] == 1100.0
+    assert summary["income_total"] == 5000.0
+
+    # Still listed individually — not hidden from the raw transaction view.
+    rows = cashflow.monthly_transactions("2026-07")
+    pass_through = [r for r in rows if r["category"] == "Rent Pass-Through"]
+    assert len(pass_through) == 2
+    assert {r["direction"] for r in pass_through} == {"expense", "income"}
+
+
 def test_biggest_mover_none_below_full_window():
     cashflow.add_entries(month_entries("2026-06", 0, 100))
     assert cashflow.biggest_mover("2026-07") is None

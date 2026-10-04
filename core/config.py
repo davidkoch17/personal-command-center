@@ -249,18 +249,26 @@ CASHFLOW_ALERT_RESERVE_NEAR_FULL = 500
 CASHFLOW_EXPENSE_CATEGORIES = [
     "Rent", "Groceries", "Dining", "Transport", "Travel", "Subscriptions",
     "Utilities", "Insurance", "Health", "Shopping", "Entertainment",
-    "Taxes & Fees", "Other", "Work Meal (Reimbursed)",
+    "Taxes & Fees", "Other", "Work Meal (Reimbursed)", "Rent Pass-Through",
 ]
-CASHFLOW_INCOME_CATEGORIES = ["Salary", "Freelance", "Reimbursement", "Gift", "Interest", "Other"]
+CASHFLOW_INCOME_CATEGORIES = [
+    "Salary", "Freelance", "Reimbursement", "Gift", "Interest", "Other",
+    "Rent Pass-Through",
+]
 # Income categories that count as real earned surplus for the reserve/invest
 # split — excludes reimbursements/gifts/interest, which are money moving or
 # being made whole rather than new investable income.
 CASHFLOW_INVESTABLE_INCOME_CATEGORIES = ["Salary", "Freelance"]
-# Expense categories that are real spend but not *personal* spend — the work
-# pays it back, so they're excluded from the category breakdown / totals /
-# spike alerts that are meant to answer "what did I actually spend", while
-# still listed individually on the Transactions tab for auditability.
-CASHFLOW_EXCLUDE_FROM_PERSONAL = ["Work Meal (Reimbursed)"]
+# Categories that are real money movement but not *personal* income/spend —
+# the work pays back a meal, or a roommate pays back their share of rent David
+# fronts in full — so they're excluded from the category breakdown / totals /
+# spike alerts that are meant to answer "what did I actually spend/earn",
+# while staying visible on the Transactions tab for auditability. Checked on
+# both directions (monthly_expenses_by_category + monthly_income_by_category),
+# since "Rent Pass-Through" appears on both sides of the ledger (David's
+# expense when he fronts the rent, the roommate's income when they pay it
+# back).
+CASHFLOW_EXCLUDE_FROM_PERSONAL = ["Work Meal (Reimbursed)", "Rent Pass-Through"]
 
 # --- System checkpoints (modules/system/checkpoints.py) -----------------------
 # Durable "we are here" markers recorded when a period (e.g. a month) is
