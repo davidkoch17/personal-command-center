@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Toggle } from "@/components/ui/toggle"
 import { Skeleton } from "@/components/ui/skeleton"
-import { NumberDisplay } from "@/components/ui/number-display"
 import { useFinanceHoldings, type FinanceHolding, type OptPortfolio } from "@/hooks/useFinance"
 import {
   useOptimizationConstrained,
