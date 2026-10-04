@@ -140,6 +140,47 @@ def test_comparison_reports_why_it_is_unavailable(world, monkeypatch):
     assert fx.factor_loadings_comparison("SPY")["reason"] == "no portfolio return series"
 
 
+# --- Chunk 9: completed FF cache (Global FF5, Europe FF5, Europe momentum) -----------------------
+
+@pytest.fixture
+def no_network(monkeypatch):
+    """Fails the test if the cache-miss download path is ever reached."""
+    import requests
+
+    def boom(*a, **k):
+        raise AssertionError("network hit — cache should have been used")
+
+    monkeypatch.setattr(requests, "get", boom)
+
+
+@pytest.mark.parametrize(
+    "getter, region, cache_key, columns",
+    [
+        (fx.get_ff5_factors, "Global", "ff5_Global", ["MKT", "SMB", "HML", "RMW", "CMA", "RF"]),
+        (fx.get_ff5_factors, "Europe", "ff5_Europe", ["MKT", "SMB", "HML", "RMW", "CMA", "RF"]),
+        (fx.get_momentum_factor, "Europe", "mom_Europe", ["UMD"]),
+        (fx.get_momentum_factor, "Global", "mom_Global", ["UMD"]),
+        (fx.get_ff3_factors, "Global", "ff3_Global", ["MKT", "SMB", "HML", "RF"]),
+    ],
+)
+def test_new_regions_read_from_cache_without_hitting_the_network(
+    tmp_path, monkeypatch, no_network, getter, region, cache_key, columns
+):
+    monkeypatch.setattr(fx, "FF_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(fx, "_factor_cache", {})
+    seed = pd.DataFrame(
+        np.random.default_rng(0).normal(0.004, 0.02, (18, len(columns))),
+        index=pd.date_range("2024-01-31", periods=18, freq="ME"),
+        columns=columns,
+    )
+    seed.to_parquet(tmp_path / f"{cache_key}.parquet")
+
+    out = getter(region)
+
+    assert list(out.columns) == columns
+    pd.testing.assert_frame_equal(out, seed, check_freq=False)
+
+
 def test_factor_endpoints(world):
     app = FastAPI()
     app.include_router(factors_api.router, prefix="/api/finance")

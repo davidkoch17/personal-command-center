@@ -131,6 +131,18 @@ DEFAULT_PEER_COUNT = 4
 # Chunk 6 — 50/30/20 lump-sum deployment plans (one JSON object per line).
 DEPLOYMENT_PLANS_FILE = DATA_DIR / "deployment_plans.jsonl"
 
+# Chunk 9 — Anlage KAP / Verlustverrechnungstopf / Vorabpauschale (German tax extensions).
+# Prior-year loss carryforwards per pot: manual (we don't have past years' realized
+# history), so this is a small user-editable store, same pattern as
+# CONTRIBUTION_OVERRIDES_FILE above. {"aktien": float, "sonstige": float, "spekulation_23": float}.
+TAX_CARRYFORWARDS_FILE = DATA_DIR / "tax_carryforwards.json"
+# Per-ETF Vorabpauschale metadata (thesaurierend/ausschüttend + Teilfreistellung) — yfinance
+# doesn't reliably expose this for European ETFs, so David tags each one by hand.
+ETF_METADATA_FILE = REPO_ROOT / "config" / "etf_metadata.yaml"
+# Base rate (Basiszins) for the Vorabpauschale formula, set by the BMF each January.
+# David updates this yaml as new rates are published; see config/basiszins.yaml.
+BASISZINS_FILE = REPO_ROOT / "config" / "basiszins.yaml"
+
 # Drift bands (absolute percentage-point deviation from target): within ``ok`` is
 # green, within ``warn`` is amber, beyond is red.
 BUCKET_DRIFT_OK = 0.02   # ±2 pp

@@ -1,0 +1,33 @@
+# Vorabpauschale metadata per ETF (Chunk 9 — modules/finance/vorabpauschale.py).
+#
+# yfinance doesn't reliably expose "accumulating vs. distributing" or the fund's
+# equity share for European ETFs, so this is a small hand-maintained map, read by
+# vorabpauschale.compute_for_year() (mtime-cached, same pattern as
+# config/ticker_buckets.yaml — edit and save, no restart needed).
+#
+# Fields per ticker:
+#   type:            "thesaurierend" (accumulating — owes Vorabpauschale) or
+#                     "ausschüttend" (distributing — the formula's "Ausschüttungen"
+#                     term already nets these out, but flag it so KAP Zeile 41-45
+#                     doesn't double count a fund that just pays dividends instead).
+#   teilfreistellung: partial tax exemption on the Vorabpauschale, by fund type
+#                     (InvStG §20): 0.30 equity fund (≥51% equity), 0.15 mixed fund
+#                     (≥25% equity), 0.60/0.80 property fund. Defaults to 0.30
+#                     (equity fund) when a ticker isn't listed here at all.
+#
+# Only tickers in the etf_foundation bucket are seeded below (ticker_buckets.yaml).
+# Add a ticker here if David starts holding another thesaurierend fund.
+
+VWCE.DE:
+  type: thesaurierend
+  teilfreistellung: 0.30   # Vanguard FTSE All-World — equity fund
+
+CSPX.L:
+  type: thesaurierend
+  teilfreistellung: 0.30   # iShares Core S&P 500 — equity fund
+
+EXSA.DE:
+  type: thesaurierend
+  teilfreistellung: 0.30   # iShares STOXX Europe 600 — equity fund; see the
+                            # ticker_buckets.yaml note — confirm this is the exact
+                            # ticker held before relying on this for a real filing.

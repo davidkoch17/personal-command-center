@@ -262,6 +262,7 @@ const STALE = {
   performance: 5 * 60_000,
   factors: 24 * 60 * 60_000,
   fx: 60 * 60_000,
+  tax: 5 * 60_000,
 } as const
 
 export function useFinancePerformance(period = "ytd", benchmark = "MSCI_WORLD") {
@@ -803,10 +804,11 @@ export function useOptRiskParity() {
 }
 
 export function useBlackLitterman() {
+  const [rfr] = useRiskFreeRate() // Chunk 9 — the Chunk 8 leftover
   return useQuery({
-    queryKey: ["finance", "black-litterman"],
+    queryKey: ["finance", "black-litterman", rfr],
     queryFn: () =>
-      api.post<BlackLittermanResponse>("/api/finance/optimization/black-litterman", {}),
+      api.post<BlackLittermanResponse>("/api/finance/optimization/black-litterman", { rfr }),
   })
 }
 
@@ -1787,5 +1789,106 @@ export function useFactorLoadingsComparison(region: string, model: "ff3" | "ff5"
         `/api/finance/factors/loadings-comparison?region=${region}&model=${model}&benchmark=${benchmark}`,
       ),
     staleTime: STALE.factors,
+  })
+}
+
+// --- Chunk 9: Anlage KAP summary, loss-offset pots, Vorabpauschale -------------------------
+
+export type TaxConfidence = "confirmed" | "estimated" | "manual_needed"
+
+export interface KapLine {
+  zeile_number: string
+  label: string
+  amount_eur: number
+  computation_note: string
+  confidence: TaxConfidence
+}
+
+export interface KapSummaryResponse {
+  tax_year: number
+  sparerpauschbetrag: number
+  lines: KapLine[]
+  non_kap_note: { label: string; amount_eur: number; computation_note: string; confidence: TaxConfidence }
+  disclaimer: string
+}
+
+export function useKapSummary(year: number) {
+  return useQuery({
+    queryKey: ["finance", "tax", "kap-summary", year],
+    queryFn: () => api.get<KapSummaryResponse>(`/api/finance/tax/kap-summary?year=${year}`),
+    staleTime: STALE.tax,
+  })
+}
+
+export type LossPotKey = "aktien" | "sonstige" | "spekulation_23"
+
+export interface LossPot {
+  label: string
+  this_year_gains: number
+  this_year_losses: number
+  prior_carryforward: number
+  net_balance: number
+  new_carryforward: number
+}
+
+export interface LossPotsResponse {
+  tax_year: number
+  pots: Record<LossPotKey, LossPot>
+  tax_free_crypto_excluded_eur: number
+  note: string
+}
+
+export function useLossPots(year: number) {
+  return useQuery({
+    queryKey: ["finance", "tax", "loss-pots", year],
+    queryFn: () => api.get<LossPotsResponse>(`/api/finance/tax/loss-pots?year=${year}`),
+    staleTime: STALE.tax,
+  })
+}
+
+export function useCarryforwards() {
+  return useQuery({
+    queryKey: ["finance", "tax", "carryforward"],
+    queryFn: () => api.get<Record<LossPotKey, number>>("/api/finance/tax/loss-pots/carryforward"),
+    staleTime: STALE.tax,
+  })
+}
+
+export function useSetCarryforwards() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (values: Partial<Record<LossPotKey, number>>) =>
+      api.put<Record<LossPotKey, number>>("/api/finance/tax/loss-pots/carryforward", values),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance", "tax"] })
+    },
+  })
+}
+
+export interface VorabpauschaleRow {
+  ticker: string
+  fondswert_anfang: number | null
+  fondswert_ende: number | null
+  ausschuettungen: number | null
+  basiszins: number | null
+  vorabpauschale: number | null
+  teilfreistellung: number
+  taxable_amount: number | null
+  confidence: TaxConfidence
+  note: string
+}
+
+export interface VorabpauschaleResponse {
+  tax_year: number
+  basiszins: number | null
+  rows: VorabpauschaleRow[]
+  total_taxable_eur: number
+}
+
+export function useVorabpauschale(year: number) {
+  return useQuery({
+    queryKey: ["finance", "tax", "vorabpauschale", year],
+    queryFn: () => api.get<VorabpauschaleResponse>(`/api/finance/tax/vorabpauschale?year=${year}`),
+    staleTime: STALE.tax,
   })
 }

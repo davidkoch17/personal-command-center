@@ -84,6 +84,13 @@ export function FactorsTab() {
         </p>
       </div>
 
+      {region === "Global" && (
+        <p className="text-xs text-warning">
+          Ken French's "Global" files (3-factor, 5-factor and momentum alike) haven't been extended
+          since mid-2019 — a gap in the source data, not in this app. Use Europe or US for a current regression.
+        </p>
+      )}
+
       {ff3.isLoading ? (
         <Skeleton className="h-48" />
       ) : !r?.available ? (

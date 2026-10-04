@@ -38,6 +38,12 @@ _FF5_URLS = {
     "Europe": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/Europe_5_Factors_CSV.zip",
     "Global": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/Global_5_Factors_CSV.zip",
 }
+# NB (Chunk 9): Ken French's own "Global" files are themselves stale across every model —
+# ff3, ff5 AND momentum all carry a header saying "created using the 201906 Bloomberg
+# database" and none have been extended since, so every get_*_factors("Global") tops out
+# around 2019-06 no matter how often this refetches. That is an upstream data gap in the
+# "Global" region specifically (US and Europe are current), not a bug in the fetch/parse
+# code here.
 
 # Carhart momentum factor (UMD / WML) — single column per region.
 _MOM_URLS = {

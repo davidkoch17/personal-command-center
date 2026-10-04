@@ -136,6 +136,22 @@ def test_forward_whatif_sharpe_uses_the_rate(monkeypatch):
         fw._risk_metrics({"A": 1.0}, {"A": 1.0}, "URTH", 0.04)["sharpe_historical"])  # omitted -> 4%
 
 
+def test_black_litterman_takes_the_rate_in_the_body(monkeypatch):
+    """Chunk 9 — the Chunk 8 leftover: BL's CAPM prior + posterior Sharpe both take ``rfr``."""
+    seen = []
+    monkeypatch.setattr(opt, "_resolve_tickers", lambda t: ["A"])
+    monkeypatch.setattr(opt, "hypotheses_as_views", lambda: [])
+    monkeypatch.setattr(
+        opt, "black_litterman_with_hypotheses",
+        lambda tk, market_caps=None, views=None, risk_aversion=2.5, risk_free=None:
+            seen.append(risk_free) or {"weights": {}, "performance": None, "views_used": []},
+    )
+    client = _client(opt_api.router)
+    client.post("/api/finance/optimization/black-litterman", json={})
+    client.post("/api/finance/optimization/black-litterman", json={"rfr": 0.08})
+    assert seen == [0.04, 0.08]
+
+
 def test_dashboard_summary_rate(monkeypatch):
     seen = []
     monkeypatch.setattr(dashboard, "summary", lambda benchmark="X", risk_free=None: seen.append(risk_free) or {"ok": True})

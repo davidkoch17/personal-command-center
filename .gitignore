@@ -29,6 +29,9 @@ data/captures.db-shm
 # Phase 15b — Fama-French factor data cache (downloaded from Ken French library).
 data/ff_cache/
 
+# Chunk 9 — manual prior-year loss-pot carryforwards (David's own tax data).
+data/tax_carryforwards.json
+
 # Item #16 weekly briefing — per-machine scheduler state (last trigger fired).
 data/weekly_briefing_state.json
 

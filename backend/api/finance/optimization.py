@@ -118,6 +118,7 @@ class BlackLittermanRequest(BaseModel):
     views: list[dict] | None = None
     risk_aversion: float = 2.5
     market_caps: dict[str, float] | None = None
+    rfr: float = DEFAULT_RISK_FREE_RATE  # Chunk 9 — the Chunk 8 leftover (shared useRiskFreeRate)
 
 
 @router.post("/optimization/black-litterman")
@@ -132,7 +133,8 @@ def black_litterman(req: BlackLittermanRequest) -> dict:
         warnings.simplefilter("ignore")
         views = req.views if req.views is not None else opt.hypotheses_as_views()
         result = opt.black_litterman_with_hypotheses(
-            tk, market_caps=req.market_caps, views=views, risk_aversion=req.risk_aversion
+            tk, market_caps=req.market_caps, views=views, risk_aversion=req.risk_aversion,
+            risk_free=req.rfr,
         )
     return {"tickers": tk, "auto_views": req.views is None, **result}
 

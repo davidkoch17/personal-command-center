@@ -25,6 +25,7 @@ import { JournalTab } from "@/components/finance/journal-panel"
 import { WatchlistComparisonTab } from "@/components/finance/watchlist-comparison"
 import { ScenarioTools } from "@/components/finance/scenarios-panel"
 import { ForwardTradeSimulator } from "@/components/finance/forward-trade-simulator"
+import { TaxExtrasPanel } from "@/components/finance/tax-extras"
 import {
   AllocationBar,
   CategoryDonut,
@@ -979,6 +980,9 @@ function TaxTab({ holdings, loading }: { holdings: HoldingRow[]; loading: boolea
           total as Portfolio Hub → Holdings → Trade Log (modules.finance.realized,
           GET /api/finance/trades/realized via useRealizedTrades). */}
       <TradeLog />
+
+      {/* Chunk 9 — Anlage KAP summary, Verlustverrechnungstopf, Vorabpauschale. */}
+      <TaxExtrasPanel />
     </div>
   )
 }

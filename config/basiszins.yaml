@@ -1,0 +1,14 @@
+# Basiszins (base rate) for the Vorabpauschale formula, published by the BMF each
+# January for the prior year's calculation — see modules/finance/vorabpauschale.py.
+#
+# Vorabpauschale = Fondswert_Jahresanfang x Basiszins x 0.7 (capped at the fund's
+# actual gain for the year). mtime-cached (same pattern as ticker_buckets.yaml) —
+# edit and save, no restart needed.
+#
+# David: add each new year's published rate here as the BMF announces it. A year
+# missing from this file makes compute_for_year() report that ETF's row with
+# confidence "manual_needed" instead of guessing a rate.
+
+2024: 0.0229
+2025: 0.0253
+# 2026: not yet entered — add the published BMF rate here when it's out.

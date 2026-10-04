@@ -279,24 +279,27 @@ def black_litterman_with_hypotheses(
     market_caps: dict[str, float] | None = None,
     views: list[dict] | None = None,
     risk_aversion: float = 2.5,
+    risk_free: float = DEFAULT_RISK_FREE_RATE,
 ) -> dict:
     """Black-Litterman: blend market (CAPM) equilibrium with David's views.
 
     ``views``: ``[{ticker, expected_return (annual decimal), confidence 0-1}, …]``.
     Confidence maps inversely to view uncertainty (omega). With no views, this
     degrades to the plain max-Sharpe portfolio. ``market_caps`` is accepted for
-    API symmetry but unused in this CAPM-prior variant.
+    API symmetry but unused in this CAPM-prior variant. ``risk_free`` (Chunk 9 —
+    this was the one Chunk 8 leftover) feeds both the CAPM prior and the
+    posterior max-Sharpe solve, same as every other optimization endpoint.
     """
     from pypfopt import BlackLittermanModel, EfficientFrontier
 
-    mu_market = expected_returns_capm(tickers)
+    mu_market = expected_returns_capm(tickers, risk_free=risk_free)
     S = covariance_matrix(tickers)
     if S.empty or mu_market.empty:
         return {"weights": {}, "performance": None, "views_used": []}
 
     used = [v for v in (views or []) if v.get("ticker") in tickers]
     if not used:
-        result = max_sharpe_portfolio(tickers)
+        result = max_sharpe_portfolio(tickers, risk_free=risk_free)
         result["posterior_returns"] = {k: round(float(v), 4) for k, v in mu_market.items()}
         result["market_equilibrium"] = {k: round(float(v), 4) for k, v in mu_market.items()}
         result["views_used"] = []
@@ -319,14 +322,14 @@ def black_litterman_with_hypotheses(
 
     ef = EfficientFrontier(posterior_mu, S)
     try:
-        ef.max_sharpe()
+        ef.max_sharpe(risk_free_rate=risk_free)
     except Exception as exc:  # noqa: BLE001
         logger.warning("BL max_sharpe failed (%s); using min_volatility", exc)
         ef = EfficientFrontier(posterior_mu, S)
         ef.min_volatility()
     return {
         "weights": {k: round(float(v), 4) for k, v in ef.clean_weights().items()},
-        "performance": _perf_dict(ef.portfolio_performance()),
+        "performance": _perf_dict(ef.portfolio_performance(risk_free_rate=risk_free)),
         "posterior_returns": {k: round(float(v), 4) for k, v in posterior_mu.items()},
         "market_equilibrium": {k: round(float(v), 4) for k, v in mu_market.items()},
         "views_used": used,

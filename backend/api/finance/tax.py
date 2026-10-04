@@ -1,17 +1,21 @@
-"""German tax endpoints (Phase 15d, Category J).
+"""German tax endpoints (Phase 15d Category J; Chunk 9 Anlage-KAP extensions).
 
-Annual Abgeltungsteuer estimate, per-ticker Spekulationsfrist status, and an
-after-tax-return helper. Pure calculations from ``modules.finance.tax``.
+Annual Abgeltungsteuer estimate, per-ticker Spekulationsfrist status, an
+after-tax-return helper (Phase 15d), and the Chunk 9 additions: a structured
+Anlage-KAP preview, the Aktien/Sonstige/§23 loss-offset pots, and the
+Vorabpauschale on thesaurierend ETFs. Pure calculations from
+``modules.finance.tax`` / ``kap_form`` / ``verlustverrechnung`` / ``vorabpauschale``.
 """
 from __future__ import annotations
 
 import warnings
+from datetime import date
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from core.config import get_logger
-from modules.finance import tax
+from modules.finance import kap_form, tax, verlustverrechnung, vorabpauschale
 
 logger = get_logger(__name__)
 
@@ -51,3 +55,52 @@ def after_tax_return(gross_return: float, holding_period_days: int,
         "tax_free": asset_type == "crypto" and holding_period_days >= 365,
         "effective_rate": tax.effective_tax_rate(church_tax),
     }
+
+
+# --- Chunk 9: Anlage KAP summary, loss-offset pots, Vorabpauschale --------------------------
+
+@router.get("/tax/kap-summary")
+def kap_summary(
+    year: int = Query(default_factory=lambda: date.today().year),
+    sparerpauschbetrag: float | None = Query(None, ge=0),
+) -> dict:
+    """Structured Anlage-KAP preview — not an Elster filing, see the disclaimer field."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return kap_form.kap_summary(tax_year=year, sparerpauschbetrag=sparerpauschbetrag)
+
+
+@router.get("/tax/loss-pots")
+def loss_pots(year: int = Query(default_factory=lambda: date.today().year)) -> dict:
+    """Aktien / Sonstige / Spekulation-§23 Verlustverrechnungstopf balances."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return verlustverrechnung.current_pots(tax_year=year)
+
+
+class CarryforwardUpdate(BaseModel):
+    aktien: float | None = None
+    sonstige: float | None = None
+    spekulation_23: float | None = None
+
+
+@router.get("/tax/loss-pots/carryforward")
+def get_carryforward() -> dict:
+    """The persisted manual prior-year carryforward per pot."""
+    return verlustverrechnung.get_carryforwards()
+
+
+@router.put("/tax/loss-pots/carryforward")
+def set_carryforward(req: CarryforwardUpdate) -> dict:
+    """Set (merge) the manual prior-year carryforward — David's own entry, we
+    don't have the ledger history to compute it."""
+    values = req.model_dump(exclude_none=True)
+    return verlustverrechnung.set_carryforwards(values)
+
+
+@router.get("/tax/vorabpauschale")
+def vorabpauschale_summary(year: int = Query(default_factory=lambda: date.today().year)) -> dict:
+    """Per-ETF Vorabpauschale on thesaurierend etf_foundation holdings."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return vorabpauschale.compute_for_year(tax_year=year)
