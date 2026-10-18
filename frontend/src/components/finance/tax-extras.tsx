@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { NumberDisplay } from "@/components/ui/number-display"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn, formatCurrency } from "@/lib/utils"
+import { copyText } from "@/lib/copy-text"
 import {
   type KapLine,
   type LossPot,
@@ -79,17 +80,13 @@ function kapSummaryAsText(year: number, lines: KapLine[], nonKap: { label: strin
 
 function KapSummarySection({ year }: { year: number }) {
   const { data, isLoading } = useKapSummary(year)
-  const [copied, setCopied] = useState(false)
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle")
 
   async function copy() {
     if (!data) return
-    try {
-      await navigator.clipboard.writeText(kapSummaryAsText(year, data.lines, data.non_kap_note))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // clipboard permission denied — nothing to recover, the button just stays "copy"
-    }
+    const ok = await copyText(kapSummaryAsText(year, data.lines, data.non_kap_note))
+    setCopyState(ok ? "copied" : "failed")
+    setTimeout(() => setCopyState("idle"), 2000)
   }
 
   return (
@@ -101,7 +98,7 @@ function KapSummarySection({ year }: { year: number }) {
           <span className="flex items-center gap-2">
             <span>{year} · not an Elster filing</span>
             <Button size="sm" variant="ghost" onClick={copy} className="h-6 px-2 text-xs">
-              {copied ? "copied" : "copy as text"}
+              {copyState === "copied" ? "copied" : copyState === "failed" ? "copy failed" : "copy as text"}
             </Button>
           </span>
         ) : undefined

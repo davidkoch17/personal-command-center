@@ -2,7 +2,6 @@
  * Phase D — Portfolio Hub data hooks.
  *
  * Wraps the new backend endpoints for the Portfolio-Hub tabs:
- * - Overview   : net-worth daily series + this-month decomposition
  * - Holdings   : per-position period P&L + realized trade log
  * - Watchlist  : Connected News (captures per ticker) + sector radar + plan card
  * - Captures   : captures list / detail / routing
@@ -10,86 +9,13 @@
  * - Portfolio  : KPI-band summary + indexed performance chart (Chunk 2)
  * - Stock      : Single Stock tab — universe / detail / peers (Chunk 4)
  *
- * Decision-alerts (Overview + Portfolio strips) reuse `useDecisionSummary`
+ * Decision-alerts (Portfolio strip) reuse `useDecisionSummary`
  * from useFinance; the Decision Log (Research tab) reuses `useDecisions` /
  * `useLogDecision`.
  */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import { useRiskFreeRate } from "@/hooks/useRiskFreeRate"
-
-// --- Overview ---------------------------------------------------------------
-
-export interface NetWorthDailyPoint {
-  date: string
-  net_worth_eur: number
-  bank_total: number
-  portfolio_total_eur: number
-  crypto_total_eur: number
-}
-
-export function useNetWorthDaily(days = 90) {
-  return useQuery({
-    queryKey: ["hub", "networth-daily", days],
-    queryFn: () =>
-      api.get<{ series: NetWorthDailyPoint[]; count: number; days: number }>(
-        `/api/finance/networth/daily?days=${days}`,
-      ),
-    staleTime: 5 * 60_000,
-  })
-}
-
-export interface DecompositionResponse {
-  available: boolean
-  reason?: string
-  month?: string
-  baseline_date?: string
-  as_of?: string
-  net_worth_now?: number
-  net_worth_start?: number
-  mom_delta?: number
-  savings?: number
-  savings_source?: string
-  investments?: number
-  net_contributions?: number
-  residual?: number
-  bank_change?: number
-}
-
-export function useNetWorthDecomposition() {
-  return useQuery({
-    queryKey: ["hub", "networth-decomposition"],
-    queryFn: () => api.get<DecompositionResponse>("/api/finance/networth/decomposition"),
-    staleTime: 5 * 60_000,
-  })
-}
-
-export interface BridgeResponse {
-  available: boolean
-  reason?: string
-  month: string
-  opening_date?: string
-  closing_date?: string
-  opening_net_worth?: number
-  income?: number | null
-  expenses?: number | null
-  savings?: number
-  savings_source?: string
-  contributions?: number
-  market_pnl?: number
-  closing_net_worth?: number
-  mom_delta?: number
-  residual?: number
-}
-
-export function useNetWorthBridge(month: string | null) {
-  return useQuery({
-    queryKey: ["hub", "networth-bridge", month],
-    queryFn: () => api.get<BridgeResponse>(`/api/finance/networth/bridge${month ? `?month=${month}` : ""}`),
-    enabled: !!month,
-    staleTime: 5 * 60_000,
-  })
-}
 
 // --- Holdings ---------------------------------------------------------------
 

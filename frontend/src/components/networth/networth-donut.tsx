@@ -75,7 +75,9 @@ export function NetworthDonut({
           <span className="font-mono text-[clamp(1.75rem,6vw,3rem)] font-semibold leading-none tabular-nums">
             {formatCurrency(total)}
           </span>
-          <span className={cn("font-mono text-sm tabular-nums", deltaClass)}>
+          {/* Capped to ~half the container so it stays inside the hole
+              (innerRadius 62%) instead of running under the ring on phones. */}
+          <span className={cn("max-w-[50%] font-mono text-xs leading-tight tabular-nums sm:text-sm", deltaClass)}>
             {deltaThisMonth == null
               ? "Δ this month — not enough history"
               : `${deltaThisMonth >= 0 ? "+" : ""}${formatCurrency(deltaThisMonth)} this month`}
