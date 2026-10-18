@@ -83,3 +83,9 @@ VST: wild_cards           # Vistra — categorized per explicit instruction;
 LNG: wild_cards           # Cheniere Energy — same caveat as VST above: a
                           # large, established LNG exporter, not textbook
                           # early-stage; categorized per explicit instruction.
+AIFS.DE: wild_cards       # iShares AI Infrastructure UCITS (IE000X59ZHE2) —
+                          # thematic AI play.
+G2X.DE: wild_cards        # VanEck Gold Miners UCITS (IE00BQQP9F84) —
+                          # speculative sector bet.
+GRID.DE: wild_cards       # First Trust Nasdaq Clean Edge Smart Grid UCITS
+                          # (IE000J80JTL1) — thematic smart grid.
