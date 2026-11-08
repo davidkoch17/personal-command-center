@@ -14,6 +14,7 @@ import { BackgroundRuns } from "@/pages/background-runs"
 import { Settings } from "@/pages/settings"
 import { DebugJarvis } from "@/pages/debug-jarvis"
 import { Chat } from "@/pages/chat"
+import { Todos } from "@/pages/todos"
 
 // Cash Flow pulls in the charting lib for its own trend/category views —
 // lazy-load it like the workspaces so it doesn't weigh down the main shell
@@ -70,6 +71,7 @@ const router = createBrowserRouter([
       { path: "/portfolio", element: <Portfolio /> },   // pillar 1 — Portfolio Hub
       { path: "/cashflow", element: <Lazy><CashFlow /></Lazy> },      // pillar 2 — Cash Flow
       { path: "/projects", element: <Projects /> },      // pillar 3 — Projects
+      { path: "/todos", element: <Todos /> },            // pillar 4 — Personal Admin to-dos (todos.json)
       { path: "/background-runs", element: <BackgroundRuns /> },
       { path: "/settings", element: <Settings /> },
       // --- Refactored / legacy pages: off-sidebar, still reachable by URL -----

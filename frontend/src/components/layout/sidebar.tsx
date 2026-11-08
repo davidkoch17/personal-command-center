@@ -5,6 +5,7 @@ import {
   Wallet,
   PiggyBank,
   FolderKanban,
+  ListTodo,
   Activity,
   Search,
   Cog,
@@ -41,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/portfolio", label: "portfolio", icon: Wallet },
       { to: "/cashflow", label: "cash flow", icon: PiggyBank },
       { to: "/projects", label: "projects", icon: FolderKanban },
+      { to: "/todos", label: "to-dos", icon: ListTodo },
     ],
   },
   {

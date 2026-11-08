@@ -19,6 +19,16 @@ READING_LIST_PATH = VAULT_PATH / "4_Areas" / "Learning" / "Reading_List.md"
 TASKS_FILE = SYSTEM_PATH / "Task_Command_Center.md"
 PROJECT_INDEX_FILE = SYSTEM_PATH / "Project_Index.md"
 
+# --- Personal Admin to-dos (single source of truth, shared with chat-Claude) --
+# Lives in OneDrive so the Personal Admin chat project can edit the same file via
+# the OneDrive connector. Override with TODOS_FILE in .env.
+TODOS_FILE = Path(
+    os.getenv(
+        "TODOS_FILE",
+        str(PROJECTS_PATH / "5 - Personal Admin" / "5 - Routines" / "todos.json"),
+    )
+)
+
 # --- Finance source file (read-only; single source of truth) ----------------
 # All personal-finance analysis reads from this one workbook. Legacy banking /
 # investment Excel files are NOT used.
