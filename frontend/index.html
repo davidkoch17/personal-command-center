@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" class="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -12,19 +12,20 @@
 
     <!-- PWA: installable on iPhone via Add to Home Screen. -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#0A0E13" />
+    <meta name="theme-color" content="#F7F6F3" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Command Center" />
     <script>
-      // Apply the saved theme before first paint to avoid a flash. Dark is the
-      // default; the System page settings toggle persists "cc-theme".
+      // Apply the saved theme before first paint to avoid a flash. Light is the
+      // default (Nov 2026 redesign); the Settings toggle persists "cc-theme-v2"
+      // (new key so the old dark default doesn't stick).
       (function () {
         try {
-          var t = localStorage.getItem("cc-theme");
-          var theme = t === "light" || t === "dark" ? t : "dark";
+          var t = localStorage.getItem("cc-theme-v2");
+          var theme = t === "light" || t === "dark" ? t : "light";
           var el = document.documentElement;
           el.classList.remove("dark", "light");
           el.classList.add(theme);

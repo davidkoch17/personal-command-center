@@ -17,6 +17,7 @@ import { useSystemStatus, useClearCache, useSystemConfig, useCheckpoints } from 
 import { useDiagnostics } from "@/hooks/useDiagnostics"
 import { useFinanceDiagnostics } from "@/hooks/useFinance"
 import { useTheme } from "@/hooks/useTheme"
+import { useTodos } from "@/hooks/useTodos"
 import { openInOs } from "@/lib/open-in-os"
 import { toast } from "@/lib/toast-store"
 
@@ -30,10 +31,11 @@ const SHORTCUTS = [
 
 export function Settings() {
   const status = useSystemStatus()
+  const todos = useTodos()
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">settings</h1>
+      <h1 className="page-title">settings</h1>
 
       {/* 1. Paths */}
       <Panel title="paths" statusDotColor="muted">
@@ -46,12 +48,10 @@ export function Settings() {
               </TableCell>
             </TableRow>
             <TableRow>
-              <TableCell className="text-text-secondary">finance tracker</TableCell>
-              <TableCell className="font-mono text-xs text-text-label">not exposed by api</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="text-text-secondary">code repo</TableCell>
-              <TableCell className="font-mono text-xs text-text-label">not exposed by api</TableCell>
+              <TableCell className="text-text-secondary">to-dos file</TableCell>
+              <TableCell className="font-code text-xs break-all">
+                {todos.isLoading ? <Skeleton className="h-4 w-64" /> : todos.data?.path ?? "—"}
+              </TableCell>
             </TableRow>
           </TableBody>
         </Table>
@@ -95,7 +95,6 @@ export function Settings() {
             </TableRow>
           </TableBody>
         </Table>
-        <p className="mt-2 text-xs text-text-label">per-file mtime table needs a key-files endpoint (pending)</p>
       </Panel>
 
       {/* 7. Keyboard shortcuts */}
@@ -198,10 +197,10 @@ function ThemeSection() {
     <Panel title="theme" statusDotColor="accent">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="h-6 w-6 rounded-sm border border-border" style={{ background: "#2563EB" }} />
+          <div className="h-6 w-6 rounded-sm border border-border" style={{ background: "rgb(var(--color-accent))" }} />
           <div>
             <div className="text-sm text-text">cockpit</div>
-            <div className="font-mono text-xs text-text-secondary">accent #2563EB</div>
+            <div className="font-mono text-xs text-text-secondary">accent dark sea #1F3D42</div>
           </div>
         </div>
         <Toggle<"dark" | "light">

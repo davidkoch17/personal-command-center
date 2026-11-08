@@ -15,20 +15,20 @@ import { useCashflowMonths, useCashflowSummary, useCashflowTransactions } from "
 import { MonthPicker } from "./month-picker"
 import { formatCurrency } from "@/lib/utils"
 
-// One accent hue family (blue/sky tints) — no categorical "rainbow".
+// Dark Sea tints + warm neutrals (Nov 2026 palette) — no categorical "rainbow".
 const CATEGORY_COLORS: Record<string, string> = {
-  Rent: "bg-blue-600",
-  Groceries: "bg-blue-400",
-  Dining: "bg-sky-400",
-  Transport: "bg-blue-500",
-  Travel: "bg-sky-500",
-  Subscriptions: "bg-blue-300",
-  Utilities: "bg-sky-300",
-  Insurance: "bg-blue-700",
-  Health: "bg-sky-600",
-  Shopping: "bg-blue-800",
-  Entertainment: "bg-sky-700",
-  "Taxes & Fees": "bg-blue-200",
+  Rent: "bg-[#2F5D63]",
+  Groceries: "bg-[#6F9A9C]",
+  Dining: "bg-[#A8A49B]",
+  Transport: "bg-[#4A7C80]",
+  Travel: "bg-[#B07E62]",
+  Subscriptions: "bg-[#9DBDBE]",
+  Utilities: "bg-[#C9C3B8]",
+  Insurance: "bg-[#8E7D6F]",
+  Health: "bg-[#77756D]",
+  Shopping: "bg-[#1F3D42]",
+  Entertainment: "bg-[#5E5650]",
+  "Taxes & Fees": "bg-[#DCCDA8]",
   Other: "bg-text-label",
 }
 

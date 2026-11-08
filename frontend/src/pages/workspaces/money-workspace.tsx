@@ -59,7 +59,7 @@ export function MoneyWorkspace() {
     <div className="min-h-screen bg-bg text-text p-6">
       <div className="mx-auto max-w-[1400px] space-y-5">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">money workspace</h1>
+          <h1 className="page-title">money workspace</h1>
           <Link to="/portfolio?tab=portfolio" className="font-mono text-xs text-text-secondary hover:text-accent">
             ← net worth
           </Link>
@@ -681,18 +681,18 @@ function BudgetTab({
 }
 
 // 7. Expense Report
-// One accent hue family (blue/sky tints) — no categorical "rainbow".
+// Dark Sea tints + warm neutrals (Nov 2026 palette) — no categorical "rainbow".
 const CATEGORY_COLORS: Record<string, string> = {
-  Shopping: "bg-blue-800",
-  Restaurants: "bg-sky-400",
-  Transport: "bg-blue-500",
-  Travel: "bg-sky-500",
-  Entertainment: "bg-sky-700",
-  Groceries: "bg-blue-400",
-  Subscriptions: "bg-blue-300",
-  Utilities: "bg-sky-300",
-  Health: "bg-sky-600",
-  Rent: "bg-blue-600",
+  Shopping: "bg-[#1F3D42]",
+  Restaurants: "bg-[#A8A49B]",
+  Transport: "bg-[#4A7C80]",
+  Travel: "bg-[#B07E62]",
+  Entertainment: "bg-[#5E5650]",
+  Groceries: "bg-[#6F9A9C]",
+  Subscriptions: "bg-[#9DBDBE]",
+  Utilities: "bg-[#C9C3B8]",
+  Health: "bg-[#77756D]",
+  Rent: "bg-[#2F5D63]",
   Other: "bg-text-label",
 }
 

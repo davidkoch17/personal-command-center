@@ -51,7 +51,7 @@ export function Brand() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">brand</h1>
+        <h1 className="page-title">brand</h1>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={() => setEditOpen(true)}>
             + new edit

@@ -5,15 +5,15 @@
  * being tuned for one theme only.
  */
 export const CHART_COLORS = {
-  accent: "#2563EB",
-  success: "#10B981",
-  danger: "#EF4444",
-  warning: "#F59E0B",
-  invest: "#8B5CF6",
+  accent: "#1F3D42", // Dark Sea
+  success: "#3F7A5C",
+  danger: "#9B2C3A",
+  warning: "#B06E46",
+  invest: "#6B4E71",
   // Capital Market Line (Chunk 3 B1) — distinct from accent (frontier curve)
   // and invest (portfolio-tracking violet elsewhere); reads clearly in both
   // themes without being mistaken for a status color (success/danger/warning).
-  cml: "#06B6D4",
+  cml: "#4A7C80",
   grid: "rgb(var(--color-border))",
   axis: "rgb(var(--color-text-label))",
 } as const
@@ -23,8 +23,8 @@ export const FACTOR_COLORS: Record<string, string> = {
   mkt: CHART_COLORS.accent,
   smb: CHART_COLORS.warning,
   hml: CHART_COLORS.invest,
-  rmw: "#14B8A6",
-  cma: "#EC4899",
+  rmw: "#8E7D6F",
+  cma: "#B9A27A",
 }
 
 /**
@@ -34,9 +34,9 @@ export const FACTOR_COLORS: Record<string, string> = {
  */
 export const BENCHMARK_COLORS: Record<string, string> = {
   MSCI_WORLD: CHART_COLORS.invest,
-  SPY: "#3B82F6",
-  DAX: "#F59E0B",
-  STOXX_600: "#14B8A6",
+  SPY: "#77756D",
+  DAX: "#B07E62",
+  STOXX_600: "#4A7C80",
 }
 
 /**
@@ -50,10 +50,10 @@ export const BENCHMARK_COLORS: Record<string, string> = {
  * this instead of keeping their own copy.
  */
 export const BUCKET_COLORS: Record<string, string> = {
-  etf_foundation: CHART_COLORS.accent, // #2563EB
-  single_stocks: "#14B8A6", // teal
-  crypto: CHART_COLORS.warning, // #F59E0B, amber
-  wild_cards: "#A855F7", // purple
+  etf_foundation: CHART_COLORS.accent, // Dark Sea
+  single_stocks: "#6F9A9C", // light sea
+  crypto: "#B07E62", // camel
+  wild_cards: "#7A3B48", // windsor wine
 }
 
 /**
@@ -62,8 +62,8 @@ export const BUCKET_COLORS: Record<string, string> = {
  * liabilities get their own neutral/danger colors since they aren't buckets.
  */
 export const NETWORTH_SEGMENT_COLORS: Record<string, string> = {
-  bank_cash: "#64748B", // slate-500
-  brokerage_cash: "#94A3B8", // slate-400, lighter — distinct from bank cash
+  bank_cash: "#77756D", // foghorn
+  brokerage_cash: "#B8B4AB", // lighter foghorn — distinct from bank cash
   etfs: BUCKET_COLORS.etf_foundation,
   single_stocks: BUCKET_COLORS.single_stocks,
   crypto: BUCKET_COLORS.crypto,
@@ -73,9 +73,9 @@ export const NETWORTH_SEGMENT_COLORS: Record<string, string> = {
 
 /**
  * Fixed color meanings — reuse everywhere, never repurpose for anything else:
- * income = success (green), expenses = danger (red), net = accent (blue),
+ * income = success (green), expenses = danger (red), net = accent (Dark Sea),
  * reserve = success (green), investments = invest (violet, its own accent
- * distinct from `accent`/net-blue).
+ * distinct from `accent`/net).
  */
 export const MONEY_COLORS = {
   income: CHART_COLORS.success,
@@ -85,23 +85,23 @@ export const MONEY_COLORS = {
   investments: CHART_COLORS.invest,
 } as const
 
-/** One accent hue family, light→dark tints — no more categorical "rainbow". */
+/** Dark Sea tints interleaved with warm neutrals — no categorical "rainbow". */
 export const CHART_SERIES = [
-  "#2563EB",
-  "#3B82F6",
-  "#60A5FA",
-  "#1D4ED8",
-  "#93C5FD",
-  "#0EA5E9",
-  "#1E40AF",
-  "#7DD3FC",
-  "#0369A1",
-  "#BFDBFE",
+  "#1F3D42",
+  "#4A7C80",
+  "#77756D",
+  "#9DBDBE",
+  "#B07E62",
+  "#2F5D63",
+  "#A8A49B",
+  "#6F9A9C",
+  "#5E5650",
+  "#C9C3B8",
 ] as const
 
 export const AXIS_PROPS = {
   stroke: CHART_COLORS.axis,
-  tick: { fill: CHART_COLORS.axis, fontSize: 11, fontFamily: "JetBrains Mono, monospace" },
+  tick: { fill: CHART_COLORS.axis, fontSize: 11, fontFamily: "Inter, system-ui, sans-serif" },
   tickLine: false,
 } as const
 

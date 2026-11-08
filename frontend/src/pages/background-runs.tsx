@@ -45,7 +45,7 @@ export function BackgroundRuns() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">background runs</h1>
+      <h1 className="page-title">background runs</h1>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>

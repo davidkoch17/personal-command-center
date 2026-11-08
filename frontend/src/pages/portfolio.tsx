@@ -39,7 +39,7 @@ export function Portfolio() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">portfolio hub</h1>
+        <h1 className="page-title">portfolio hub</h1>
         <Button asChild variant="secondary" size="sm">
           <a href="/workspace/portfolio" target="_blank" rel="noopener noreferrer">
             open workspace ↗

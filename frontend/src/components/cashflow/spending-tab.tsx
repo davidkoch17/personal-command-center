@@ -16,20 +16,20 @@ import {
 import { MonthPicker } from "./month-picker"
 import { cn, formatCurrency, formatPercent } from "@/lib/utils"
 
-// One accent hue family (blue/sky tints) — no categorical "rainbow", matches
+// Dark Sea tints + warm neutrals (Nov 2026 palette) — no categorical "rainbow", matches
 // the overview tab's CAT_COLOR convention.
 const CAT_COLOR: Record<string, string> = {
-  Rent: "bg-blue-600",
-  Shopping: "bg-blue-800",
-  Restaurants: "bg-sky-400",
-  Dining: "bg-sky-400",
-  Transport: "bg-blue-500",
-  Travel: "bg-sky-500",
-  Entertainment: "bg-sky-700",
-  Groceries: "bg-blue-400",
-  Subscriptions: "bg-blue-300",
-  Utilities: "bg-sky-300",
-  Health: "bg-sky-600",
+  Rent: "bg-[#2F5D63]",
+  Shopping: "bg-[#1F3D42]",
+  Restaurants: "bg-[#A8A49B]",
+  Dining: "bg-[#A8A49B]",
+  Transport: "bg-[#4A7C80]",
+  Travel: "bg-[#B07E62]",
+  Entertainment: "bg-[#5E5650]",
+  Groceries: "bg-[#6F9A9C]",
+  Subscriptions: "bg-[#9DBDBE]",
+  Utilities: "bg-[#C9C3B8]",
+  Health: "bg-[#77756D]",
 }
 
 const CADENCE_LABEL: Record<CashflowRecurringItem["cadence"], string> = {

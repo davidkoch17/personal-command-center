@@ -32,7 +32,7 @@ export function CashFlow() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">cash flow</h1>
+        <h1 className="page-title">cash flow</h1>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,59 +6,65 @@
 
 /* --- Theme palettes ------------------------------------------------------- */
 /* Tokens are space-separated RGB triplets consumed via rgb(var(--x) / alpha) in
-   tailwind.config.ts. Dark is the default (`:root` + `.dark`); `.light` swaps
-   the whole palette. The toggle on the System page flips the class on <html>. */
+   tailwind.config.ts. Light is the default (`:root` + `.light`); `.dark` swaps
+   the whole palette. The Settings toggle flips the class on <html>.
+
+   Light palette (Nov 2026) is drawn from David's "Classic Elegance" / "Quiet
+   Luxury" boards: white panels on a warm off-white canvas, Dark Sea green as the
+   single accent, Foghorn grey for secondary text, and the boards' Camel and
+   Windsor Wine as the warning/danger tones so status colors sit in the same
+   muted family instead of shouting. */
 :root,
+.light {
+  --color-bg: 247 246 243;            /* warm off-white canvas */
+  --color-bg-panel: 255 255 255;      /* white cards */
+  --color-bg-panel-hover: 243 241 237;
+  --color-border: 231 228 222;        /* warm hairline */
+  --color-border-focus: 31 61 66;
+  --color-accent: 31 61 66;           /* Dark Sea #1F3D42 */
+  --color-accent-dim: 47 93 99;       /* lighter sea, hover */
+  --color-accent-soft: 226 234 233;   /* sea tint for active/soft fills */
+  --color-success: 63 122 92;         /* muted green #3F7A5C */
+  --color-danger: 155 44 58;          /* wine #9B2C3A */
+  --color-warning: 176 110 70;        /* camel #B06E46 */
+  --color-invest: 107 78 113;         /* muted plum #6B4E71 */
+  --color-text: 31 36 34;             /* warm near-black */
+  --color-text-secondary: 110 108 100;/* Foghorn #6E6C64 */
+  --color-text-label: 150 146 138;
+  --color-text-disabled: 196 192 185;
+  --scrollbar-track: 247 246 243;
+  --scrollbar-thumb: 221 217 210;
+  --scrollbar-thumb-hover: 168 164 155;
+  /* One elevation step: white cards lift off the canvas with a soft warm shadow
+     + the hairline border, never a heavier double-shadow. */
+  --shadow-panel: 0 1px 2px 0 rgba(40, 36, 30, 0.04), 0 1px 3px 0 rgba(40, 36, 30, 0.06);
+  --shadow-panel-hover: 0 2px 4px 0 rgba(40, 36, 30, 0.05), 0 4px 10px -2px rgba(40, 36, 30, 0.08);
+  color-scheme: light;
+}
+
 .dark {
-  --color-bg: 10 14 19;
-  --color-bg-panel: 17 22 29;
-  --color-bg-panel-hover: 22 28 37;
-  --color-border: 31 38 46;
-  --color-border-focus: 37 99 235;
-  --color-accent: 37 99 235;
-  --color-accent-dim: 29 78 216;
-  --color-accent-soft: 30 58 138;
-  --color-success: 16 185 129;
-  --color-danger: 239 68 68;
-  --color-warning: 245 158 11;
-  --color-invest: 139 92 246;
-  --color-text: 228 230 235;
-  --color-text-secondary: 138 146 158;
-  --color-text-label: 92 100 112;
-  --color-text-disabled: 63 70 81;
-  --scrollbar-track: 10 14 19;
-  --scrollbar-thumb: 31 38 46;
-  --scrollbar-thumb-hover: 47 54 64;
+  --color-bg: 14 17 18;
+  --color-bg-panel: 21 25 26;
+  --color-bg-panel-hover: 27 32 33;
+  --color-border: 37 43 44;
+  --color-border-focus: 92 150 150;
+  --color-accent: 92 150 150;         /* Dark Sea, lifted for dark backgrounds */
+  --color-accent-dim: 70 125 125;
+  --color-accent-soft: 24 48 52;
+  --color-success: 88 166 126;
+  --color-danger: 214 92 104;
+  --color-warning: 206 145 104;
+  --color-invest: 160 128 168;
+  --color-text: 230 228 223;
+  --color-text-secondary: 150 147 139;
+  --color-text-label: 105 103 97;
+  --color-text-disabled: 70 70 66;
+  --scrollbar-track: 14 17 18;
+  --scrollbar-thumb: 37 43 44;
+  --scrollbar-thumb-hover: 55 62 63;
   --shadow-panel: none;
   --shadow-panel-hover: none;
   color-scheme: dark;
-}
-
-.light {
-  --color-bg: 242 244 248;
-  --color-bg-panel: 255 255 255;
-  --color-bg-panel-hover: 236 239 244;
-  --color-border: 224 228 234;
-  --color-border-focus: 37 99 235;
-  --color-accent: 37 99 235;
-  --color-accent-dim: 29 78 216;
-  --color-accent-soft: 219 228 255;
-  --color-success: 5 150 105;
-  --color-danger: 220 38 38;
-  --color-warning: 217 119 6;
-  --color-invest: 124 58 237;
-  --color-text: 26 29 35;
-  --color-text-secondary: 92 100 112;
-  --color-text-label: 138 146 158;
-  --color-text-disabled: 184 189 199;
-  --scrollbar-track: 236 239 244;
-  --scrollbar-thumb: 205 210 219;
-  --scrollbar-thumb-hover: 156 163 175;
-  /* One elevation step: cards separate from the (slightly cooled) canvas via a
-     soft shadow + the existing hairline border, never a heavier double-shadow. */
-  --shadow-panel: 0 1px 2px 0 rgba(16, 24, 40, 0.04), 0 1px 3px 0 rgba(16, 24, 40, 0.07);
-  --shadow-panel-hover: 0 2px 4px 0 rgba(16, 24, 40, 0.05), 0 4px 8px -2px rgba(16, 24, 40, 0.08);
-  color-scheme: light;
 }
 
 @layer base {
@@ -81,6 +87,11 @@
      their true casing — e.g. "iShares MSCI World", not "Ishares Msci World".
      Mark those headings with `normal-case` to opt out of the capitalize above. */
 
+  /* Real code keeps a monospace face (font-mono is now tabular Inter). */
+  code, kbd, pre, samp {
+    @apply font-code;
+  }
+
   .label {
     @apply capitalize tracking-wider text-text-label text-[11px] font-medium;
   }
@@ -91,6 +102,12 @@
 }
 
 @layer components {
+  /* Page title: large serif, normal case for proper nouns via `normal-case`. */
+  .page-title {
+    @apply font-serif text-[2.125rem] font-semibold leading-tight text-text;
+    letter-spacing: 0;
+  }
+
   .panel {
     @apply bg-bg-panel border border-border rounded-lg p-4;
     box-shadow: var(--shadow-panel);

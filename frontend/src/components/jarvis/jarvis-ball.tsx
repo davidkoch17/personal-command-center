@@ -14,11 +14,11 @@ interface JarvisBallProps {
 
 /** Navy palette — every state is a variation of navy, brighter when active. */
 const STATE_COLOR: Record<JarvisState, string> = {
-  idle: "#1E3A8A", // blue-800 — resting, deep navy
-  thinking: "#1D4ED8", // blue-700 — assembling
-  routing: "#1D4ED8", // blue-700 — same as thinking
-  listening: "#3B82F6", // blue-500 — attentive
-  speaking: "#60A5FA", // blue-400 — brightest, speaking back
+  idle: "#1F3D42", // Dark Sea — resting
+  thinking: "#2F5D63", // assembling
+  routing: "#2F5D63", // same as thinking
+  listening: "#4A7C80", // attentive
+  speaking: "#6F9A9C", // brightest, speaking back
 }
 
 /**
@@ -82,7 +82,7 @@ function SonarRing({ active }: { active: boolean }) {
   return (
     <mesh ref={ringRef}>
       <ringGeometry args={[1, 1.03, 64]} />
-      <meshBasicMaterial color="#3B82F6" transparent opacity={0.4} side={THREE.DoubleSide} />
+      <meshBasicMaterial color="#4A7C80" transparent opacity={0.4} side={THREE.DoubleSide} />
     </mesh>
   )
 }

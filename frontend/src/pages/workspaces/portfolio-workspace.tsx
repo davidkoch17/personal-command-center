@@ -109,7 +109,7 @@ export function PortfolioWorkspace() {
     <div className="min-h-screen bg-bg text-text p-4 sm:p-6 print:p-0">
       <div className="mx-auto max-w-[1400px] space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">portfolio workspace</h1>
+          <h1 className="page-title">portfolio workspace</h1>
           <div className="flex items-center gap-3">
             {/* Reporting-currency toggle — persisted, drives the currency tab +
                 currency-aware performance. Default EUR. */}

@@ -37,6 +37,7 @@ import {
   type TodoSubtask,
 } from "@/hooks/useTodos"
 import { cn } from "@/lib/utils"
+import { DueTag } from "@/components/todos/due"
 
 const STATUS_LABEL: Record<TodoStatus, string> = {
   open: "open",
@@ -54,28 +55,7 @@ const STATUS_VARIANT: Record<TodoStatus, "muted" | "accent" | "warning" | "succe
 
 type StatusFilter = "all" | TodoStatus
 
-// --- Due-date helpers ----------------------------------------------------------
-
-/** Whole days from today (local time) to an ISO date; negative = overdue. */
-function daysUntil(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number)
-  const target = new Date(y, m - 1, d)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return Math.round((target.getTime() - today.getTime()) / 86_400_000)
-}
-
-function DueTag({ due, done }: { due: string | null; done: boolean }) {
-  if (!due) return null
-  const days = daysUntil(due)
-  const rel = days === 0 ? "today" : days < 0 ? `${-days}d overdue` : `in ${days}d`
-  const variant = done ? "muted" : days < 0 ? "danger" : days <= 7 ? "warning" : "muted"
-  return (
-    <Tag variant={variant} className="font-mono normal-case tracking-normal">
-      {rel} · {due}
-    </Tag>
-  )
-}
+// --- Sorting ------------------------------------------------------------------
 
 /** Sort: by due date ascending (undated last), then title. */
 function byDue(a: Todo, b: Todo): number {
@@ -96,7 +76,7 @@ function TodoCard({ task, onEdit }: { task: Todo; onEdit: (t: Todo) => void }) {
   const isDone = task.status === "done"
 
   return (
-    <div className="rounded border border-border bg-bg">
+    <div>
       <div className="flex items-start gap-2 px-2 py-2">
         <button
           type="button"
@@ -159,7 +139,7 @@ function TodoCard({ task, onEdit }: { task: Todo; onEdit: (t: Todo) => void }) {
       )}
 
       {open && (
-        <div className="space-y-3 border-t border-border px-3 py-3">
+        <div className="mx-2 mb-3 space-y-3 rounded bg-bg px-3 py-3">
           {task.notes ? (
             <p className="whitespace-pre-wrap text-sm text-text-secondary">{task.notes}</p>
           ) : (
@@ -453,7 +433,7 @@ export function Todos() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">to-dos</h1>
+        <h1 className="page-title">to-dos</h1>
         <Button size="sm" onClick={() => setCreating(true)}>
           <Plus className="h-3.5 w-3.5" /> new task
         </Button>
@@ -513,7 +493,7 @@ export function Todos() {
             statusDotColor={prio === 1 ? "danger" : prio === 2 ? "warning" : "muted"}
             meta={`${list.length} task${list.length === 1 ? "" : "s"}`}
           >
-            <div className="space-y-2">
+            <div className="-mx-2 divide-y divide-border">
               {list.map((t) => (
                 <TodoCard key={t.id} task={t} onEdit={setEditing} />
               ))}
@@ -522,11 +502,7 @@ export function Todos() {
         ))
       )}
 
-      {data && (
-        <p className="font-mono text-[11px] text-text-label break-all">
-          {data.path} · updated {data.updated}
-        </p>
-      )}
+      {data && <p className="text-xs text-text-label">last updated {data.updated}</p>}
 
       {(creating || editing) && (
         <TodoDialog

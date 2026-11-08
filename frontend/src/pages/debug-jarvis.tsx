@@ -48,7 +48,7 @@ export function DebugJarvis() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">jarvis debug</h1>
+        <h1 className="page-title">jarvis debug</h1>
         <p className="mt-1 text-sm text-text-secondary">
           type a command to test the router (and optionally execute it) without voice.
         </p>

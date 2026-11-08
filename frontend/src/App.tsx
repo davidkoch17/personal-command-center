@@ -15,6 +15,7 @@ import { Settings } from "@/pages/settings"
 import { DebugJarvis } from "@/pages/debug-jarvis"
 import { Chat } from "@/pages/chat"
 import { Todos } from "@/pages/todos"
+import { Today } from "@/pages/today"
 
 // Cash Flow pulls in the charting lib for its own trend/category views —
 // lazy-load it like the workspaces so it doesn't weigh down the main shell
@@ -63,8 +64,9 @@ const router = createBrowserRouter([
   {
     element: <AppShell />,
     children: [
-      // v3 entry point is the Portfolio Hub pillar (Home archived — spec § f).
-      { path: "/", element: <Navigate to="/portfolio" replace /> },
+      // Entry point: the Today overview (Nov 2026 redesign; was Portfolio Hub).
+      { path: "/", element: <Navigate to="/today" replace /> },
+      { path: "/today", element: <Today /> },
       // --- v4 sidebar: Net Worth + 3 pillars + Background Runs + Search + Settings ---
       // (v3 locked exactly 3; David explicitly overrode that lock Oct 2026 — Chunk 9.7.)
       { path: "/networth", element: <Lazy><Networth /></Lazy> }, // pillar 0 — Net Worth

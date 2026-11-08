@@ -29,7 +29,13 @@ export default {
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "Courier New", "monospace"],
+        // Nov 2026: `font-mono` is now the *numeric* face — Inter with tabular
+        // (evenly spaced) digits, so amounts/dates line up without the
+        // terminal look. True code (paths, <code>) uses `font-code`.
+        mono: ["Inter", { fontFeatureSettings: '"tnum", "cv11"' }],
+        code: ["JetBrains Mono", "Courier New", "monospace"],
+        // Page titles — the elegant serif from the "Classic Elegance" boards.
+        serif: ["Cormorant Garamond", "Georgia", "serif"],
       },
       letterSpacing: {
         tight: "-0.01em",

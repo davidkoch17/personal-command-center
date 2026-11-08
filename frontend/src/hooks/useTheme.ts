@@ -7,11 +7,11 @@ import { useSyncExternalStore } from "react"
  */
 export type Theme = "dark" | "light"
 
-const STORAGE_KEY = "cc-theme"
+const STORAGE_KEY = "cc-theme-v2"
 
 function current(): Theme {
-  if (typeof document === "undefined") return "dark"
-  return document.documentElement.classList.contains("light") ? "light" : "dark"
+  if (typeof document === "undefined") return "light"
+  return document.documentElement.classList.contains("dark") ? "dark" : "light"
 }
 
 const listeners = new Set<() => void>()
@@ -42,6 +42,6 @@ function subscribe(cb: () => void): () => void {
 }
 
 export function useTheme(): { theme: Theme; setTheme: (t: Theme) => void; toggle: () => void } {
-  const theme = useSyncExternalStore(subscribe, current, () => "dark" as Theme)
+  const theme = useSyncExternalStore(subscribe, current, () => "light" as Theme)
   return { theme, setTheme, toggle: toggleTheme }
 }

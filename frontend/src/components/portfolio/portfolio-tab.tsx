@@ -256,7 +256,7 @@ function AllocationVsTarget({ buckets, loading }: { buckets: BucketRow[]; loadin
   const total = buckets.reduce((s, b) => s + b.value, 0)
   const donutData = buckets
     .filter((b) => b.value > 0)
-    .map((b) => ({ name: b.label, value: b.value, color: BUCKET_COLORS[b.bucket] ?? "#64748B" }))
+    .map((b) => ({ name: b.label, value: b.value, color: BUCKET_COLORS[b.bucket] ?? "#77756D" }))
 
   return (
     <Panel title="allocation vs target" statusDotColor="accent">
@@ -278,7 +278,7 @@ function AllocationVsTarget({ buckets, loading }: { buckets: BucketRow[]; loadin
               <div key={b.bucket} className="flex items-center gap-2.5">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: BUCKET_COLORS[b.bucket] ?? "#64748B" }}
+                  style={{ backgroundColor: BUCKET_COLORS[b.bucket] ?? "#77756D" }}
                 />
                 <span className="min-w-0 flex-1 truncate text-sm text-text-secondary">{b.label}</span>
                 <span className="font-mono text-sm tabular-nums text-text">

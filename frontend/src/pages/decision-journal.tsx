@@ -16,7 +16,7 @@ export function DecisionJournal() {
   return (
     <div className="space-y-6">
       <div className="flex items-baseline justify-between gap-4">
-        <h1 className="text-3xl font-semibold tracking-tight">decision journal</h1>
+        <h1 className="page-title">decision journal</h1>
         <span className="font-mono text-sm text-text-secondary">behavioral layer · sections 12 · 14 · 15 · 16</span>
       </div>
 

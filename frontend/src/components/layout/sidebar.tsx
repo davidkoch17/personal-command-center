@@ -1,4 +1,4 @@
-import { Fragment } from "react"
+import { Fragment, useState } from "react"
 import { NavLink } from "react-router-dom"
 import {
   TrendingUp,
@@ -6,9 +6,11 @@ import {
   PiggyBank,
   FolderKanban,
   ListTodo,
+  Sun,
   Activity,
   Search,
   Cog,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react"
 import { openSearch } from "@/lib/search-bus"
@@ -25,6 +27,25 @@ interface NavLinkDef {
 interface NavGroup {
   label: string
   links: NavLinkDef[]
+  collapsible?: boolean // header becomes a chevron toggle; state persisted
+}
+
+const COLLAPSE_KEY = "cc-nav-collapsed"
+
+function readCollapsed(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? "") ?? {}
+  } catch {
+    return { system: true } // system starts collapsed for a cleaner rail
+  }
+}
+
+function writeCollapsed(value: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(COLLAPSE_KEY, JSON.stringify(value))
+  } catch {
+    /* storage disabled — state just won't persist */
+  }
 }
 
 // v4 sidebar: Net Worth + 3 pillars (added Oct 2026 per David's explicit
@@ -34,19 +55,33 @@ interface NavGroup {
 // holdings), and Net Worth is the fourth — a holistic bank+brokerage+holdings
 // rollup, separate again from both. Everything else is folded into a pillar
 // and stays reachable by URL only (no sidebar entry).
+//
+// Nov 2026: pillars split into "finance" (money views) and "planning"
+// (projects + to-dos) so the two kinds of work read as separate areas; the
+// "system" group collapses behind a chevron to keep the rail calm.
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "pillars",
+    label: "overview",
+    links: [{ to: "/today", label: "today", icon: Sun }],
+  },
+  {
+    label: "finance",
     links: [
       { to: "/networth", label: "net worth", icon: TrendingUp, dividerAfter: true },
       { to: "/portfolio", label: "portfolio", icon: Wallet },
       { to: "/cashflow", label: "cash flow", icon: PiggyBank },
+    ],
+  },
+  {
+    label: "planning",
+    links: [
       { to: "/projects", label: "projects", icon: FolderKanban },
       { to: "/todos", label: "to-dos", icon: ListTodo },
     ],
   },
   {
     label: "system",
+    collapsible: true,
     links: [
       { to: "/background-runs", label: "background runs", icon: Activity },
       { label: "search", icon: Search, action: openSearch },
@@ -68,13 +103,44 @@ function NavList({
   showLabels: boolean
   onNavigate?: () => void
 }) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed)
+
+  function toggle(label: string) {
+    setCollapsed((c) => {
+      const next = { ...c, [label]: !c[label] }
+      writeCollapsed(next)
+      return next
+    })
+  }
+
   return (
     <>
-      {NAV_GROUPS.map((group) => (
-        <div key={group.label} className="mb-6 px-3">
-          <div className={cn("label px-2 mb-1.5", !showLabels && "hidden min-[1100px]:block")}>
-            {group.label}
-          </div>
+      {NAV_GROUPS.map((group, gi) => {
+        const isCollapsed = !!(group.collapsible && collapsed[group.label])
+        return (
+        <div
+          key={group.label}
+          className={cn("px-3", gi > 0 && "mt-4 border-t border-border pt-4")}
+        >
+          {group.collapsible ? (
+            <button
+              type="button"
+              onClick={() => toggle(group.label)}
+              aria-expanded={!isCollapsed}
+              title={isCollapsed ? `show ${group.label}` : `hide ${group.label}`}
+              className="label mb-1.5 flex w-full items-center justify-center gap-1 rounded-sm px-2 py-0.5 hover:text-text-secondary min-[1100px]:justify-between"
+            >
+              <span className={cn(!showLabels && "hidden min-[1100px]:inline")}>{group.label}</span>
+              <ChevronDown
+                className={cn("h-3.5 w-3.5 transition-transform", isCollapsed && "-rotate-90")}
+              />
+            </button>
+          ) : (
+            <div className={cn("label px-2 mb-1.5", !showLabels && "hidden min-[1100px]:block")}>
+              {group.label}
+            </div>
+          )}
+          {!isCollapsed && (
           <ul className="space-y-0.5">
             {group.links.map((link) => {
               const Icon = link.icon
@@ -115,10 +181,9 @@ function NavList({
                       </button>
                     )}
                   </li>
-                  {/* Same visual pattern as the gap between the "pillars" and
-                      "system" groups below (a border + vertical space), used
-                      here to set Net Worth apart within one group instead of
-                      starting a second "pillars" label. */}
+                  {/* Same visual pattern as the gap between groups (a border +
+                      vertical space), used here to set Net Worth apart within
+                      the finance group without a separate label. */}
                   {link.dividerAfter && (
                     <li aria-hidden="true" className="my-2 border-t border-border" />
                   )}
@@ -126,8 +191,10 @@ function NavList({
               )
             })}
           </ul>
+          )}
         </div>
-      ))}
+        )
+      })}
     </>
   )
 }

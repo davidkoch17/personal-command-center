@@ -23,7 +23,7 @@ export function Networth() {
   if (snap.isLoading) {
     return (
       <div className="space-y-5">
-        <h1 className="text-2xl font-semibold tracking-tight">net worth</h1>
+        <h1 className="page-title">net worth</h1>
         <Skeleton className="h-80 w-full" />
         <Skeleton className="h-56 w-full" />
       </div>
@@ -33,7 +33,7 @@ export function Networth() {
   if (snap.isError || !snap.data) {
     return (
       <div className="space-y-5">
-        <h1 className="text-2xl font-semibold tracking-tight">net worth</h1>
+        <h1 className="page-title">net worth</h1>
         <EmptyState message="couldn't load the net worth snapshot — try reloading" />
       </div>
     )
@@ -43,7 +43,7 @@ export function Networth() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold tracking-tight">net worth</h1>
+      <h1 className="page-title">net worth</h1>
 
       <Panel title="breakdown" statusDotColor="invest">
         <NetworthDonut breakdown={breakdown} deltaThisMonth={delta_this_month} />

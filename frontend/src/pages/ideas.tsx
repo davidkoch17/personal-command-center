@@ -24,7 +24,7 @@ export function Ideas() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">ideas</h1>
+        <h1 className="page-title">ideas</h1>
         <Button onClick={() => setNewOpen(true)}>+ new idea</Button>
       </div>
 
