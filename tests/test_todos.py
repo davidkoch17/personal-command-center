@@ -98,6 +98,41 @@ def test_rejects_card_number_and_bad_values(todos_file):
     store.update_task("konto", {"notes": "IBAN DE89 3704 0044 0532 0130 00"})
 
 
+def test_priority_must_be_1_to_3(todos_file):
+    for bad in (0, 4, "x"):
+        with pytest.raises(store.TodoError):
+            store.update_task("konto", {"priority": bad})
+    with pytest.raises(store.TodoError):
+        store.update_task("konto", {"subtasks": [{"title": "Brief", "priority": 5}]})
+    store.update_task("konto", {"priority": 3})
+    assert _read(todos_file)["tasks"][0]["priority"] == 3
+
+
+def test_area_must_be_in_fixed_list(todos_file):
+    for bad in ("Versicherungen", "", "banking"):
+        with pytest.raises(store.TodoError):
+            store.update_task("konto", {"area": bad})
+    with pytest.raises(store.TodoError):
+        store.create_task({"title": "X", "area": "Steuern"})
+    store.update_task("konto", {"area": "Rechnungen"})
+    assert _read(todos_file)["tasks"][0]["area"] == "Rechnungen"
+
+
+def test_create_defaults_area_to_other(todos_file):
+    assert store.create_task({"title": "Ohne Bereich"})["area"] == "Other"
+
+
+def test_existing_invalid_values_dont_block_unrelated_edits(todos_file):
+    # Legacy data (e.g. hand-edited by chat-Claude) only fails on the field
+    # being changed, so a status toggle still works.
+    doc = _read(todos_file)
+    doc["tasks"][0]["area"] = "Steuern"
+    doc["tasks"][0]["priority"] = 7
+    todos_file.write_text(json.dumps(doc), encoding="utf-8")
+    store.update_task("konto", {"status": "done"})
+    assert _read(todos_file)["tasks"][0]["status"] == "done"
+
+
 def test_unknown_id_raises_keyerror(todos_file):
     with pytest.raises(KeyError):
         store.update_task("missing", {"status": "done"})

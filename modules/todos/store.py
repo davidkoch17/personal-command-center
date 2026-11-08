@@ -31,6 +31,14 @@ from core.config import TODOS_FILE, get_logger
 logger = get_logger(__name__)
 
 STATUSES = ("open", "in_progress", "waiting", "done")
+# Fixed area list (schema v1, see CLAUDE.md "To-do-Tracker"). Extend here — the
+# API exposes it to the UI dropdown.
+AREAS = (
+    "Banking", "Wohnung", "Versicherung", "Rechnungen",
+    "Business", "Career", "Investing", "Other",
+)
+DEFAULT_AREA = "Other"
+PRIORITY_MIN, PRIORITY_MAX = 1, 3
 SCHEMA_VERSION = 1
 
 _LOCK = threading.Lock()
@@ -142,9 +150,16 @@ def _clean_priority(value: Any) -> int:
         p = int(value)
     except (TypeError, ValueError) as exc:
         raise TodoError(f"invalid priority: {value!r}") from exc
-    if p < 1:
-        raise TodoError("priority must be ≥ 1")
+    if not PRIORITY_MIN <= p <= PRIORITY_MAX:
+        raise TodoError(f"priority must be {PRIORITY_MIN}–{PRIORITY_MAX}, got {p}")
     return p
+
+
+def _clean_area(value: Any) -> str:
+    area = str(value or "").strip()
+    if area not in AREAS:
+        raise TodoError(f"invalid area: {area!r} (one of {', '.join(AREAS)})")
+    return area
 
 
 def _clean_status(value: Any) -> str:
@@ -192,7 +207,8 @@ def _merge_subtasks(old: list[Any], new: list[dict[str, Any]]) -> list[dict[str,
         base = dict(old[i]) if i < len(old) and isinstance(old[i], dict) else {}
         base["title"] = title
         base["done"] = bool(sub.get("done", False))
-        base["priority"] = _clean_priority(sub.get("priority", base.get("priority", 1)))
+        prio = sub.get("priority")
+        base["priority"] = _clean_priority(prio if prio is not None else base.get("priority", 1))
         merged.append(base)
     return merged
 
@@ -205,7 +221,7 @@ def _apply_fields(task: dict[str, Any], fields: dict[str, Any]) -> None:
             raise TodoError("title is required")
         task["title"] = title
     if "area" in fields:
-        task["area"] = str(fields["area"] or "").strip()
+        task["area"] = _clean_area(fields["area"])
     if "priority" in fields:
         task["priority"] = _clean_priority(fields["priority"])
     if "status" in fields:
@@ -227,7 +243,7 @@ def create_task(fields: dict[str, Any]) -> dict[str, Any]:
         task: dict[str, Any] = {
             "id": "",
             "title": "",
-            "area": "",
+            "area": DEFAULT_AREA,
             "priority": 2,
             "status": "open",
             "due": None,

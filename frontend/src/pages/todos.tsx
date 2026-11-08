@@ -197,7 +197,7 @@ interface Draft {
 function toDraft(task: Todo | null): Draft {
   return {
     title: task?.title ?? "",
-    area: task?.area ?? "",
+    area: task?.area ?? "Other",
     priority: task?.priority ?? 2,
     status: task?.status ?? "open",
     due: task?.due ?? "",
@@ -267,26 +267,36 @@ function TodoDialog({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="col-span-2 sm:col-span-1">
               <span className="label">area</span>
-              <Input
-                list="todo-areas"
-                value={draft.area}
-                onChange={(e) => set("area", e.target.value)}
-              />
-              <datalist id="todo-areas">
-                {areas.map((a) => (
-                  <option key={a} value={a} />
-                ))}
-              </datalist>
+              <Select value={draft.area} onValueChange={(v) => set("area", v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {areas.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <span className="label">priority</span>
-              <Input
-                type="number"
-                min={1}
-                mono
-                value={draft.priority}
-                onChange={(e) => set("priority", Math.max(1, Number(e.target.value) || 1))}
-              />
+              <Select
+                value={String(draft.priority)}
+                onValueChange={(v) => set("priority", Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3].map((p) => (
+                    <SelectItem key={p} value={String(p)}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <span className="label">status</span>
@@ -333,10 +343,11 @@ function TodoDialog({
                 <Input
                   type="number"
                   min={1}
+                  max={3}
                   mono
-                  title="priority"
+                  title="priority (1–3)"
                   value={s.priority ?? 1}
-                  onChange={(e) => setSub(i, { priority: Math.max(1, Number(e.target.value) || 1) })}
+                  onChange={(e) => setSub(i, { priority: Math.min(3, Math.max(1, Number(e.target.value) || 1)) })}
                   className="h-8 w-16"
                 />
                 <Button
@@ -406,10 +417,12 @@ export function Todos() {
   }
 
   const tasks = data?.tasks ?? []
+  // Filter shows only areas in use; the edit dialog offers the full fixed list.
   const areas = useMemo(
     () => [...new Set(tasks.map((t) => t.area).filter(Boolean))].sort(),
     [tasks],
   )
+  const allAreas = data?.areas ?? areas
 
   const groups = useMemo(() => {
     const visible = tasks.filter(
@@ -508,7 +521,7 @@ export function Todos() {
         <TodoDialog
           key={editing?.id ?? "new"}
           task={editing}
-          areas={areas}
+          areas={allAreas}
           open
           onClose={() => {
             setCreating(false)

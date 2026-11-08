@@ -29,6 +29,7 @@ export interface TodosResponse {
   tasks: Todo[]
   path: string
   statuses: TodoStatus[]
+  areas: string[] // fixed area list from the backend (schema v1)
 }
 
 export type TodoFields = Partial<Omit<Todo, "id">>

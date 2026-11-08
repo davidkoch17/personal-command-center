@@ -17,7 +17,7 @@ router = APIRouter()
 class SubtaskIn(BaseModel):
     title: str
     done: bool = False
-    priority: int = 1
+    priority: Optional[int] = None  # None → keep existing / default 1
 
 
 class TodoFields(BaseModel):
@@ -52,7 +52,12 @@ def _run(fn, *args):
 def get_todos() -> dict:
     """Full document (fresh from disk) plus the file path for the UI footer."""
     doc = _run(store.load)
-    return {**doc, "path": str(TODOS_FILE), "statuses": list(store.STATUSES)}
+    return {
+        **doc,
+        "path": str(TODOS_FILE),
+        "statuses": list(store.STATUSES),
+        "areas": list(store.AREAS),
+    }
 
 
 @router.post("")
