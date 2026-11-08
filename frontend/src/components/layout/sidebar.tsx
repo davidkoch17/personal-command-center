@@ -6,7 +6,7 @@ import {
   PiggyBank,
   FolderKanban,
   ListTodo,
-  Sun,
+  House,
   Activity,
   Search,
   Cog,
@@ -62,7 +62,7 @@ function writeCollapsed(value: Record<string, boolean>): void {
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "overview",
-    links: [{ to: "/today", label: "today", icon: Sun }],
+    links: [{ to: "/today", label: "today", icon: House }],
   },
   {
     label: "finance",
