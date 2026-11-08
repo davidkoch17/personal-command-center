@@ -8,8 +8,8 @@
 '       _backend_only.bat (resolves pythonw, redirects logs), launched hidden.
 '    3. Polls until the backend is healthy (cold start loads finance libs,
 '       can take ~30-50s).
-'    4. Opens the dashboard in the default browser at the Portfolio Hub
-'       (the v3 entry point — Home is archived, Portfolio is the landing page).
+'    4. Opens the dashboard in the default browser at the Today page
+'       (the start page since the Nov 2026 redesign).
 '
 '  Pass the argument "backendonly" to start the backend without opening a
 '  browser — used by the on-login autostart shortcut.
@@ -44,8 +44,8 @@ If Not BackendUp() Then
 End If
 
 If Not backendOnly Then
-    ' Open the dashboard in the default browser at the Portfolio Hub (no console).
-    sh.Run "http://localhost:8000/portfolio", 1, False
+    ' Open the dashboard in the default browser at the Today page (no console).
+    sh.Run "http://localhost:8000/today", 1, False
 End If
 
 ' ---------------------------------------------------------------------------
