@@ -23,7 +23,7 @@ from modules.briefings.context import assemble_briefing_context
 
 logger = get_logger(__name__)
 
-BRIEFINGS_DIR = SYSTEM_PATH / "Briefings"
+BRIEFINGS_DIR = SYSTEM_PATH.parent / "1 - Projects" / "5 - Personal Admin" / "5 - Routines" / "2 - Briefings"
 STATE_FILE = DATA_DIR / "weekly_briefing_state.json"
 
 TRIGGER_WEEKDAY = 6   # Sunday (Monday=0)

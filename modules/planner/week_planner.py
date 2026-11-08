@@ -19,7 +19,7 @@ from core.config import VAULT_PATH, SYSTEM_PATH
 from core import vault, markdown
 
 
-PLANNER_DIR = SYSTEM_PATH / "Week_Planner"
+PLANNER_DIR = SYSTEM_PATH.parent / "1 - Projects" / "5 - Personal Admin" / "5 - Routines" / "4 - Week Planner"
 
 _DAY_KEYS = [
     "monday", "tuesday", "wednesday",

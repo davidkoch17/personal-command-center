@@ -6,7 +6,7 @@ from modules.projects.activity import recent_files, activity_summary
 from modules.projects.journal import list_decisions
 
 
-WEEKLY_REVIEWS_DIR = SYSTEM_PATH / "Weekly_Reviews"
+WEEKLY_REVIEWS_DIR = SYSTEM_PATH.parent / "1 - Projects" / "5 - Personal Admin" / "5 - Routines" / "5 - Weekly Reviews"
 
 
 def draft_this_week() -> str:

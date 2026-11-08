@@ -6,9 +6,9 @@ from core.config import VAULT_PATH
 from modules.agents.claude_cli import run_claude
 
 
-TEMPLATES_DIR = VAULT_PATH / "99_System" / "Templates" / "idea_validation"
-IDEAS_DIR = VAULT_PATH / "1_Projects" / "98_Ideen"
-CRITERIA_FILE = VAULT_PATH / "99_System" / "Idea_Decision_Criteria.md"
+TEMPLATES_DIR = VAULT_PATH / "99 - System" / "Templates" / "Idea Validation"
+IDEAS_DIR = VAULT_PATH / "1 - Projects" / "8 - Ideas"
+CRITERIA_FILE = VAULT_PATH / "99 - System" / "Idea_Decision_Criteria.md"
 
 # Item #78: headless `claude -p` can't answer permission prompts, so every tool
 # a stage needs must be pre-allowed — otherwise WebSearch is silently denied and
@@ -489,7 +489,7 @@ def kill_idea(idea_name: str, reason: str) -> None:
     folder = idea_folder(idea_name)
     if not folder.exists():
         return
-    killed_dir = IDEAS_DIR / "_killed" / folder.name
+    killed_dir = IDEAS_DIR / "!old" / folder.name
     killed_dir.parent.mkdir(parents=True, exist_ok=True)
     last_exc: Exception | None = None
     for attempt in range(5):
@@ -526,7 +526,7 @@ def list_ideas() -> list[dict]:
 
 
 def list_killed() -> list[dict]:
-    killed_dir = IDEAS_DIR / "_killed"
+    killed_dir = IDEAS_DIR / "!old"
     if not killed_dir.exists():
         return []
     out = []

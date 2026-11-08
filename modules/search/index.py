@@ -6,7 +6,7 @@ import re
 from core.config import VAULT_PATH
 
 SEARCHABLE_EXTENSIONS = {".md", ".txt"}
-EXCLUDE_DIRS = {".obsidian", "9_Archive", "5_OneNote_Library", "00_Inbox"}
+EXCLUDE_DIRS = {".obsidian", "9 - Archive", "0 - Inbox", "!old", "9_Archive", "5_OneNote_Library", "00_Inbox"}
 EXCLUDE_PATTERNS = {".bak"}
 
 

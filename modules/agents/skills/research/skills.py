@@ -63,7 +63,7 @@ STOCK_ANALYSIS = ResearchSkill(
         "monitorables": ["cloud growth", "CMR take-rate", "buyback pace", "reg headlines"],
         "thesis_break_triggers": ["cloud growth <10% two quarters", "new data-localization regime", "buyback paused"],
         "catalysts": [{"label": "Q1 earnings", "date": "2026-08-14"}, {"label": "cloud spinoff decision"}],
-        "report_path": "4_Areas/Investing/Stock_Reports/BABA/2026-06-18_BABA.docx",
+        "report_path": "1_Projects/01_Portfolio_Management/investing_area/Stock_Reports/BABA/2026-06-18_BABA.docx",
         "sources_as_of": "2026-06-18",
     },
 )

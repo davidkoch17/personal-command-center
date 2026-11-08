@@ -12,10 +12,10 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 VAULT_PATH = Path(r"C:\Users\david\OneDrive\David_Work_OS")
-SYSTEM_PATH = VAULT_PATH / "99_System"
-PROJECTS_PATH = VAULT_PATH / "1_Projects"
-INBOX_PATH = VAULT_PATH / "0_Inbox"
-READING_LIST_PATH = VAULT_PATH / "4_Areas" / "Learning" / "Reading_List.md"
+SYSTEM_PATH = VAULT_PATH / "99 - System"
+PROJECTS_PATH = VAULT_PATH / "1 - Projects"
+INBOX_PATH = VAULT_PATH / "0 - Inbox"
+READING_LIST_PATH = VAULT_PATH / "1 - Projects" / "7 - Learning" / "1 - Reading" / "Reading_List.md"
 TASKS_FILE = SYSTEM_PATH / "Task_Command_Center.md"
 PROJECT_INDEX_FILE = SYSTEM_PATH / "Project_Index.md"
 
@@ -32,8 +32,10 @@ TODOS_FILE = Path(
 # --- Finance source file (read-only; single source of truth) ----------------
 # All personal-finance analysis reads from this one workbook. Legacy banking /
 # investment Excel files are NOT used.
+# Moved in the 2026-10-17 vault restructure (was 2_Personal/09_Finance Tracker/).
+PORTFOLIO_PROJECT_PATH = PROJECTS_PATH / "1 - Portfolio Management"
 FINANCE_TRACKER_FILE = (
-    VAULT_PATH / "2_Personal" / "09_Finance Tracker" / "Finance Tracker" / "Finance_Tracker.xlsx"
+    PORTFOLIO_PROJECT_PATH / "1 - Finance Tracker" / "1 - Tracker" / "Finance_Tracker.xlsx"
 )
 
 # Generated data that lives in the repo (NOT the vault).
@@ -164,12 +166,13 @@ BUCKET_DRIFT_WARN = 0.05  # 2–5 pp
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # --- Investing / vault research paths ---------------------------------------
-INVESTING_PATH = VAULT_PATH / "4_Areas" / "Investing"
-HYPOTHESIS_TRACKER_FILE = INVESTING_PATH / "Hypothesis_Tracker.md"
-WATCHLIST_UNIVERSE_FILE = INVESTING_PATH / "Watchlist.md"
-INVESTMENT_PHILOSOPHY_FILE = INVESTING_PATH / "Investment_Philosophy.md"
-MARKET_BRIEFS_DIR = INVESTING_PATH / "Market_Briefs"
-POSITION_NOTES_DIR = INVESTING_PATH / "Position_Notes"
+# Moved in the 2026-10-17 vault restructure (was 4_Areas/Investing/).
+INVESTING_PATH = PORTFOLIO_PROJECT_PATH / "2 - Investing"
+HYPOTHESIS_TRACKER_FILE = INVESTING_PATH / "1 - Notes" / "Hypothesis_Tracker.md"
+WATCHLIST_UNIVERSE_FILE = INVESTING_PATH / "1 - Notes" / "Watchlist.md"
+INVESTMENT_PHILOSOPHY_FILE = INVESTING_PATH / "1 - Notes" / "Investment_Philosophy.md"
+MARKET_BRIEFS_DIR = INVESTING_PATH / "2 - Market Briefs"
+POSITION_NOTES_DIR = INVESTING_PATH / "Position Notes"
 DECISION_LOG_FILE = SYSTEM_PATH / "Decision_Log.md"
 
 # --- Phase C: research engine ------------------------------------------------
@@ -179,20 +182,20 @@ DECISION_LOG_FILE = SYSTEM_PATH / "Decision_Log.md"
 #   Stock_Reports/<TARGET>/<YYYY-MM-DD>_<TARGET>.{docx,json}
 # (stock-analysis uses the bare ticker basename per the v3 spec; other research
 # skills suffix the skill key so same-day reports for one ticker never collide.)
-STOCK_REPORTS_DIR = INVESTING_PATH / "Stock_Reports"
+STOCK_REPORTS_DIR = INVESTING_PATH / "3 - Stock Reports"
 # Declarative catalogue of every skill + agent (repo config, NOT vault).
 SKILLS_REGISTRY_FILE = REPO_ROOT / "config" / "skills_registry.yaml"
 
 # Career / brand workspace anchors.
-CAREER_PATH = VAULT_PATH / "3_Career"
-ONBOARDING_FILE = CAREER_PATH / "05_Current_Job" / "Onboarding.md"
-CAREER_STRATEGY_PATH = CAREER_PATH / "06_Career_Strategy"
+CAREER_PATH = PROJECTS_PATH / "4 - Career"
+ONBOARDING_FILE = CAREER_PATH / "3 - Evercore" / "1 - Vertrag und Onboarding" / "Onboarding.md"
+CAREER_STRATEGY_PATH = CAREER_PATH / "1 - Career Plan"
 PERSONAL_MEMORY_FILE = SYSTEM_PATH / "Personal_Memory.md"
-BRAND_PATH = PROJECTS_PATH / "05_Personal_Brand"
-BRAND_VIDEOS_PATH = BRAND_PATH / "03_Video_Ideas"
+BRAND_PATH = CAREER_PATH / "4 - Personal Brand"
+BRAND_VIDEOS_PATH = BRAND_PATH / "Video Ideas"
 
 # Default save target for generic tax scenarios (real-estate ones go to Immos, etc.).
-STEUERN_SCENARIOS_PATH = VAULT_PATH / "2_Personal" / "03_Steuern" / "Scenarios"
+STEUERN_SCENARIOS_PATH = PROJECTS_PATH / "5 - Personal Admin" / "6 - Steuern" / "Scenarios"
 
 # --- Surplus split (Mehrkontenmodell Phase 1/2) ------------------------------
 # Moved here from frontend/src/components/portfolio/overview-tab.tsx, which

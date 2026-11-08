@@ -3,7 +3,7 @@
 Every research skill shares ONE output contract: a polished ``.docx`` deep-dive
 PLUS a machine-readable ``.json`` sidecar, both saved to
 
-    4_Areas/Investing/Stock_Reports/<TARGET>/<YYYY-MM-DD>_<TARGET>[__skill].{docx,json}
+    1_Projects/01_Portfolio_Management/investing_area/Stock_Reports/<TARGET>/<YYYY-MM-DD>_<TARGET>[__skill].{docx,json}
 
 The dashboard reads the sidecar (never parses Word). This module owns the whole
 pipeline: build the prompt from a :class:`~modules.agents.skills.research.skills.ResearchSkill`,

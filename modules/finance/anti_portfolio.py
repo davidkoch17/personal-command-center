@@ -1,6 +1,6 @@
 """Anti-portfolio — names considered but NOT bought (Phase 15d, Section 14).
 
-Append-only log at ``4_Areas/Investing/Anti_Portfolio.md``. Reviewed annually to
+Append-only log at ``1_Projects/01_Portfolio_Management/investing_area/Anti_Portfolio.md``. Reviewed annually to
 surface skip-bias: the skips that, in hindsight, were mistakes. Each entry
 records the bull/bear case and the reason for passing, with an outcome line to
 fill in 12-24 months later.
@@ -11,11 +11,11 @@ import re
 from datetime import date
 
 from core import vault
-from core.config import VAULT_PATH, get_logger
+from core.config import INVESTING_PATH, VAULT_PATH, get_logger
 
 logger = get_logger(__name__)
 
-ANTI_PORTFOLIO_FILE = VAULT_PATH / "4_Areas" / "Investing" / "Anti_Portfolio.md"
+ANTI_PORTFOLIO_FILE = INVESTING_PATH / "1 - Notes" / "Anti_Portfolio.md"
 
 _HEADER = "# Anti-Portfolio\n\nNames considered but not bought. Reviewed annually for skip-bias.\n"
 

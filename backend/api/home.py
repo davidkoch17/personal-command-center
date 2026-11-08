@@ -293,7 +293,7 @@ def notgroschen() -> dict:
 # --- Brain/System card (Brain_System_Card_Spec.md) --------------------------------
 ACTIVE_BACKLOG_FILE = SYSTEM_PATH / "Active_Backlog.md"
 READING_STATUS_FILE = SYSTEM_PATH / "Reading_Status.md"
-WEEKLY_REVIEWS_DIR = SYSTEM_PATH / "Weekly_Reviews"
+WEEKLY_REVIEWS_DIR = SYSTEM_PATH.parent / "1 - Projects" / "5 - Personal Admin" / "5 - Routines" / "5 - Weekly Reviews"
 
 _UPGRADE_BULLET_RE = re.compile(r"^-\s+([A-Z]+\d+[a-z]?)\s+(.+)$")
 _REVIEW_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")

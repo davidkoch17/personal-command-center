@@ -15,7 +15,7 @@ import frontmatter
 from core.config import BRAND_PATH
 from core.vault import write_md
 
-INSPIRATIONS_PATH = BRAND_PATH / "02_Inspirations"
+INSPIRATIONS_PATH = BRAND_PATH / "2 - Inspirations"
 
 
 def list_inspirations() -> list[dict]:

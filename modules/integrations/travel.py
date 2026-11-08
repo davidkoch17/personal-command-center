@@ -8,7 +8,7 @@ from core.config import VAULT_PATH, get_logger
 
 logger = get_logger(__name__)
 
-TRIPS_FILE = VAULT_PATH / "2_Personal" / "06_Travel" / "Trips.md"
+TRIPS_FILE = VAULT_PATH / "1 - Projects" / "5 - Personal Admin" / "7 - Travel" / "Trips.md"
 
 
 def upcoming_trips() -> list[dict]:

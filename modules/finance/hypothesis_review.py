@@ -11,11 +11,11 @@ from __future__ import annotations
 import re
 
 from core import vault
-from core.config import VAULT_PATH, get_logger
+from core.config import INVESTING_PATH, VAULT_PATH, get_logger
 
 logger = get_logger(__name__)
 
-HYPOTHESIS_FILE = VAULT_PATH / "4_Areas" / "Investing" / "Hypothesis_Tracker.md"
+HYPOTHESIS_FILE = INVESTING_PATH / "1 - Notes" / "Hypothesis_Tracker.md"
 
 
 def hit_rate_review(quarters_back: int = 4) -> dict:

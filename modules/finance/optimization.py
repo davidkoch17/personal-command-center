@@ -382,9 +382,9 @@ def hypotheses_as_views() -> list[dict]:
     Each view: ``{ticker, expected_return, confidence, derived, label}``.
     """
     from core import vault
-    from core.config import VAULT_PATH
+    from core.config import INVESTING_PATH
 
-    path = VAULT_PATH / "4_Areas" / "Investing" / "Hypothesis_Tracker.md"
+    path = INVESTING_PATH / "1 - Notes" / "Hypothesis_Tracker.md"
     if not path.exists():
         return []
     text = vault.read_md(path)

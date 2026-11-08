@@ -30,7 +30,7 @@ PILLAR_TASK_LABELS = {
     "06": "Immos",
 }
 
-BRIEFINGS_DIR = VAULT_PATH / "99_System" / "Briefings"
+BRIEFINGS_DIR = VAULT_PATH / "1 - Projects" / "5 - Personal Admin" / "5 - Routines" / "2 - Briefings"
 
 
 def _phase(status_text: str) -> str | None:
@@ -205,7 +205,7 @@ def project_workspace(project_id: str) -> dict:
     proj = by_id.get(project_id)
     if proj is None:
         # Full folder name like "03_Project_Ulli_Acebuche" → match by prefix.
-        prefix = project_id.split("_", 1)[0]
+        prefix = re.split(r"[_ ]", project_id, 1)[0]
         proj = by_id.get(prefix)
     if proj is None:
         raise HTTPException(status_code=404, detail=f"Unknown project id: {project_id}")

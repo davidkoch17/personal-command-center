@@ -14,7 +14,7 @@ from datetime import datetime
 from core.config import BRAND_PATH
 from core.vault import write_md
 
-EDITS_PATH = BRAND_PATH / "05_Edits"
+EDITS_PATH = BRAND_PATH / "4 - Edits"
 EDIT_QUEUE_FILE = EDITS_PATH / "_Edit_Queue.md"
 
 _HEADER = (

@@ -4,7 +4,7 @@ import re
 from core.config import PROJECTS_PATH
 
 
-IDEEN_PATH = PROJECTS_PATH / "98_Ideen"
+IDEEN_PATH = PROJECTS_PATH / "8 - Ideas"
 
 
 def list_ideas() -> list[dict]:

@@ -1,7 +1,7 @@
 """Decision journal — structured buy/sell/decision logs (Phase 15d, Category H).
 
 One Markdown file per decision under
-``4_Areas/Investing/Decision_Journal/YYYY-MM-DD_<ticker>_<action>.md`` in the
+``1_Projects/01_Portfolio_Management/investing_area/Decision_Journal/YYYY-MM-DD_<ticker>_<action>.md`` in the
 vault. Each file captures the full pre-trade structure (thesis, conviction,
 emotion, expected outcome, risks, pre-mortem) plus a retrospective section that
 is filled in 3-6 months later. The whole point is to make David's decisions
@@ -19,11 +19,11 @@ from datetime import date, datetime
 from pathlib import Path
 
 from core import vault
-from core.config import VAULT_PATH, get_logger
+from core.config import INVESTING_PATH, VAULT_PATH, get_logger
 
 logger = get_logger(__name__)
 
-JOURNAL_DIR = VAULT_PATH / "4_Areas" / "Investing" / "Decision_Journal"
+JOURNAL_DIR = INVESTING_PATH / "Decision Journal"
 
 
 def log_decision(

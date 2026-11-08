@@ -2,7 +2,7 @@
 
 Nine background research skills, all sharing one output contract — a polished
 ``.docx`` deep-dive + a machine-readable ``.json`` sidecar saved under
-``4_Areas/Investing/Stock_Reports/<TARGET>/``. The dashboard reads the sidecar;
+``1_Projects/01_Portfolio_Management/investing_area/Stock_Reports/<TARGET>/``. The dashboard reads the sidecar;
 it never parses Word.
 
 Public callables (the SKILL_REGISTRY entry points) are re-exported here so the

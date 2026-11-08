@@ -1,13 +1,13 @@
-"""Parse 4_Areas/Investing/Watchlist.md into a structured universe."""
+"""Parse 1_Projects/01_Portfolio_Management/investing_area/Watchlist.md into a structured universe."""
 from __future__ import annotations
 
 import re
 
-from core.config import VAULT_PATH, get_logger
+from core.config import INVESTING_PATH, VAULT_PATH, get_logger
 
 logger = get_logger(__name__)
 
-WATCHLIST_PATH = VAULT_PATH / "4_Areas" / "Investing" / "Watchlist.md"
+WATCHLIST_PATH = INVESTING_PATH / "1 - Notes" / "Watchlist.md"
 
 # Matches a ticker inside parentheses, e.g. "Apple (AAPL)" -> AAPL,
 # "EUR/USD (EURUSD=X)" -> EURUSD=X, "S&P 500 (^GSPC)" -> ^GSPC.

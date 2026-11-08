@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from core.config import VAULT_PATH
 
 
-EXCLUDE_DIRS = {".obsidian", "0_Inbox", "00_Inbox", "9_Archive", "5_OneNote_Library", "OneNote", "Work_OS", "8_Others"}
+EXCLUDE_DIRS = {".obsidian", "0 - Inbox", "9 - Archive", "!old", "0_Inbox", "00_Inbox", "9_Archive", "5_OneNote_Library", "OneNote", "Work_OS", "8_Others"}
 EXCLUDE_PATTERNS = {".bak", ".tmp"}
 
 

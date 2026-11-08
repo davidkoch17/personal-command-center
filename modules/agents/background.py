@@ -10,7 +10,7 @@ from datetime import datetime
 from core.config import VAULT_PATH, REPO_ROOT
 
 
-BG_LOG_DIR = VAULT_PATH / "99_System" / "Background_Runs"
+BG_LOG_DIR = VAULT_PATH / "1 - Projects" / "5 - Personal Admin" / "5 - Routines" / "1 - Background Runs"
 
 
 def _ensure_dirs():

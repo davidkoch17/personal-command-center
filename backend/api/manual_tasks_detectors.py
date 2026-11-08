@@ -20,7 +20,7 @@ from core.config import SYSTEM_PATH, get_logger
 logger = get_logger(__name__)
 
 READING_STATUS_FILE = SYSTEM_PATH / "Reading_Status.md"
-WEEKLY_REVIEWS_DIR = SYSTEM_PATH / "Weekly_Reviews"
+WEEKLY_REVIEWS_DIR = SYSTEM_PATH.parent / "1 - Projects" / "5 - Personal Admin" / "5 - Routines" / "5 - Weekly Reviews"
 
 # Markers in the Book: line that mean "template not filled in yet".
 _PLACEHOLDER_MARKERS = ("[TBD", "[FILL")

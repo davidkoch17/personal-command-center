@@ -13,11 +13,11 @@ import re
 import pandas as pd
 
 from core import vault
-from core.config import VAULT_PATH, get_logger
+from core.config import INVESTING_PATH, VAULT_PATH, get_logger
 
 logger = get_logger(__name__)
 
-WATCHLIST_FILE = VAULT_PATH / "4_Areas" / "Investing" / "Watchlist.md"
+WATCHLIST_FILE = INVESTING_PATH / "1 - Notes" / "Watchlist.md"
 
 # Benchmark for beta (kept here so the API + frontend agree on the reference).
 BETA_BENCHMARK = "^GSPC"

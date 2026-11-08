@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import date
 from core.config import VAULT_PATH
 
-JOURNAL_DIR = VAULT_PATH / "4_Areas" / "Health_Fitness" / "Journal"
+JOURNAL_DIR = VAULT_PATH / "1 - Projects" / "5 - Personal Admin" / "4 - Health and Fitness" / "Journal"
 JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
 
 

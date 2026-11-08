@@ -7,7 +7,13 @@ from core.config import PROJECTS_PATH, VAULT_PATH
 
 
 PRIORITY_EXTENSIONS = [".docx", ".pptx", ".xlsx", ".md", ".pdf"]
-EXCLUDE_DIRS = {"_archive", "9_Archive", "Archive", "_drafts"}
+def _num(name):
+    """Leading project number of a folder name ("03_X", "3 - X", "03") or None."""
+    m = re.match(r"^(\d+)", str(name))
+    return int(m.group(1)) if m else None
+
+
+EXCLUDE_DIRS = {"_archive", "9_Archive", "9 - Archive", "Archive", "_drafts", "!old", "Others"}
 
 # A milestone bullet: "- YYYY-MM-DD (optional day note): text" — the parenthetical
 # and the separator (":", "-", "—") are all optional/flexible.
@@ -27,7 +33,7 @@ def project_root(project_id: str) -> Path:
     resolve to the same place.
     """
     for d in sorted(PROJECTS_PATH.iterdir()):
-        if d.is_dir() and (d.name == project_id or d.name.startswith(project_id + "_")):
+        if d.is_dir() and (d.name == project_id or d.name.startswith(project_id + "_") or _num(d.name) == _num(project_id)):
             return d
     raise FileNotFoundError(f"No project with prefix {project_id}")
 
@@ -308,16 +314,16 @@ def create_project(name: str, flow: str, seed: str = "") -> Path:
     RAG-status entry there during the Weekly Review.
     """
     safe = "".join(c if c.isalnum() or c in " _-&" else "" for c in name).strip()
-    safe = re.sub(r"\s+", "_", safe) or "Untitled"
+    safe = re.sub(r"[\s_]+", " ", safe).strip() or "Untitled"
     # Next free 2-digit index among existing NN_ folders.
     used = set()
     for d in PROJECTS_PATH.iterdir():
-        if d.is_dir() and len(d.name) >= 2 and d.name[:2].isdigit():
-            used.add(int(d.name[:2]))
+        if d.is_dir() and _num(d.name) is not None:
+            used.add(_num(d.name))
     nn = 1
     while nn in used:
         nn += 1
-    folder = PROJECTS_PATH / f"{nn:02d}_{safe}"
+    folder = PROJECTS_PATH / f"{nn} - {safe}"
     folder.mkdir(parents=True, exist_ok=False)
     readme = folder / "README.md"
     seed_block = f"\n{seed.strip()}\n" if seed.strip() else "\n"

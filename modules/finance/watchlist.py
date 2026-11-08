@@ -1,7 +1,7 @@
 """Watchlist — single source of truth is the vault ``Watchlist.md``.
 
 As of Phase 16 the watchlist universe lives entirely in
-``4_Areas/Investing/Watchlist.md`` (the same file the Market Researcher agent
+``1_Projects/01_Portfolio_Management/investing_area/Watchlist.md`` (the same file the Market Researcher agent
 reads), parsed into a tier + theme-section structure. The dashboard reads and
 appends to that markdown directly so the agent and the UI can never drift.
 

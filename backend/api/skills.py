@@ -86,7 +86,7 @@ SKILL_REGISTRY: dict[str, tuple[str, str, list[tuple[str, object]]]] = {
     "bill_forecaster": ("modules.finance.money_skills", "bill_forecaster", []),
     # Research skills (Phase C) — all run in the background via the SAME runner
     # infra as Idea Validation; each emits a .docx + .json sidecar into the
-    # Reports library (4_Areas/Investing/Stock_Reports/<TARGET>/).
+    # Reports library (1_Projects/01_Portfolio_Management/investing_area/Stock_Reports/<TARGET>/).
     "stock_analysis": (
         "modules.agents.skills.research", "stock_analysis",
         [("ticker", _REQUIRED), ("name", "")],

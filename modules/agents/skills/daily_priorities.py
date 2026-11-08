@@ -21,7 +21,7 @@ from modules.agents.claude_cli import run_claude
 
 logger = get_logger(__name__)
 
-DAILY_DIR = SYSTEM_PATH / "Daily_Todos"
+DAILY_DIR = SYSTEM_PATH.parent / "1 - Projects" / "5 - Personal Admin" / "5 - Routines" / "3 - Daily Todos"
 
 _README = """# Daily Todos
 

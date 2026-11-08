@@ -13,7 +13,7 @@ from modules.projects import workspace
 
 router = APIRouter()
 
-ARCHIVE_DIR = VAULT_PATH / "9_Archive" / "Inbox_Archive"
+ARCHIVE_DIR = VAULT_PATH / "9 - Archive" / "Inbox Archive"
 
 
 def _inbox_path(filename: str):

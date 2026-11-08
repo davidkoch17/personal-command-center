@@ -23,7 +23,7 @@ def _safe_ticker(ticker: str) -> str:
 
 
 def position_note_path(ticker: str) -> Path:
-    """Path to the per-ticker research note (4_Areas/Investing/Position_Notes/<TICKER>.md)."""
+    """Path to the per-ticker research note (1_Projects/01_Portfolio_Management/investing_area/Position_Notes/<TICKER>.md)."""
     return POSITION_NOTES_DIR / f"{_safe_ticker(ticker)}.md"
 
 

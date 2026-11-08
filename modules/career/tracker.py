@@ -17,7 +17,7 @@ from pathlib import Path
 from core import vault
 from core.config import CAREER_PATH
 
-CURRENT_JOB_DIR = CAREER_PATH / "05_Current_Job"
+CURRENT_JOB_DIR = CAREER_PATH / "3 - Evercore" / "1 - Vertrag und Onboarding"
 ONBOARDING_FILE = CURRENT_JOB_DIR / "Onboarding.md"
 TECHNICALS_FILE = CURRENT_JOB_DIR / "Technicals_Tracker.md"
 

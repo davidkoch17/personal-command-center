@@ -14,14 +14,14 @@ import logging
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
-from core.config import VAULT_PATH, get_logger
+from core.config import INVESTING_PATH, VAULT_PATH, get_logger
 from modules.agents import data_sources
 from modules.agents.claude_cli import run_claude
 from modules.agents.watchlist_loader import load_universe
 
 logger = get_logger(__name__)
 
-INVESTING_DIR = VAULT_PATH / "4_Areas" / "Investing"
+INVESTING_DIR = INVESTING_PATH
 BRIEFS_DIR = INVESTING_DIR / "Market_Briefs"
 TWEETS_DIR = INVESTING_DIR / "Captured_Tweets"
 HYPOTHESIS_FILE = INVESTING_DIR / "Hypothesis_Tracker.md"
