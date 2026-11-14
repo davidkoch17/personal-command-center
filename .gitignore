@@ -73,3 +73,7 @@ Thumbs.db
 # but are large and downloaded per-machine (see backend/voice/piper/README.md).
 backend/voice/piper/*
 !backend/voice/piper/README.md
+
+# To-do reminders state + transient screenshot uploads (modules/todos).
+data/todo_reminder_state.json
+data/todo_imports/

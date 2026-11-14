@@ -38,7 +38,12 @@ Local Streamlit dashboard for David. Reads his Obsidian vault from OneDrive; ren
 - Task: `id` (slug), `title`, `area`, `priority` (1–3), `status` (`open` | `in_progress` | `waiting` | `done`), `due` (`YYYY-MM-DD` oder `null`), `notes`, `subtasks[ {title, done, priority?} ]`.
 - Areas aktuell: Banking, Wohnung, Versicherung, Rechnungen, Business, Career, Investing, Other.
 - Der Store erzwingt beides: `priority` (Task + Subtask) nur 1–3, `area` nur aus `AREAS` in `modules/todos/store.py` (neue Tasks ohne Area → `Other`). Neue Area = dort ergänzen; die UI-Auswahl kommt per API mit. Geprüft wird nur das gerade geänderte Feld, damit Altbestand einen Status-Toggle nie blockiert.
+- Optional: `session: true` = Task steht auf der "Working session"-Liste (oben im To-dos-Tab; Quick-Add legt Tasks direkt dort an). Fehlt das Feld, ist der Task nicht in der Session.
 - Unbekannte Felder (auf Datei-, Task- und Subtask-Ebene) nie löschen.
+
+### 2b. Erinnerungen und Screenshot-Import
+- Fällige To-dos: jeden Abend 18:00 ein Push aufs iPhone via ntfy (`modules/todos/reminders.py`, Lifespan-Loop, holt verpasste Läufe beim nächsten Start nach). Inhalt: überfällig / heute / morgen / nächste 7 Tage, nur Titel + Datum. Konfig: `NTFY_TOPIC` (+ optional `NTFY_SERVER`) in `.env`; Status + Testknopf unter Settings → to-do reminders.
+- Screenshot einfügen (Strg+V im To-dos-Tab, oder "from screenshot"): Claude liest das Bild (`modules/todos/screenshot.py`, `claude -p` mit Read-Tool) und schlägt Tasks vor; erst nach Bestätigung schreibt `store.create_tasks` alles in einem Schritt.
 
 ### 3. Schreibregeln (gelten für jede Änderung, auch manuell)
 - Immer über `modules/todos/store.py` schreiben (`create_task`, `update_task`, `set_subtask_done`, `delete_task`): Datei frisch lesen → gezielt ändern → Backup `todos.backup.json` → `updated` setzen → atomar schreiben.

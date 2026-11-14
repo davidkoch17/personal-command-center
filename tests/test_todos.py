@@ -141,3 +141,60 @@ def test_unknown_id_raises_keyerror(todos_file):
 def test_delete(todos_file):
     store.delete_task("konto")
     assert _read(todos_file)["tasks"] == []
+
+
+# --- Working session, batch create ----------------------------------------------
+def test_session_flag_set_and_cleared(todos_file):
+    store.update_task("konto", {"session": True})
+    assert _read(todos_file)["tasks"][0]["session"] is True
+    store.update_task("konto", {"session": False})
+    assert "session" not in _read(todos_file)["tasks"][0]
+
+
+def test_create_tasks_batch_is_all_or_nothing(todos_file):
+    created = store.create_tasks([{"title": "A"}, {"title": "B", "session": True}])
+    assert [t["id"] for t in created] == ["a", "b"]
+    assert _read(todos_file)["tasks"][-1]["session"] is True
+    with pytest.raises(store.TodoError):
+        store.create_tasks([{"title": "C"}, {"title": "D", "area": "Nope"}])
+    assert [t["id"] for t in _read(todos_file)["tasks"]] == ["konto", "a", "b"]
+
+
+# --- Reminders digest --------------------------------------------------------------
+def test_digest_groups_and_formats():
+    from datetime import date
+    from modules.todos import reminders
+    today = date(2026, 11, 14)
+    tasks = [
+        {"title": "Late", "status": "open", "due": "2026-11-10"},
+        {"title": "Now", "status": "open", "due": "2026-11-14"},
+        {"title": "Tmrw", "status": "waiting", "due": "2026-11-15"},
+        {"title": "Week", "status": "open", "due": "2026-11-20"},
+        {"title": "Far", "status": "open", "due": "2026-12-30"},
+        {"title": "Done", "status": "done", "due": "2026-11-14"},
+        {"title": "Undated", "status": "open", "due": None},
+    ]
+    g = reminders.build_digest(tasks, today)
+    assert [i["title"] for i in g["overdue"]] == ["Late"]
+    assert [i["title"] for i in g["today"]] == ["Now"]
+    assert [i["title"] for i in g["tomorrow"]] == ["Tmrw"]
+    assert [i["title"] for i in g["soon"]] == ["Week"]
+    title, body = reminders.format_digest(g)
+    assert "3 dringend" in title and "• Late (4d)" in body and "• Week (20.11.)" in body
+    assert reminders.format_digest(reminders.build_digest([], today)) is None
+
+
+# --- Screenshot import parsing ------------------------------------------------------
+def test_screenshot_answer_parsing_and_cleaning():
+    from modules.todos import screenshot
+    answer = 'Here you go:\n```json\n[{"title": "Lampen kaufen", "area": "Wohnung", "priority": 5, ' \
+             '"due": "2026-11-20", "subtasks": ["IKEA"], "done": false}, ' \
+             '{"title": "", "area": "X"}, {"title": "Steuer", "area": "Steuern", "due": "morgen"}]\n```'
+    items = [p for p in map(screenshot._clean, screenshot._parse_json_array(answer)) if p]
+    assert items[0] == {"title": "Lampen kaufen", "area": "Wohnung", "priority": 3, "due": "2026-11-20",
+                        "subtasks": [{"title": "IKEA", "done": False}], "done_in_image": False}
+    assert items[1]["area"] == "Other" and items[1]["due"] is None and len(items) == 2
+    with pytest.raises(store.TodoError):
+        screenshot._parse_json_array("sorry, I can't read that")
+    with pytest.raises(store.TodoError):
+        screenshot.extract_todos("not-base64!!", "image/png")

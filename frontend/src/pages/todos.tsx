@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { ChevronDown, ChevronRight, Pencil, Plus, Trash2, X } from "lucide-react"
+import { ChevronDown, ChevronRight, Pencil, Plus, Target, Trash2, X } from "lucide-react"
 import { Panel } from "@/components/ui/panel"
 import { Tag } from "@/components/ui/tag"
 import { Button } from "@/components/ui/button"
@@ -38,6 +38,8 @@ import {
 } from "@/hooks/useTodos"
 import { cn } from "@/lib/utils"
 import { DueTag } from "@/components/todos/due"
+import { SessionPanel } from "@/components/todos/session-panel"
+import { ScreenshotImport } from "@/components/todos/screenshot-import"
 
 const STATUS_LABEL: Record<TodoStatus, string> = {
   open: "open",
@@ -124,6 +126,16 @@ function TodoCard({ task, onEdit }: { task: Todo; onEdit: (t: Todo) => void }) {
             </span>
           </span>
         </button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => update.mutate({ id: task.id, fields: { session: !task.session } })}
+          aria-label={task.session ? "remove from working session" : "add to working session"}
+          title={task.session ? "in working session — click to remove" : "add to working session"}
+          className={cn(task.session && "text-accent")}
+        >
+          <Target className="h-3.5 w-3.5" />
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => onEdit(task)} aria-label="edit">
           <Pencil className="h-3.5 w-3.5" />
         </Button>
@@ -164,6 +176,27 @@ function TodoCard({ task, onEdit }: { task: Todo; onEdit: (t: Todo) => void }) {
               ))}
             </div>
           )}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="label">due</span>
+            <Input
+              type="date"
+              mono
+              value={task.due ?? ""}
+              onChange={(e) => update.mutate({ id: task.id, fields: { due: e.target.value || null } })}
+              className="h-8 w-40"
+              aria-label="due date"
+            />
+            {task.due && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => update.mutate({ id: task.id, fields: { due: null } })}
+              >
+                clear
+              </Button>
+            )}
+            <span className="text-xs text-text-label">due to-dos are pushed to your phone at 18:00</span>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="label">status</span>
             <Toggle
@@ -447,10 +480,15 @@ export function Todos() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="page-title">to-dos</h1>
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-3.5 w-3.5" /> new task
-        </Button>
+        <div className="flex items-center gap-2">
+          <ScreenshotImport areas={allAreas} />
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="h-3.5 w-3.5" /> new task
+          </Button>
+        </div>
       </div>
+
+      {data && <SessionPanel tasks={tasks} />}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="w-44">

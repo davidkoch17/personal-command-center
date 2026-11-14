@@ -17,7 +17,7 @@ import { useSystemStatus, useClearCache, useSystemConfig, useCheckpoints } from 
 import { useDiagnostics } from "@/hooks/useDiagnostics"
 import { useFinanceDiagnostics } from "@/hooks/useFinance"
 import { useTheme } from "@/hooks/useTheme"
-import { useTodos } from "@/hooks/useTodos"
+import { useSendTestReminder, useTodoReminders, useTodos } from "@/hooks/useTodos"
 import { openInOs } from "@/lib/open-in-os"
 import { toast } from "@/lib/toast-store"
 
@@ -74,6 +74,9 @@ export function Settings() {
 
       {/* 3b. Voice (Jarvis) */}
       <VoiceSection />
+
+      {/* 3c. To-do push reminders (ntfy) */}
+      <RemindersSection />
 
       {/* 4. Theme */}
       <ThemeSection />
@@ -186,6 +189,61 @@ function V3ConfigSection() {
       <p className="mt-2 text-xs text-text-label">
         active config values (read-only) — capture paths &amp; snapshot time are code / task-scheduler constants.
       </p>
+    </Panel>
+  )
+}
+
+/** To-do due-date push reminders via ntfy (modules/todos/reminders.py). */
+function RemindersSection() {
+  const { data, isLoading } = useTodoReminders()
+  const test = useSendTestReminder()
+  return (
+    <Panel
+      title="to-do reminders"
+      statusDotColor={data?.configured ? "success" : "warning"}
+      meta={data ? `daily ${data.trigger}` : undefined}
+    >
+      {isLoading || !data ? (
+        <Skeleton className="h-16 w-full" />
+      ) : (
+        <div className="space-y-3 text-sm">
+          {data.configured ? (
+            <p className="text-text-secondary">
+              Every evening at {data.trigger}, open to-dos that are overdue, due today, tomorrow
+              or within 7 days are pushed to the ntfy app. Subscribe to topic{" "}
+              <span className="font-code text-xs text-text">{data.topic}</span> in the ntfy iPhone
+              app (server {data.server}). Only titles and dates are sent, never notes.
+            </p>
+          ) : (
+            <p className="text-warning">Set NTFY_TOPIC in .env and restart the backend.</p>
+          )}
+          <div className="text-xs text-text-label">
+            last sent: {data.last_run ? data.last_run.slice(0, 16).replace("T", " ") : "never"} ·
+            next: {data.next_run.slice(0, 16).replace("T", " ")}
+          </div>
+          <div className="rounded bg-bg px-3 py-2">
+            <div className="label mb-1">tonight's push</div>
+            {data.preview ? (
+              <>
+                <div className="font-medium text-text">{data.preview.title}</div>
+                <pre className="mt-1 whitespace-pre-wrap font-sans text-xs text-text-secondary">
+                  {data.preview.body}
+                </pre>
+              </>
+            ) : (
+              <span className="text-xs text-text-secondary">nothing due — no push tonight</span>
+            )}
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!data.configured || test.isPending}
+            onClick={() => test.mutate()}
+          >
+            send test push now
+          </Button>
+        </div>
+      )}
     </Panel>
   )
 }

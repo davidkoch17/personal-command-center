@@ -28,6 +28,10 @@ TODOS_FILE = Path(
         str(PROJECTS_PATH / "5 - Personal Admin" / "5 - Routines" / "todos.json"),
     )
 )
+# Due-date push reminders via ntfy (modules/todos/reminders.py). The topic name
+# is the only secret — anyone who knows it can read the pushes. Empty = off.
+NTFY_TOPIC = os.getenv("NTFY_TOPIC", "").strip()
+NTFY_SERVER = os.getenv("NTFY_SERVER", "https://ntfy.sh").strip()
 
 # --- Finance source file (read-only; single source of truth) ----------------
 # All personal-finance analysis reads from this one workbook. Legacy banking /

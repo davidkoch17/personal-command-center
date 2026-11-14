@@ -232,31 +232,52 @@ def _apply_fields(task: dict[str, Any], fields: dict[str, Any]) -> None:
         task["notes"] = str(fields["notes"] or "")
     if "subtasks" in fields and fields["subtasks"] is not None:
         task["subtasks"] = _merge_subtasks(task.get("subtasks") or [], fields["subtasks"])
+    if "session" in fields:
+        # Optional flag: task is on the "working session" list. Stored only
+        # when true so untouched tasks keep the plain schema.
+        if fields["session"]:
+            task["session"] = True
+        else:
+            task.pop("session", None)
     # Only the fields being changed — pre-existing content never blocks an edit.
     _check_sensitive(*(task.get(k) for k in ("title", "notes", "area") if k in fields))
 
 
 # --- Public operations -------------------------------------------------------
+def _new_task(doc: dict[str, Any], fields: dict[str, Any]) -> dict[str, Any]:
+    """Build, validate and append one task to ``doc`` (no I/O)."""
+    task: dict[str, Any] = {
+        "id": "",
+        "title": "",
+        "area": DEFAULT_AREA,
+        "priority": 2,
+        "status": "open",
+        "due": None,
+        "notes": "",
+        "subtasks": [],
+    }
+    _apply_fields(task, {"subtasks": [], **fields})
+    if not task["title"]:
+        raise TodoError("title is required")
+    task["id"] = _unique_id(doc, task["title"])
+    doc["tasks"].append(task)
+    logger.info("todos: created %s", task["id"])
+    return task
+
+
 def create_task(fields: dict[str, Any]) -> dict[str, Any]:
     """Add a task; returns it (with its generated id)."""
-    def op(doc: dict[str, Any]) -> dict[str, Any]:
-        task: dict[str, Any] = {
-            "id": "",
-            "title": "",
-            "area": DEFAULT_AREA,
-            "priority": 2,
-            "status": "open",
-            "due": None,
-            "notes": "",
-            "subtasks": [],
-        }
-        _apply_fields(task, {"subtasks": [], **fields})
-        task["id"] = _unique_id(doc, task["title"])
-        doc["tasks"].append(task)
-        logger.info("todos: created %s", task["id"])
-        return task
+    return _mutate(lambda doc: _new_task(doc, fields))
 
-    return _mutate(op)
+
+def create_tasks(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add several tasks in ONE read-modify-write (e.g. a screenshot import).
+
+    All-or-nothing: if any item is invalid, nothing is written.
+    """
+    if not items:
+        return []
+    return _mutate(lambda doc: [_new_task(doc, f) for f in items])
 
 
 def update_task(task_id: str, fields: dict[str, Any]) -> dict[str, Any]:

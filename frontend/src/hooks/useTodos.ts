@@ -21,6 +21,7 @@ export interface Todo {
   due: string | null
   notes: string
   subtasks: TodoSubtask[]
+  session?: boolean // on the "working session" list
 }
 
 export interface TodosResponse {
@@ -91,4 +92,55 @@ export function useDeleteTodo() {
     (id: string) => api.delete(`/api/todos/${encodeURIComponent(id)}`),
     "could not delete task",
   )
+}
+
+/** Create several tasks in one write (screenshot import). */
+export function useCreateTodos() {
+  return useTodoMutation(
+    (tasks: TodoFields[]) => api.post<{ created: Todo[] }>("/api/todos/batch", { tasks }),
+    "could not add tasks",
+  )
+}
+
+export interface TodoProposal {
+  title: string
+  area: string
+  priority: number
+  due: string | null
+  subtasks: TodoSubtask[]
+  done_in_image: boolean
+}
+
+/** Send a screenshot to Claude; returns proposed tasks (nothing is saved). */
+export function useImportTodoImage() {
+  return useMutation({
+    mutationFn: (img: { image_base64: string; mime: string }) =>
+      api.post<{ proposals: TodoProposal[] }>("/api/todos/import-image", img),
+    onError: (err) => toast.error("could not read the screenshot", errorDetail(err)),
+  })
+}
+
+export interface ReminderStatus {
+  configured: boolean
+  server: string
+  topic: string | null
+  trigger: string
+  last_run: string | null
+  next_run: string
+  preview: { title: string; body: string } | null
+}
+
+export function useTodoReminders() {
+  return useQuery({
+    queryKey: ["todos", "reminders"],
+    queryFn: () => api.get<ReminderStatus>("/api/todos/reminders"),
+  })
+}
+
+export function useSendTestReminder() {
+  return useMutation({
+    mutationFn: () => api.post<{ sent: boolean; title?: string }>("/api/todos/reminders/test"),
+    onSuccess: (r) => toast.success("push sent", r.title),
+    onError: (err) => toast.error("push failed", errorDetail(err)),
+  })
 }
