@@ -14,18 +14,28 @@ import logging
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
-from core.config import INVESTING_PATH, VAULT_PATH, get_logger
+from core.config import (
+    HYPOTHESIS_TRACKER_FILE,
+    INVESTING_PATH,
+    INVESTMENT_PHILOSOPHY_FILE,
+    MARKET_BRIEFS_DIR,
+    VAULT_PATH,
+    get_logger,
+)
 from modules.agents import data_sources
 from modules.agents.claude_cli import run_claude
 from modules.agents.watchlist_loader import load_universe
 
 logger = get_logger(__name__)
 
+# Paths come from core/config.py so they follow vault restructures (the old
+# hardcoded "Market_Briefs" / root-level tracker paths broke silently after the
+# Oct-2026 restructure: the agent read empty context and wrote orphan files).
 INVESTING_DIR = INVESTING_PATH
-BRIEFS_DIR = INVESTING_DIR / "Market_Briefs"
-TWEETS_DIR = INVESTING_DIR / "Captured_Tweets"
-HYPOTHESIS_FILE = INVESTING_DIR / "Hypothesis_Tracker.md"
-PHILOSOPHY_FILE = INVESTING_DIR / "Investment_Philosophy.md"
+BRIEFS_DIR = MARKET_BRIEFS_DIR
+TWEETS_DIR = INVESTING_DIR / "Captured_Tweets"  # optional input; read only if present
+HYPOTHESIS_FILE = HYPOTHESIS_TRACKER_FILE
+PHILOSOPHY_FILE = INVESTMENT_PHILOSOPHY_FILE
 
 
 # ---------------------------------------------------------------------------
@@ -258,9 +268,7 @@ def next_run_datetime(now: datetime | None = None) -> datetime:
 # ---------------------------------------------------------------------------
 def run() -> Path:
     """Full agent run. Returns the path of the brief file written."""
-    INVESTING_DIR.mkdir(parents=True, exist_ok=True)
     BRIEFS_DIR.mkdir(parents=True, exist_ok=True)
-    TWEETS_DIR.mkdir(parents=True, exist_ok=True)
 
     logger.info("Market Researcher: loading universe")
     universe = load_universe()

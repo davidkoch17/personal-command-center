@@ -63,8 +63,25 @@ def run_claude(
         encoding="utf-8",
     )
     if result.returncode != 0:
-        raise RuntimeError(f"claude -p failed: {result.stderr}")
+        raise RuntimeError(_failure_message(result))
     return result.stdout
+
+
+def _failure_message(result: subprocess.CompletedProcess) -> str:
+    """Build an error that names the real cause.
+
+    The CLI prints some fatal errors (e.g. "Failed to authenticate: OAuth
+    session expired") on **stdout** and only warnings on stderr — logging
+    stderr alone hid an expired login behind an unrelated settings warning
+    for weeks (Nov 2026). Include both, stdout first.
+    """
+    out = (result.stdout or "").strip()
+    err = (result.stderr or "").strip()
+    hint = ""
+    if "authenticate" in out.lower() or "oauth" in out.lower():
+        hint = " → run `claude` in a terminal and `/login` to renew the Max session."
+    parts = [p for p in (f"stdout: {out[:500]}" if out else "", f"stderr: {err[:500]}" if err else "") if p]
+    return f"claude -p failed (exit {result.returncode}){hint} " + " | ".join(parts)
 
 
 def run_claude_with_files(prompt: str, file_paths: list[Path], timeout: int = 600) -> str:
