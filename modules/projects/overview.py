@@ -329,6 +329,24 @@ def _vault_rel(p: Path) -> str | None:
         return None
 
 
+def _parse_intro(body: list[str]) -> dict[str, Any]:
+    """Text between the frontmatter and the first ``##``: the ``> `` blurb and
+    nav lines such as ``↩ [[Home]]`` (the ``# Title`` line itself is skipped)."""
+    quote: list[str] = []
+    nav: list[str] = []
+    for line in body:
+        s = line.strip()
+        if s.startswith("## "):
+            break
+        if not s or s.startswith("# ") or s == "---":
+            continue
+        if s.startswith(">"):
+            quote.append(s.lstrip(">").strip())
+        else:
+            nav.append(s)
+    return {"quote": [q for q in quote if q], "nav": nav}
+
+
 def parse_overview(text: str, folder: Path | None = None, today: date | None = None) -> dict[str, Any]:
     """Parse an ``_overview.md`` text into its frontmatter + sections. Never raises."""
     meta, body, offset = _split_frontmatter(text or "")
@@ -341,6 +359,7 @@ def parse_overview(text: str, folder: Path | None = None, today: date | None = N
         "updated": _iso(meta.get("updated")),
         "next_action": str(meta.get("next_action")).strip() if meta.get("next_action") else None,
         "review_by": _iso(meta.get("review_by")),
+        "intro": _parse_intro(body),
         "sections_present": sorted(secs.keys()),
         "status_section": _parse_status(secs.get("status")),
         "open": _parse_open(secs.get("open")),

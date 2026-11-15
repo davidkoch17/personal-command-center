@@ -22,8 +22,10 @@ review_by: 2026-11-10
 ---
 
 # Beispielprojekt – Overview
+↩ [[Home]]
 
-> Intro-Text, der ignoriert wird.
+> Intro-Text
+> zweite Zeile
 
 ## 🧭 Status
 **Was gerade läuft:** Vertrag wird geprüft.
@@ -99,6 +101,7 @@ def test_parse_frontmatter_and_sections(project: Path) -> None:
     assert data["status_section"]["next_action"] == "Anna anrufen."
     assert "kein Widerruf" in data["notes_md"]
     assert data["updates"] == []
+    assert data["intro"] == {"quote": ["Intro-Text", "zweite Zeile"], "nav": ["↩ [[Home]]"]}
 
 
 def test_parse_open_items_groups_and_waiting(project: Path) -> None:

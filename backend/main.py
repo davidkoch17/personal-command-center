@@ -127,6 +127,12 @@ def health() -> dict:
 # serves real built files (favicon, etc.) and otherwise returns index.html so
 # client-side routing works on a hard refresh / deep link.
 DIST_PATH = Path(__file__).parent.parent / "frontend" / "dist"
+# index.html / sw.js / manifest are NOT content-hashed: without an explicit
+# Cache-Control the browser caches them heuristically from Last-Modified and can
+# keep loading an old index.html (→ old JS bundle against the new API) for days
+# after a deploy. "no-cache" = always revalidate (cheap 304 via ETag). The
+# hashed files under /assets stay cacheable.
+_NO_CACHE = {"Cache-Control": "no-cache"}
 if DIST_PATH.exists():
     app.mount("/assets", StaticFiles(directory=str(DIST_PATH / "assets")), name="assets")
 
@@ -137,5 +143,5 @@ if DIST_PATH.exists():
             candidate = (DIST_PATH / full_path).resolve()
             # Guard against path traversal escaping the dist directory.
             if DIST_PATH.resolve() in candidate.parents and candidate.is_file():
-                return FileResponse(candidate)
-        return FileResponse(DIST_PATH / "index.html")
+                return FileResponse(candidate, headers=_NO_CACHE)
+        return FileResponse(DIST_PATH / "index.html", headers=_NO_CACHE)

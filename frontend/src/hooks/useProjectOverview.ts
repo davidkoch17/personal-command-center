@@ -69,6 +69,7 @@ export interface ProjectOverview {
   updated: string | null
   next_action: string | null
   review_by: string | null
+  intro: { quote: string[]; nav: string[] }
   status_section: { markdown: string; current: string | null; next_action: string | null }
   open: OpenItem[]
   activity: ActivityEntry[]

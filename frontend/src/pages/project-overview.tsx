@@ -71,9 +71,23 @@ function OverviewBody({ id, ov }: { id: string; ov: Overview }) {
   return (
     <WikilinkProvider>
       {/* Header */}
+      {ov.intro?.nav.length > 0 && (
+        <div className="-mt-3 flex flex-wrap gap-x-4 font-mono text-xs text-text-secondary">
+          {ov.intro.nav.map((n, i) => (
+            <span key={i}>
+              <InlineMd text={n} />
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <h1 className="page-title normal-case">{ov.name}</h1>
+          {ov.intro?.quote.length > 0 && (
+            <p className="max-w-3xl text-sm text-text-secondary">
+              <InlineMd text={ov.intro.quote.join(" ")} />
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-1.5">
             <OverviewStatusTag status={ov.status} />
             <AttentionBadges card={{ stale, review_due: reviewDue, review_by: ov.review_by }} />

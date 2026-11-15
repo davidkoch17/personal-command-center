@@ -512,7 +512,12 @@ def list_ideas() -> list[dict]:
         return []
     out = []
     for d in IDEAS_DIR.iterdir():
-        if not d.is_dir() or d.name.startswith("_"):
+        # Only real idea folders: skip archives ("!old"), hidden/underscore dirs
+        # and anything without a MASTER.md (e.g. "Others"); create_idea always
+        # writes MASTER.md, so a freshly created idea still counts.
+        if not d.is_dir() or d.name.startswith(("_", ".", "!")):
+            continue
+        if not (d / "MASTER.md").exists():
             continue
         state = _read_state(d)
         out.append({

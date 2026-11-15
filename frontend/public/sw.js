@@ -50,7 +50,11 @@ self.addEventListener("fetch", (event) => {
   // SPA navigations: network-first, fall back to the cached app shell offline.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req).catch(() => caches.match("/").then((r) => r || caches.match("/index.html")))
+      // cache: "no-store" so a stale, heuristically-cached index.html (old
+      // bundle hashes) can never be served after a deploy.
+      fetch(req.url, { cache: "no-store", credentials: "same-origin" }).catch(() =>
+        caches.match("/").then((r) => r || caches.match("/index.html"))
+      )
     );
     return;
   }

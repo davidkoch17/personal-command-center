@@ -71,7 +71,7 @@ export function ProjectOverviewCardView({ card }: { card: ProjectOverviewCard })
         <span>
           {card.open_count} offen · {card.waiting_count} wartet
         </span>
-        <span>zuletzt: {ddmm(card.last_touch)}</span>
+        <span>zuletzt {ddmm(card.last_touch)}</span>
         {!card.exists && <span className="text-warning">kein _overview.md</span>}
       </div>
       {(card.stale || card.review_due) && (
