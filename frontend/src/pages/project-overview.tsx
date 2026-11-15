@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { TaskCheck } from "@/components/ui/task-check"
-import { InlineMd } from "@/components/ui/inline-markdown"
+import { InlineMd, WikilinkProvider } from "@/components/ui/inline-markdown"
 import { ChatMarkdown } from "@/components/chat/chat-markdown"
 import { AttentionBadges, OverviewStatusTag } from "@/components/projects/overview-bits"
 import {
@@ -67,8 +67,9 @@ function OverviewBody({ id, ov }: { id: string; ov: Overview }) {
   const stale = !lastTouch || Date.parse(today) - Date.parse(lastTouch) > 21 * 864e5
   const next = ov.next_action || ov.status_section.next_action
 
+  // Obsidian [[wikilinks]] anywhere on this page become clickable.
   return (
-    <>
+    <WikilinkProvider>
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
@@ -173,7 +174,7 @@ function OverviewBody({ id, ov }: { id: string; ov: Overview }) {
 
       {/* Updates inbox */}
       <UpdatesBox id={id} updates={ov.updates} />
-    </>
+    </WikilinkProvider>
   )
 }
 
