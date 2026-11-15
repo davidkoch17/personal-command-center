@@ -28,6 +28,18 @@ TODOS_FILE = Path(
         str(PROJECTS_PATH / "5 - Personal Admin" / "5 - Routines" / "todos.json"),
     )
 )
+# --- Lebensplan (life / wealth plan) ------------------------------------------
+# David's Excel model lives outside the vault, next to the repo. The Excel holds
+# the base assumptions; named scenarios live in a JSON beside it. Override any of
+# the three in .env (like TODOS_FILE).
+LIFEPLAN_DIR = Path(
+    os.getenv("LIFEPLAN_DIR", r"C:\Users\david\Desktop\Claude Code\Lebensplan")
+)
+LIFEPLAN_XLSX = Path(os.getenv("LIFEPLAN_XLSX", str(LIFEPLAN_DIR / "Traumleben_Plan.xlsx")))
+LIFEPLAN_SCENARIOS = Path(
+    os.getenv("LIFEPLAN_SCENARIOS", str(LIFEPLAN_DIR / "scenarios.json"))
+)
+
 # Due-date push reminders via ntfy (modules/todos/reminders.py). The topic name
 # is the only secret — anyone who knows it can read the pushes. Empty = off.
 NTFY_TOPIC = os.getenv("NTFY_TOPIC", "").strip()

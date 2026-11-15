@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev-backend",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "backend.main:app", "--port", "8001"],
+      "port": 8001
+    },
+    {
+      "name": "dev-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--port", "5173", "--strictPort"],
+      "env": { "VITE_API_BASE": "http://localhost:8001" },
+      "port": 5173
+    }
+  ]
+}

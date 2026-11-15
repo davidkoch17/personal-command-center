@@ -42,6 +42,9 @@ const MoneyWorkspace = lazy(() =>
 const WatchlistTicker = lazy(() =>
   import("@/pages/workspaces/watchlist-ticker").then((m) => ({ default: m.WatchlistTicker })),
 )
+const Lebensplan = lazy(() =>
+  import("@/pages/workspaces/lebensplan").then((m) => ({ default: m.Lebensplan })),
+)
 const BrandVideo = lazy(() =>
   import("@/pages/workspaces/brand-video").then((m) => ({ default: m.BrandVideo })),
 )
@@ -109,6 +112,7 @@ const router = createBrowserRouter([
       { path: "/workspace/money", element: <Lazy><MoneyWorkspace /></Lazy> },
       { path: "/workspace/watchlist/:ticker", element: <Lazy><WatchlistTicker /></Lazy> },
       { path: "/workspace/brand/:id", element: <Lazy><BrandVideo /></Lazy> },
+      { path: "/workspace/lebensplan", element: <Lazy><Lebensplan /></Lazy> },
     ],
   },
 ])

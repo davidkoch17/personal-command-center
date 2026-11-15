@@ -1,4 +1,5 @@
-import { Menu } from "lucide-react"
+import { Menu, Target } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isoDate } from "@/lib/utils"
 import { JarvisBall } from "@/components/jarvis/jarvis-ball"
 import { useJarvisBriefing } from "@/hooks/useJarvisBriefing"
@@ -30,6 +31,20 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
 
       <div className="flex items-center gap-4">
         <span className="font-mono text-xs text-text-secondary tabular-nums">{today}</span>
+        {/* Lebensplan — standalone workspace, always in a new tab. */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Lebensplan öffnen"
+              onClick={() => window.open("/workspace/lebensplan", "_blank")}
+              className="text-text-secondary transition-colors hover:text-accent"
+            >
+              <Target className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Lebensplan</TooltipContent>
+        </Tooltip>
         {/* Small Jarvis ball — runs the briefing flow from any page. Subtitle
             shows beside it (≥sm) while active; the small ball is otherwise quiet. */}
         {jarvis.subtitle && (
