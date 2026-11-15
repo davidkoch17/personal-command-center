@@ -37,14 +37,14 @@ export function Projects() {
 
       {/* Key figures — all from the _overview.md files */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="aktive projekte" value={isLoading ? "…" : `${active}/${cards.length}`} />
+        <Stat label="active projects" value={isLoading ? "…" : `${active}/${cards.length}`} />
         <Stat
-          label="offene punkte"
+          label="open items"
           value={isLoading ? "…" : String(openTotal)}
-          sub={waitingTotal ? `davon ${waitingTotal} wartend` : undefined}
+          sub={waitingTotal ? `${waitingTotal} waiting` : undefined}
         />
-        <Stat label="review fällig" value={isLoading ? "…" : String(reviewDue)} tone={reviewDue ? "danger" : undefined} />
-        <Stat label="stale" value={isLoading ? "…" : String(stale)} tone={stale ? "warning" : undefined} sub=">21 Tage still" />
+        <Stat label="review due" value={isLoading ? "…" : String(reviewDue)} tone={reviewDue ? "danger" : undefined} />
+        <Stat label="stale" value={isLoading ? "…" : String(stale)} tone={stale ? "warning" : undefined} sub="quiet for >21 days" />
       </div>
 
       {isError && (
@@ -60,7 +60,7 @@ export function Projects() {
           ))}
         </div>
       ) : cards.length === 0 && !isError ? (
-        <EmptyState icon={FolderKanban} message="keine Projektordner gefunden." />
+        <EmptyState icon={FolderKanban} message="no project folders found." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {cards.map((c) => (

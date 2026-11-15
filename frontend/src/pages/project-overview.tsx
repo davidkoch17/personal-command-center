@@ -100,25 +100,25 @@ function OverviewBody({ id, ov }: { id: string; ov: Overview }) {
           <Button asChild variant="secondary" size="sm">
             <a href={obsidianUrl(ov.overview_vault_path)}>
               <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-              In Obsidian öffnen
+              Open in Obsidian
             </a>
           </Button>
         )}
       </div>
 
       {!ov.exists && (
-        <Panel title="kein _overview.md" statusDotColor="warning">
+        <Panel title="no _overview.md" statusDotColor="warning">
           <p className="text-sm text-text-secondary">
-            In <code className="font-mono">{ov.folder}</code> liegt noch keine <code className="font-mono">_overview.md</code>.
+            <code className="font-mono">{ov.folder}</code> has no <code className="font-mono">_overview.md</code> yet.
           </p>
         </Panel>
       )}
 
       {/* Status + next action */}
-      <Panel title={ov.titles.status?.replace(/^🧭\s*/, "").toLowerCase() || "status"} statusDotColor="accent">
+      <Panel title="status" statusDotColor="accent">
         {next && (
           <div className="mb-3 rounded-sm border border-accent-dim/40 bg-accent-soft px-3 py-2 text-sm text-text">
-            <span className="label mr-2">nächste aktion</span>
+            <span className="label mr-2">next action</span>
             <InlineMd text={next} />
           </div>
         )}
@@ -131,7 +131,7 @@ function OverviewBody({ id, ov }: { id: string; ov: Overview }) {
             <ChatMarkdown text={ov.status_section.markdown} />
           </div>
         ) : (
-          <EmptyState message="kein Status eingetragen" />
+          <EmptyState message="no status yet" />
         )}
       </Panel>
 
@@ -140,9 +140,9 @@ function OverviewBody({ id, ov }: { id: string; ov: Overview }) {
 
       {/* Activity + recent files */}
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="letzte aktivität" meta={ov.activity.length ? `${ov.activity.length}` : undefined}>
+        <Panel title="recent activity" meta={ov.activity.length ? `${ov.activity.length}` : undefined}>
           {ov.activity.length === 0 ? (
-            <EmptyState message="keine Aktivität eingetragen" />
+            <EmptyState message="no activity yet" />
           ) : (
             <ol className="relative space-y-3 border-l border-border pl-4">
               {ov.activity.map((a, i) => (
@@ -157,9 +157,9 @@ function OverviewBody({ id, ov }: { id: string; ov: Overview }) {
             </ol>
           )}
         </Panel>
-        <Panel title="zuletzt geänderte dateien" meta={`${ov.recent_files.length}`}>
+        <Panel title="recently changed files" meta={`${ov.recent_files.length}`}>
           {ov.recent_files.length === 0 ? (
-            <EmptyState icon={File} message="keine Dateien im Projektordner" />
+            <EmptyState icon={File} message="no files in the project folder" />
           ) : (
             <ul className="space-y-0.5">
               {ov.recent_files.map((f) => (
@@ -173,13 +173,13 @@ function OverviewBody({ id, ov }: { id: string; ov: Overview }) {
       </div>
 
       {/* Notes & decisions */}
-      <Panel title={ov.titles.notes?.replace(/^📝\s*/, "").toLowerCase() || "notizen & entscheidungen"}>
+      <Panel title="notes & decisions">
         {ov.notes_md ? (
           <div className="text-sm text-text-secondary">
             <ChatMarkdown text={ov.notes_md} />
           </div>
         ) : (
-          <EmptyState message="keine Notizen" />
+          <EmptyState message="no notes yet" />
         )}
       </Panel>
 
@@ -211,20 +211,20 @@ function OpenItems({ id, items }: { id: string; items: OpenItem[] }) {
     toggle.mutate(
       { index: it.index, text: it.text },
       {
-        onSuccess: (r) => toast.show(r.checked ? "abgehakt" : "wieder offen", { detail: it.text }),
-        onError: (e) => toast.error("konnte nicht speichern", String(e)),
+        onSuccess: (r) => toast.show(r.checked ? "checked off" : "reopened", { detail: it.text }),
+        onError: (e) => toast.error("could not save", String(e)),
       },
     )
   }
 
   return (
     <Panel
-      title="offen"
+      title="open items"
       statusDotColor={open.length ? "warning" : "success"}
-      meta={`${open.length - waiting} offen · ${waiting} wartet`}
+      meta={`${open.length - waiting} open · ${waiting} waiting`}
     >
       {items.length === 0 ? (
-        <EmptyState message="keine offenen Punkte" />
+        <EmptyState message="no open items" />
       ) : (
         <div className="space-y-4">
           {groups.map((g, gi) => (
@@ -248,7 +248,7 @@ function OpenItems({ id, items }: { id: string; items: OpenItem[] }) {
                 >
                   <span className="inline-flex flex-wrap items-baseline gap-1.5">
                     {it.waiting && !it.checked && (
-                      <Hourglass className="h-3 w-3 shrink-0 self-center text-warning" aria-label="wartet" />
+                      <Hourglass className="h-3 w-3 shrink-0 self-center text-warning" aria-label="waiting" />
                     )}
                     <InlineMd text={it.text.replace(/⏳\s*/, "")} />
                   </span>
@@ -332,9 +332,9 @@ function RecentFileRow({ file }: { file: RecentFile }) {
 function WhereTable({ ov }: { ov: Overview }) {
   const { headers, rows, extra } = ov.files_table
   return (
-    <Panel title={ov.titles.files?.replace(/^📂\s*/, "").toLowerCase() || "wo liegt was"}>
+    <Panel title="where things live">
       {rows.length === 0 ? (
-        <EmptyState icon={Folder} message="keine Tabelle eingetragen" />
+        <EmptyState icon={Folder} message="no table yet" />
       ) : (
         <div className="-mx-1 overflow-x-auto">
           <table className="w-full text-sm">
@@ -390,14 +390,14 @@ function UpdatesBox({ id, updates }: { id: string; updates: string[] }) {
     append.mutate(t, {
       onSuccess: () => {
         setText("")
-        toast.success("update gespeichert", "Claude arbeitet es bei der nächsten Session ein.")
+        toast.success("update saved", "Claude will fold it in next session.")
       },
-      onError: (e) => toast.error("konnte nicht speichern", String(e)),
+      onError: (e) => toast.error("could not save", String(e)),
     })
   }
 
   return (
-    <Panel title="updates" statusDotColor={updates.length ? "accent" : "muted"} meta={updates.length ? `${updates.length} offen` : undefined}>
+    <Panel title="updates" statusDotColor={updates.length ? "accent" : "muted"} meta={updates.length ? `${updates.length} pending` : undefined}>
       <div className="space-y-2">
         <Textarea
           value={text}
@@ -405,23 +405,23 @@ function UpdatesBox({ id, updates }: { id: string; updates: string[] }) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send()
           }}
-          placeholder="z. B. „Payroll angerufen, warte auf Rückmeldung“ (Strg+Enter)"
+          placeholder="e.g. called payroll, waiting for a reply (Ctrl+Enter)"
           rows={2}
         />
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] text-text-label">
-            landet unter 💬 Updates in _overview.md · Claude arbeitet es ein
+            goes under 💬 Updates in _overview.md · Claude folds it in
           </span>
           <Button size="sm" onClick={send} disabled={!text.trim() || append.isPending}>
             <Send className="mr-1.5 h-3.5 w-3.5" />
-            senden
+            send
           </Button>
         </div>
       </div>
       <div className="mt-4">
-        <div className="label mb-1.5">noch nicht eingearbeitet</div>
+        <div className="label mb-1.5">not yet folded in</div>
         {updates.length === 0 ? (
-          <EmptyState icon={Inbox} message="nichts im Eingangskorb" />
+          <EmptyState icon={Inbox} message="inbox is empty" />
         ) : (
           <ul className="space-y-1 text-sm text-text-secondary">
             {updates.map((u, i) => (

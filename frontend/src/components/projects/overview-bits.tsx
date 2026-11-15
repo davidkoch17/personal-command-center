@@ -25,18 +25,18 @@ export function OverviewStatusTag({ status }: { status: OverviewStatus | null })
   )
 }
 
-/** Small "stale" / "review fällig" badges. */
+/** Small "stale" / "review due" badges. */
 export function AttentionBadges({ card }: { card: Pick<ProjectOverviewCard, "stale" | "review_due" | "review_by"> }) {
   return (
     <>
       {card.review_due && (
         <Tag variant="danger" title={`review_by ${card.review_by}`}>
           <AlarmClock className="h-3 w-3" />
-          review fällig
+          review due
         </Tag>
       )}
       {card.stale && (
-        <Tag variant="warning" title="seit über 21 Tagen keine Aktivität und keine Dateiänderung">
+        <Tag variant="warning" title="no activity and no file change for more than 21 days">
           <Hourglass className="h-3 w-3" />
           stale
         </Tag>
@@ -65,14 +65,14 @@ export function ProjectOverviewCardView({ card }: { card: ProjectOverviewCard })
           <InlineMd text={card.next_action} />
         </p>
       ) : (
-        <p className="text-sm text-text-label">keine nächste Aktion eingetragen</p>
+        <p className="text-sm text-text-label">no next action set</p>
       )}
       <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-xs text-text-secondary">
         <span>
-          {card.open_count} offen · {card.waiting_count} wartet
+          {card.open_count} open · {card.waiting_count} waiting
         </span>
-        <span>zuletzt {ddmm(card.last_touch)}</span>
-        {!card.exists && <span className="text-warning">kein _overview.md</span>}
+        <span>last {ddmm(card.last_touch)}</span>
+        {!card.exists && <span className="text-warning">no _overview.md</span>}
       </div>
       {(card.stale || card.review_due) && (
         <div className="flex flex-wrap gap-1.5">

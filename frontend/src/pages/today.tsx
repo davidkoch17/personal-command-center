@@ -95,14 +95,14 @@ function ProjectsAttention() {
   const flagged: ProjectOverviewCard[] = (data ?? []).filter((c) => c.stale || c.review_due)
   return (
     <Panel
-      title="projekte, die aufmerksamkeit brauchen"
+      title="projects needing attention"
       statusDotColor={flagged.some((c) => c.review_due) ? "danger" : flagged.length ? "warning" : "success"}
       meta={<Link to="/projects" className="hover:text-text">all projects →</Link>}
     >
       {isLoading ? (
         <Skeleton className="h-16" />
       ) : flagged.length === 0 ? (
-        <EmptyState message="alle Projekte sind aktuell" />
+        <EmptyState message="all projects are up to date" />
       ) : (
         <ul className="divide-y divide-border">
           {flagged.map((c) => (
@@ -111,7 +111,7 @@ function ProjectsAttention() {
                 <span className="min-w-0 flex-1 truncate text-sm text-text">{c.name}</span>
                 <span className="flex flex-wrap items-center gap-1.5">
                   <AttentionBadges card={c} />
-                  <span className="font-mono text-xs text-text-label">zuletzt {ddmm(c.last_touch)}</span>
+                  <span className="font-mono text-xs text-text-label">last {ddmm(c.last_touch)}</span>
                 </span>
               </Link>
             </li>
