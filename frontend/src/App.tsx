@@ -1,11 +1,12 @@
 import { lazy, Suspense, type ReactNode } from "react"
-import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom"
+import { createBrowserRouter, RouterProvider, Navigate, useParams } from "react-router-dom"
 import { QueryClientProvider } from "@tanstack/react-query"
 import { queryClient } from "@/lib/queryClient"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppShell } from "@/components/layout/app-shell"
 
 import { Projects } from "@/pages/projects"
+import { ProjectOverview } from "@/pages/project-overview"
 import { Ideas } from "@/pages/ideas"
 import { Portfolio } from "@/pages/portfolio"
 import { DecisionJournal } from "@/pages/decision-journal"
@@ -49,6 +50,12 @@ const BrandVideo = lazy(() =>
   import("@/pages/workspaces/brand-video").then((m) => ({ default: m.BrandVideo })),
 )
 
+/** Old workspace deep links (Jarvis voice nav, home cards) → the new overview page. */
+function LegacyProjectRedirect() {
+  const { id } = useParams<{ id: string }>()
+  return <Navigate to={`/projects/${id ?? ""}`} replace />
+}
+
 function Lazy({ children }: { children: ReactNode }) {
   return (
     <Suspense
@@ -75,7 +82,8 @@ const router = createBrowserRouter([
       { path: "/networth", element: <Lazy><Networth /></Lazy> }, // pillar 0 — Net Worth
       { path: "/portfolio", element: <Portfolio /> },   // pillar 1 — Portfolio Hub
       { path: "/cashflow", element: <Lazy><CashFlow /></Lazy> },      // pillar 2 — Cash Flow
-      { path: "/projects", element: <Projects /> },      // pillar 3 — Projects
+      { path: "/projects", element: <Projects /> },      // pillar 3 — Projects (_overview.md cards)
+      { path: "/projects/:id", element: <ProjectOverview /> },
       { path: "/todos", element: <Todos /> },            // pillar 4 — Personal Admin to-dos (todos.json)
       { path: "/background-runs", element: <BackgroundRuns /> },
       { path: "/settings", element: <Settings /> },
@@ -106,7 +114,10 @@ const router = createBrowserRouter([
   // (Cockpit "deep-dive new tab" pattern).
   {
     children: [
-      { path: "/workspace/project/:id", element: <Lazy><ProjectWorkspace /></Lazy> },
+      // Old README workspace (venture agents etc.) — superseded by /projects/:id,
+      // still reachable by URL only until it is deleted.
+      { path: "/workspace/project/:id", element: <LegacyProjectRedirect /> },
+      { path: "/workspace/project-legacy/:id", element: <Lazy><ProjectWorkspace /></Lazy> },
       { path: "/workspace/idea/:name", element: <Lazy><IdeaWorkspace /></Lazy> },
       { path: "/workspace/portfolio", element: <Lazy><PortfolioWorkspace /></Lazy> },
       { path: "/workspace/money", element: <Lazy><MoneyWorkspace /></Lazy> },

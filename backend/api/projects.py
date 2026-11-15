@@ -1,4 +1,13 @@
-"""Projects API — wraps Project_Index.md + modules.projects.workspace."""
+"""Projects API.
+
+Primary surface (Nov 2026): project overviews fed by each folder's ``_overview.md``
+(``modules.projects.overview``) — ``GET ""``, ``GET /{id}``, ``POST /{id}/toggle``,
+``POST /{id}/update``.
+
+Legacy surface (kept so Ideas / venture agents / Money-tax picker keep working,
+no longer shown on the Projects page): ``GET /legacy`` (Project_Index cards),
+``GET /{id}/workspace`` (README workspace), log / next-step / agents / runs.
+"""
 from __future__ import annotations
 
 import re
@@ -6,6 +15,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from backend.models.schemas import (
     ProjectCard, ProjectLogEntry, ProjectNextStepToggleRequest, ProjectCreateRequest,
@@ -15,7 +25,7 @@ from core import vault, markdown
 from core.config import PROJECT_INDEX_FILE, VAULT_PATH
 from modules.agents import background
 from modules.captures import db as captures_db
-from modules.projects import agents, workspace
+from modules.projects import agents, overview, workspace
 
 router = APIRouter()
 
@@ -106,7 +116,23 @@ def _projects() -> list[dict]:
     return markdown.parse_projects(vault.read_md(PROJECT_INDEX_FILE))
 
 
+class OverviewToggleRequest(BaseModel):
+    """Which ✅ item to flip: its index plus its text (guards against concurrent edits)."""
+    index: int | None = None
+    text: str | None = None
+
+
+class OverviewUpdateRequest(BaseModel):
+    text: str
+
+
 @router.get("")
+def list_project_overviews() -> list[dict]:
+    """Project cards from every ``_overview.md`` (review due → active → waiting → paused)."""
+    return overview.list_projects()
+
+
+@router.get("/legacy")
 def list_projects() -> list[ProjectCard]:
     """Project cards with status, big milestone, next step, and pillar enrichment.
 
@@ -194,6 +220,44 @@ def _root_ok(project_id: str) -> bool:
 
 
 @router.get("/{project_id}")
+def project_overview(project_id: str) -> dict:
+    """All parsed ``_overview.md`` sections plus the folder's recently changed files."""
+    try:
+        data = overview.read_overview(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    data["recent_files"] = overview.recent_files(project_id, limit=15)
+    return data
+
+
+@router.post("/{project_id}/toggle")
+def toggle_overview_item(project_id: str, req: OverviewToggleRequest) -> dict:
+    """Flip one checkbox under ✅ in ``_overview.md`` (one line + ``updated``)."""
+    if req.index is None and not req.text:
+        raise HTTPException(status_code=400, detail="index or text required")
+    try:
+        item = req.index if req.index is not None else req.text
+        res = overview.toggle_item(project_id, item, req.text)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except overview.OverviewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"ok": True, **res}
+
+
+@router.post("/{project_id}/update")
+def append_overview_update(project_id: str, req: OverviewUpdateRequest) -> dict:
+    """Append ``- DD.MM. HH:MM – text`` under 💬 Updates in ``_overview.md``."""
+    try:
+        res = overview.append_update(project_id, req.text)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except overview.OverviewError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True, **res}
+
+
+@router.get("/{project_id}/workspace")
 def project_workspace(project_id: str) -> dict:
     """Full workspace state: milestones, next steps, key files, subfolders, drafts, README.
 

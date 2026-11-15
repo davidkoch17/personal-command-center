@@ -9,6 +9,8 @@ import { DueTag, daysUntil } from "@/components/todos/due"
 import { useTodos, useUpdateTodo, type Todo } from "@/hooks/useTodos"
 import { useNetworthSnapshot } from "@/hooks/useNetworth"
 import { useCashflowNeedsReview } from "@/hooks/useCashflow"
+import { ddmm, useProjectOverviews, type ProjectOverviewCard } from "@/hooks/useProjectOverview"
+import { AttentionBadges } from "@/components/projects/overview-bits"
 import { cn, formatCurrency } from "@/lib/utils"
 
 /** How far ahead "coming up" looks. */
@@ -84,6 +86,39 @@ function TodoRow({ task }: { task: Todo }) {
         </div>
       </div>
     </li>
+  )
+}
+
+/** Projects whose overview is stale (>21 days quiet) or whose review date has passed. */
+function ProjectsAttention() {
+  const { data, isLoading } = useProjectOverviews()
+  const flagged: ProjectOverviewCard[] = (data ?? []).filter((c) => c.stale || c.review_due)
+  return (
+    <Panel
+      title="projekte, die aufmerksamkeit brauchen"
+      statusDotColor={flagged.some((c) => c.review_due) ? "danger" : flagged.length ? "warning" : "success"}
+      meta={<Link to="/projects" className="hover:text-text">all projects →</Link>}
+    >
+      {isLoading ? (
+        <Skeleton className="h-16" />
+      ) : flagged.length === 0 ? (
+        <EmptyState message="alle Projekte sind aktuell" />
+      ) : (
+        <ul className="divide-y divide-border">
+          {flagged.map((c) => (
+            <li key={c.id}>
+              <Link to={`/projects/${c.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 hover:text-accent">
+                <span className="min-w-0 flex-1 truncate text-sm text-text">{c.name}</span>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <AttentionBadges card={c} />
+                  <span className="font-mono text-xs text-text-label">zuletzt {ddmm(c.last_touch)}</span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
   )
 }
 
@@ -202,6 +237,8 @@ export function Today() {
           )}
         </Panel>
       </div>
+
+      <ProjectsAttention />
     </div>
   )
 }

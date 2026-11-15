@@ -57,6 +57,34 @@ Local Streamlit dashboard for David. Reads his Obsidian vault from OneDrive; ren
 - Entscheidungen als done-Task mit Datum festhalten (z. B. "Entscheidungen 2026-11-08").
 - Tests: `python -m pytest tests/test_todos.py`.
 
+## Project overviews (`_overview.md`)
+
+### 1. Wo und wofür
+- Jeder Projektordner `1 - Projects\<Nr> - <Name>\` hat eine `_overview.md`. Sie ist die einzige Quelle für die Projektübersicht im Dashboard (`/projects`, `/projects/<Nr>`, Kachel auf `/today`).
+- Gepflegt von David (Obsidian oder Dashboard) und Claude (Chat-Sessions, Claude Code). Projekt-ID im Dashboard = die Ordnernummer (`3`, auch `03` oder der volle Ordnername werden aufgelöst).
+- Code: `modules/projects/overview.py` (Parser + Schreibfunktionen), API in `backend/api/projects.py`, Tests `python -m pytest tests/test_project_overview.py`.
+
+### 2. Format
+- YAML-Frontmatter: `project`, `status` (`active` | `waiting` | `paused` | `done`), `updated` (YYYY-MM-DD), `next_action`, `review_by` (YYYY-MM-DD).
+- Abschnitte werden am Emoji in der `##`-Überschrift erkannt (Text daneben ist frei):
+  - `## 🧭` Status — Freitext mit `**Was gerade läuft:**` und `**Nächste Aktion:**`.
+  - `## ✅` Offen — `- [ ]` / `- [x]`, gruppiert unter fetten Zeilen `**Gruppe**`. ⏳ im Text = wartet auf jemanden.
+  - `## 🕒` Letzte Aktivität — `- **DD.MM.** Text`, neueste zuerst.
+  - `## 📝` Notizen & Entscheidungen — Freitext/Bullets (wird als Markdown gerendert).
+  - `## 📂` Wo liegt was — Markdown-Tabelle; erste Spalte = Pfad relativ zum Projektordner (in Backticks), dann klickbar.
+  - `## 💬` Updates — Eingangskorb: HTML-Kommentar, darunter freie Zeilen.
+- Ein Abschnitt endet an der nächsten Überschrift oder an einer `---`-Linie (Footer). Fehlende Abschnitte/Datei = leer, kein Fehler.
+- Dashboard-Flags: `stale` = letzte Aktivität UND neueste Dateiänderung älter als 21 Tage; `review_due` = `review_by` ≤ heute.
+
+### 3. Schreibregeln
+- Das Dashboard schreibt nur zwei Dinge: einen Haken unter ✅ umschalten und eine Zeile `- DD.MM. HH:MM – <Text>` unter 💬 anhängen. Jedes Mal: Datei frisch lesen → genau eine Zeile ändern → `updated` im Frontmatter setzen → `_overview.md.bak` anlegen → atomar schreiben (temp + replace). Zeilenenden bleiben erhalten.
+- Claude schreibt die Dateien nur mit Python-I/O (nie Edit/Write-Tool, siehe Vault I/O rules), mit `.bak` vorher, frisch gelesen und gezielt geändert, nie aus einer alten Kopie.
+- Davids Formulierungen nicht umschreiben; keine IBANs, Ausweis- oder Kontonummern.
+
+### 4. Pflege durch Claude (am Ende jeder Session, die ein Projekt berührt)
+- Status + `next_action` aktualisieren, Erledigtes abhaken und oben unter 🕒 eintragen, Entscheidungen unter 📝, `updated` setzen, `review_by` bei Bedarf weiterschieben.
+- Zeilen unter 💬 Updates in Status / Offen / Aktivität einarbeiten und den Abschnitt danach leeren (den HTML-Kommentar stehen lassen).
+
 ## Global rule from David
 When a task genuinely needs original creative thinking (David's voice, his principles, his strategy), STOP and tell David to think in Miro or OneNote first, then come back. Do not produce the creative output for him.
 

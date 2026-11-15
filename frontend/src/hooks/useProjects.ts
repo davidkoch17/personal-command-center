@@ -13,7 +13,7 @@ import { isRunActive } from "@/hooks/useRuns"
 export function useProjects() {
   return useQuery({
     queryKey: ["projects"],
-    queryFn: () => api.get<ProjectCard[]>("/api/projects"),
+    queryFn: () => api.get<ProjectCard[]>("/api/projects/legacy"),
   })
 }
 
@@ -28,7 +28,7 @@ export function useLatestBriefing() {
 export function useProjectWorkspace(id: string | undefined) {
   return useQuery({
     queryKey: ["project", id],
-    queryFn: () => api.get<ProjectWorkspace>(`/api/projects/${id}`),
+    queryFn: () => api.get<ProjectWorkspace>(`/api/projects/${id}/workspace`),
     enabled: !!id,
   })
 }

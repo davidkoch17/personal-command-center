@@ -23,7 +23,7 @@ function parseInline(text: string): ReactNode[] {
     if (m[2] !== undefined) {
       out.push(
         <strong key={key++} className="font-semibold text-text">
-          {m[2]}
+          {parseInline(m[2])}
         </strong>,
       )
     } else if (m[4] !== undefined) {
