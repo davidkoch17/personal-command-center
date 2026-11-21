@@ -13,7 +13,9 @@ Scheduled ~18:00 via Windows Task Scheduler (run_daily_snapshot.bat). Each run:
        net_worth_eur = bank_total + portfolio_total_eur + crypto_total_eur - debts_total
 
    where ``portfolio`` = equities/ETFs, ``crypto`` = crypto holdings, ``bank`` =
-   latest cash balance from Finance_Tracker.xlsx, ``debts`` = 0 (none tracked).
+   today's cash in ``cashflow_accounts.json`` (bank + brokerage cash; past
+   dates fall back to Finance_Tracker.xlsx's Bank sheet), ``debts`` =
+   liability-type accounts there (none tracked yet).
 
 **Idempotent:** both writers upsert on the date key (positions also on ticker),
 so re-running on the same day overwrites that day's rows instead of appending.
@@ -70,8 +72,36 @@ def bank_month_history() -> dict[str, float]:
     return out
 
 
+def current_account_cash() -> tuple[float, float] | None:
+    """``(cash, liabilities)`` from the hand-maintained ``cashflow_accounts.json``
+    (bank + brokerage cash, same classification as the Net Worth pillar), or
+    None when no accounts are tracked.
+
+    Since the 2026-07-27 reset the Excel ``Bank`` sheet is empty, so without
+    this the snapshot recorded ``bank = 0`` while the Net Worth page counted the
+    account balances — the two totals disagreed by exactly the cash on hand.
+    """
+    from modules.finance import cashflow
+    from modules.finance.networth import account_cash_totals
+
+    if not cashflow.list_accounts():
+        return None
+    t = account_cash_totals()
+    return round(t["bank_cash"] + t["brokerage_cash"], 2), round(t["liabilities"], 2)
+
+
 def bank_total_asof(on_date: date) -> float:
-    """Bank balance for the month of ``on_date``, or the latest prior month (0 if none)."""
+    """Cash balance as of ``on_date``.
+
+    Today (or later): the current balances in ``cashflow_accounts.json`` — the
+    live source the Net Worth pillar uses. Past dates: the Finance_Tracker
+    ``Bank`` sheet's month-end balance (latest prior month), since the accounts
+    file only holds "right now"; 0 when neither source has a value.
+    """
+    if on_date >= date.today():
+        current = current_account_cash()
+        if current is not None:
+            return current[0]
     hist = bank_month_history()
     if not hist:
         return 0.0
@@ -81,6 +111,16 @@ def bank_total_asof(on_date: date) -> float:
         return hist[max(candidates)]
     # Before the first recorded month — use the earliest known balance.
     return hist[min(hist)]
+
+
+def debts_total_asof(on_date: date) -> float:
+    """Liabilities as of ``on_date``: liability-type accounts in
+    ``cashflow_accounts.json`` for today, 0 for past dates (no history kept)."""
+    if on_date >= date.today():
+        current = current_account_cash()
+        if current is not None:
+            return current[1]
+    return 0.0
 
 
 # --- Position snapshot -------------------------------------------------------
@@ -132,7 +172,7 @@ def run_snapshot(on_date: date | None = None) -> dict:
 
     portfolio_total, crypto_total = _split_value(pos_rows)
     bank_total = round(bank_total_asof(on_date), 2)
-    debts_total = 0.0
+    debts_total = debts_total_asof(on_date)
     net_worth = round(bank_total + portfolio_total + crypto_total - debts_total, 2)
 
     nw_row = {

@@ -60,21 +60,30 @@ def _account_class(name: str) -> str:
     return "bank_cash"
 
 
+def account_cash_totals() -> dict[str, float]:
+    """Current ``{bank_cash, brokerage_cash, liabilities}`` from
+    ``cashflow_accounts.json``, classified by :func:`_account_class`.
+
+    Shared by :func:`compute_breakdown` and the daily snapshot job
+    (:mod:`modules.finance.daily_snapshot`), so the Net Worth hero total and
+    the stored daily/monthly history count cash the same way.
+    """
+    totals = {"bank_cash": 0.0, "brokerage_cash": 0.0, "liabilities": 0.0}
+    for a in cashflow.list_accounts():
+        cls = _account_class(a["name"])
+        key = "liabilities" if cls == "liability" else cls
+        totals[key] += float(a.get("balance") or 0.0)
+    return totals
+
+
 def compute_breakdown() -> dict:
     """Asset-class totals for the hero donut: cash (bank/brokerage) + holdings
     by bucket, plus liabilities (none tracked yet) and the grand total.
     """
-    bank_cash = 0.0
-    brokerage_cash = 0.0
-    liabilities = 0.0
-    for a in cashflow.list_accounts():
-        cls = _account_class(a["name"])
-        if cls == "brokerage_cash":
-            brokerage_cash += a["balance"]
-        elif cls == "liability":
-            liabilities += a["balance"]
-        else:
-            bank_cash += a["balance"]
+    cash = account_cash_totals()
+    bank_cash = cash["bank_cash"]
+    brokerage_cash = cash["brokerage_cash"]
+    liabilities = cash["liabilities"]
 
     by_bucket: dict[str, float] = {"etf_foundation": 0.0, "single_stocks": 0.0, "crypto": 0.0, "wild_cards": 0.0}
     for ticker, qty in current_holdings().items():

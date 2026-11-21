@@ -16,7 +16,7 @@ trading day in the EUR close series and reconstructs:
 Rows are **upserted** into ``positions_daily.csv`` (key date+ticker), so it is
 safe to re-run and it composes with the live daily snapshot. The net-worth
 series is then seeded from those rows (portfolio = equities/ETFs, crypto =
-crypto, bank = the month's ending balance from Finance_Tracker.xlsx, debts = 0).
+crypto, bank = see :func:`backfill_networth`, debts = liability accounts).
 
 Run:
     python -m modules.finance.backfill
@@ -34,7 +34,9 @@ from modules.finance.currency import closes_eur
 from modules.finance.daily_snapshot import (
     NETWORTH_DAILY_COLUMNS,
     POSITIONS_DAILY_COLUMNS,
+    bank_month_history,
     bank_total_asof,
+    debts_total_asof,
 )
 from modules.finance.positions import (
     cost_basis,
@@ -80,7 +82,11 @@ def backfill_positions() -> list[dict]:
         # Reindex onto a continuous daily calendar and forward-fill, so weekends,
         # a flaky yfinance day, or today's not-yet-posted bar carry the last mark
         # instead of dropping the position from that day's net-worth total.
-        full_idx = pd.date_range(series.index.min(), series.index.max(), freq="D")
+        # The calendar runs to *today*, not just the last posted bar — otherwise
+        # weekend days after Friday's close kept stale rows from an earlier
+        # snapshot (pre-trade quantities) or had no equity rows at all.
+        end = max(series.index.max(), pd.Timestamp(date.today()))
+        full_idx = pd.date_range(series.index.min(), end, freq="D")
         series = series.reindex(full_idx).ffill()
         for ts, price_eur in series.items():
             if pd.isna(price_eur):
@@ -104,11 +110,21 @@ def backfill_positions() -> list[dict]:
     return rows
 
 
+def _float(value: object) -> float:
+    """Lenient float for CSV cells (blank/garbage -> 0.0)."""
+    try:
+        return round(float(value or 0.0), 2)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def backfill_networth() -> list[dict]:
     """Seed ``networth_daily.csv`` from the per-position daily rows.
 
     portfolio = equities/ETFs value, crypto = crypto value (both summed per day);
-    bank = that month's Finance_Tracker ending balance; debts = 0. Today's row is
+    bank = today's ``cashflow_accounts.json`` cash for today, else that month's
+    Finance_Tracker ending balance, else the value the live snapshot already
+    recorded for that day; debts = liability accounts (today only). Today's row is
     left for the live snapshot to refine (it still gets upserted here so a
     backfill-only run is also complete).
     """
@@ -128,19 +144,30 @@ def backfill_networth() -> list[dict]:
         bucket = "crypto" if (meta and meta.type == "crypto") else "portfolio"
         by_date.setdefault(d, {"portfolio": 0.0, "crypto": 0.0})[bucket] += value
 
+    # Without an Excel Bank history, a past day's cash is only known if the
+    # live snapshot recorded it that day — keep that value instead of
+    # overwriting it with 0 on every re-backfill.
+    has_sheet_history = bool(bank_month_history())
+    recorded = {r["date"]: r for r in read_rows(NETWORTH_DAILY_CSV)}
+    today = date.today()
+
     nw_rows: list[dict] = []
     for d, comp in sorted(by_date.items()):
         on_date = date.fromisoformat(d)
         bank_total = round(bank_total_asof(on_date), 2)
+        debts_total = round(debts_total_asof(on_date), 2)
+        if on_date < today and not has_sheet_history and d in recorded:
+            bank_total = _float(recorded[d].get("bank_total"))
+            debts_total = _float(recorded[d].get("debts_total"))
         portfolio = round(comp["portfolio"], 2)
         crypto = round(comp["crypto"], 2)
-        net_worth = round(bank_total + portfolio + crypto, 2)
+        net_worth = round(bank_total + portfolio + crypto - debts_total, 2)
         nw_rows.append({
             "date": d,
             "bank_total": bank_total,
             "portfolio_total_eur": portfolio,
             "crypto_total_eur": crypto,
-            "debts_total": 0.0,
+            "debts_total": debts_total,
             "net_worth_eur": net_worth,
         })
     upsert_rows(NETWORTH_DAILY_CSV, nw_rows, NETWORTH_DAILY_COLUMNS, key_cols=["date"])

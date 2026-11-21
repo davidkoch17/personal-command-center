@@ -664,6 +664,35 @@ def _classify_cadence(intervals: list[int]) -> Optional[str]:
     return None
 
 
+def _recurring_streak(rows: list[CashflowEntry]) -> Optional[tuple[list[CashflowEntry], str]]:
+    """Longest *trailing* run of ``rows`` (date-sorted, one merchant) that
+    bills on one cadence at a roughly constant amount, with its cadence —
+    or None if not even the last two charges qualify.
+
+    Judging only the whole history missed subscriptions that changed plan or
+    billing day (Claude: 21.42 on the 13th -> ~100 on the 3rd): one odd gap or
+    the old price disqualified the merchant forever. The recent streak is what
+    is actually committed going forward.
+    """
+    for start in range(len(rows) - 1):
+        run = rows[start:]
+        intervals = [(run[i].date - run[i - 1].date).days for i in range(1, len(run))]
+        cadence = _classify_cadence(intervals)
+        if cadence is None or len(run) < _MIN_OCCURRENCES_BY_CADENCE.get(cadence, 2):
+            continue
+        # A weekly tail of an irregular history is usually a habit (three
+        # bakery visits in a row), not a subscription — weekly keeps the
+        # original whole-history rule.
+        if cadence == "weekly" and start > 0:
+            continue
+        amounts = [r.amount for r in run]
+        avg_amount = sum(amounts) / len(amounts)
+        if avg_amount <= 0 or (max(amounts) - min(amounts)) / avg_amount > _RECURRING_AMOUNT_SPREAD_MAX:
+            continue
+        return run, cadence
+    return None
+
+
 def recurring_charges(months: int = 6) -> dict:
     """Merchants billing on a regular cadence with a roughly constant amount,
     detected over the trailing ``months`` of ledger history — i.e. recurring
@@ -673,7 +702,8 @@ def recurring_charges(months: int = 6) -> dict:
     Returns ``{"items": [...], "committed_monthly_total": ...}`` — each item
     is ``{merchant, amount, cadence, category, last_seen, occurrences,
     price_creep, price_creep_delta}``, sorted by monthly-equivalent spend
-    descending. ``price_creep`` flags a >=3% rise on the most recent charge
+    descending. ``amount`` is the latest charge; detection uses the trailing
+    consistent streak (see :func:`_recurring_streak`). ``price_creep`` flags a >=3% rise on the most recent charge
     vs. the one before it.
     """
     window = available_months()[-months:] if months else available_months()
@@ -688,23 +718,22 @@ def recurring_charges(months: int = 6) -> dict:
     for rows in by_merchant.values():
         if len(rows) < 2:
             continue
-        rows = sorted(rows, key=lambda e: e.date)
-        intervals = [(rows[i].date - rows[i - 1].date).days for i in range(1, len(rows))]
-        cadence = _classify_cadence(intervals)
-        if cadence is None or len(rows) < _MIN_OCCURRENCES_BY_CADENCE.get(cadence, 2):
+        found = _recurring_streak(sorted(rows, key=lambda e: e.date))
+        if found is None:
             continue
-        amounts = [r.amount for r in rows]
-        avg_amount = sum(amounts) / len(amounts)
-        if avg_amount <= 0 or (max(amounts) - min(amounts)) / avg_amount > _RECURRING_AMOUNT_SPREAD_MAX:
-            continue
+        rows, cadence = found
 
         last, prev = rows[-1], rows[-2]
         price_creep = last.amount > prev.amount * (1 + _PRICE_CREEP_THRESHOLD)
-        monthly_equivalent = avg_amount * _CADENCE_MONTHLY_FACTOR[cadence]
+        # The committed amount is the *current* price (what the next charge
+        # will be), not the streak average — otherwise a raised subscription
+        # (Netflix 19.99 -> 21.99) kept showing the old blended figure, and the
+        # price-creep alert's "now X€" quoted the average.
+        monthly_equivalent = last.amount * _CADENCE_MONTHLY_FACTOR[cadence]
         committed_monthly_total += monthly_equivalent
         items.append({
             "merchant": last.description.strip(),
-            "amount": round(avg_amount, 2),
+            "amount": round(last.amount, 2),
             "cadence": cadence,
             "category": last.category,
             "last_seen": last.date.isoformat(),

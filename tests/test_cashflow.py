@@ -447,3 +447,43 @@ def test_alerts_empty_when_nothing_flagged():
     cashflow.set_account("Giro", 50000)  # ample runway so it can't trip the runway alert
     cashflow.add_entries(month_entries("2026-07", 2000, 500))
     assert cashflow.alerts("2026-07") == []
+
+
+def _sub(d: str, amount: float, description: str) -> cashflow.CashflowEntry:
+    return make_entry(date=date.fromisoformat(d), amount=amount,
+                      category="Subscriptions", description=description)
+
+
+def test_recurring_amount_is_latest_price():
+    """A raised subscription shows its current price, not the blended average."""
+    cashflow.add_entries([
+        _sub("2026-08-17", 19.99, "Netflix"), _sub("2026-09-15", 19.99, "Netflix"),
+        _sub("2026-10-15", 21.99, "Netflix"),
+    ])
+    item = cashflow.recurring_charges()["items"][0]
+    assert item["amount"] == 21.99
+    assert item["price_creep"] and item["price_creep_delta"] == 2.0
+    assert cashflow.recurring_charges()["committed_monthly_total"] == 21.99
+
+
+def test_recurring_survives_plan_change():
+    """Old plan + one odd gap must not hide the new, consistent streak."""
+    cashflow.add_entries([
+        _sub("2026-08-13", 21.42, "Anthropic Claude"), _sub("2026-09-13", 21.42, "Anthropic Claude"),
+        _sub("2026-10-03", 99.91, "Anthropic Claude"), _sub("2026-11-03", 107.10, "Anthropic Claude"),
+    ])
+    items = cashflow.recurring_charges()["items"]
+    assert len(items) == 1
+    assert items[0]["cadence"] == "monthly"
+    assert items[0]["amount"] == 107.10
+    assert items[0]["occurrences"] == 2
+
+
+def test_weekly_tail_of_irregular_history_is_not_recurring():
+    cashflow.add_entries([
+        make_entry(date=date(2026, 9, 2), amount=12.0, category="Dining", description="Bakery"),
+        make_entry(date=date(2026, 9, 20), amount=14.0, category="Dining", description="Bakery"),
+        make_entry(date=date(2026, 9, 27), amount=14.0, category="Dining", description="Bakery"),
+        make_entry(date=date(2026, 10, 4), amount=14.5, category="Dining", description="Bakery"),
+    ])
+    assert cashflow.recurring_charges()["items"] == []
